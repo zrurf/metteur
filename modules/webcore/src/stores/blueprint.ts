@@ -233,6 +233,8 @@ export const useBlueprintStore = defineStore('blueprint', () => {
    *  compares its live graph against this to decide the unsaved marker, so a
    *  cached-but-edited file stays dirty when you switch tabs and come back. */
   const savedKeys = ref<Record<string, string>>({})
+  const saveErrors = ref<Record<string, string>>({})
+  const saving = ref<Record<string, boolean>>({})
   /** Stable blueprint UUID per file path, persisted into the file itself. */
   const ids = ref<Record<string, string>>({})
   const currentFile = ref('')
@@ -308,7 +310,7 @@ export const useBlueprintStore = defineStore('blueprint', () => {
       edges.value = graph.edges
     }
     loaded.value = true
-    saved.value = true
+    saved.value = !saveErrors.value[filePath] && keyFor(nodes.value, edges.value) === savedKeys.value[filePath]
   }
 
   /** Persist the currently open graph (the one keyed by `filePath`): write the
@@ -319,33 +321,48 @@ export const useBlueprintStore = defineStore('blueprint', () => {
    *  The on-disk file is the source of truth for the dirty baseline: it is
    *  updated as soon as the file write succeeds, even if the daemon mirror
    *  fails, so a successful save never leaves a phantom unsaved dot. */
-  async function save(path: string, filePath: string): Promise<boolean> {
+  async function save(path: string, filePath: string, entryNodeId?: string): Promise<boolean> {
+    if (saving.value[filePath]) return false
     const id = ids.value[filePath]
-    if (!id) return false
+    if (!id) {
+      saveErrors.value[filePath] = 'Blueprint is not loaded. Save and run are unavailable.'
+      return false
+    }
     const graph: GraphData = {
       id,
       nodes: nodes.value,
       edges: edges.value,
     }
     graphs.value[filePath] = graph
-    const blueprint: Blueprint = {
+    // Both writes use one immutable snapshot; edits made while awaiting I/O
+    // must neither change the mirror nor become the saved dirty baseline.
+    const blueprint: Blueprint = JSON.parse(JSON.stringify({
       id,
       name: fileNameOf(filePath),
-      entryNodeId: nodes.value[0]?.id,
+      entryNodeId: entryNodeId ?? nodes.value.find((n) => n.type === 'Start')?.id ?? nodes.value[0]?.id,
       nodes: nodes.value,
       edges: edges.value,
-    }
-    const file = await gateway.writeFile(path, filePath, JSON.stringify(blueprint, null, 2))
-    if (file.ok) {
-      saved.value = true
-      savedKeys.value[filePath] = keyFor(nodes.value, edges.value)
-    }
+    }))
+    const snapshotKey = keyFor(blueprint.nodes, blueprint.edges)
+    saving.value[filePath] = true
+    saved.value = false
+    let fileWritten = false
     try {
-      await gateway.saveBlueprint(path, blueprint)
-    } catch {
-      // Daemon mirror failures are non-fatal for the editor.
+      const file = await gateway.writeFile(path, filePath, JSON.stringify(blueprint, null, 2))
+      if (!file.ok) throw new Error(file.error)
+      fileWritten = true
+      savedKeys.value[filePath] = snapshotKey
+      const mirror = await gateway.saveBlueprint(path, blueprint)
+      if (!mirror.ok) throw new Error(mirror.error)
+      delete saveErrors.value[filePath]
+      saved.value = currentFile.value === filePath && keyFor(nodes.value, edges.value) === snapshotKey
+      return true
+    } catch (error) {
+      saveErrors.value[filePath] = `${fileWritten ? 'File saved, but daemon mirror is not synchronized' : 'File save failed'}: ${error instanceof Error ? error.message : String(error)}. Run is blocked; retry saving.`
+      return false
+    } finally {
+      saving.value[filePath] = false
     }
-    return file.ok
   }
 
   function select(id: string | null) {
@@ -368,6 +385,8 @@ export const useBlueprintStore = defineStore('blueprint', () => {
     functions,
     graphs,
     savedKeys,
+    saveErrors,
+    saving,
     ids,
     byId,
     currentFile,

@@ -1,6 +1,6 @@
 //! RPC-level regression tests: the next request must use the restored model
 //! state, not the discarded transcript or a late running-turn finalizer.
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use metteur_daemon::chat::session::load_thread;
@@ -25,7 +25,7 @@ async fn setup() -> (DaemonService, Arc<AppState>, PathBuf) {
 }
 
 fn request(
-    root: &PathBuf,
+    root: &Path,
     session: &str,
     message: &str,
     options: serde_json::Value,
@@ -41,7 +41,7 @@ fn request(
 
 async fn turn(
     service: &DaemonService,
-    root: &PathBuf,
+    root: &Path,
     session: &str,
     message: &str,
     options: serde_json::Value,
@@ -166,8 +166,7 @@ async fn rewind_waits_for_active_turn_and_late_finalize_cannot_resurrect_it() {
         }),
     )
     .await
-    .err()
-    .expect("a blueprint must not enter a running chat's workspace");
+    .expect_err("a blueprint must not enter a running chat's workspace");
     assert_eq!(error.code(), tonic::Code::FailedPrecondition);
     Daemon::rewind_chat(
         &service,

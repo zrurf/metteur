@@ -74,7 +74,7 @@ fn process_alive(pid: u32) -> bool {
     {
         // Sending signal 0 checks for process existence without delivering a
         // signal.
-        unsafe { libc_kill(pid, 0) == 0 }
+        libc_kill(pid, 0) == 0
     }
 }
 

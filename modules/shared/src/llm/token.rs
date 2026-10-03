@@ -110,7 +110,9 @@ pub fn estimate_message(message: &super::Message) -> u64 {
             ContentBlock::Text(text) => estimate_tokens(text),
             // Thinking text is replayed on every subsequent request, so it
             // occupies context whether or not the provider bills it.
-            ContentBlock::Thinking { text, .. } => estimate_tokens(text),
+            ContentBlock::Thinking { text, signature } => {
+                estimate_tokens(text) + signature.as_deref().map(estimate_tokens).unwrap_or(0)
+            }
             // The signed blob is opaque base64 but is still sent back verbatim.
             ContentBlock::RedactedThinking { data } => estimate_tokens(data),
         };

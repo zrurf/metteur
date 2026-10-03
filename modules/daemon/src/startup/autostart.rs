@@ -8,7 +8,9 @@
 
 use std::path::PathBuf;
 
-use crate::error::{DaemonError, DaemonResult};
+use crate::error::DaemonResult;
+#[cfg(not(any(target_os = "linux", target_os = "macos")))]
+use crate::error::DaemonError;
 
 /// The name used for the autostart entry on every platform.
 pub const ENTRY_NAME: &str = "metteurd";
@@ -85,6 +87,7 @@ pub fn is_installed() -> bool {
 }
 
 /// Builds the command-line string stored in the Windows `Run` value.
+#[cfg(any(target_os = "windows", test))]
 fn windows_command_line(env: &AutostartEnv) -> String {
     let mut cmd = format!("\"{}\" --passive", env.exe.display());
     cmd.push_str(&flag_arg("--config", env.config.as_deref()));

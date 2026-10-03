@@ -62,15 +62,15 @@ async fn wait_for_wake_unix(path: &PathBuf) -> DaemonResult<()> {
     use tokio::net::UnixListener;
 
     if path.exists() {
-        std::fs::remove_file(path).map_err(|e| DaemonError::Io(e))?;
+        std::fs::remove_file(path).map_err(DaemonError::Io)?;
     }
-    let listener = UnixListener::bind(path).map_err(|e| DaemonError::Io(e))?;
+    let listener = UnixListener::bind(path).map_err(DaemonError::Io)?;
     tracing::info!("waiting for wake on {}", path.display());
 
     loop {
-        let (mut stream, _) = listener.accept().await.map_err(|e| DaemonError::Io(e))?;
+        let (mut stream, _) = listener.accept().await.map_err(DaemonError::Io)?;
         let mut buf = [0u8; 64];
-        let n = stream.read(&mut buf).await.map_err(|e| DaemonError::Io(e))?;
+        let n = stream.read(&mut buf).await.map_err(DaemonError::Io)?;
         let cmd = String::from_utf8_lossy(&buf[..n]).trim().to_string();
         if cmd == "WAKE" {
             let _ = stream.write_all(b"OK").await;

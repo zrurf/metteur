@@ -82,6 +82,7 @@ pub fn install_service(cli: &Cli) -> DaemonResult<()> {
     }
     #[cfg(not(windows))]
     {
+        let _ = cli;
         Err(DaemonError::Internal(
             "registering a Windows service is only supported on Windows".to_string(),
         ))
@@ -410,7 +411,7 @@ fn to_wide(value: &str) -> Vec<u16> {
     value.encode_utf16().chain(std::iter::once(0)).collect()
 }
 
-#[cfg(test)]
+#[cfg(all(test, windows))]
 mod tests {
     use super::*;
 

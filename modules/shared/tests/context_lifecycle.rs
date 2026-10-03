@@ -234,6 +234,26 @@ fn text_content_excludes_thinking() {
 }
 
 #[test]
+fn thinking_signatures_survive_roundtrip_and_are_counted_once() {
+    for signature in [None, Some(String::new()), Some("abcd".into()), Some("x".repeat(4096))] {
+        let mut message = assistant_with_call("call_1", "ReadFile");
+        let unsigned = estimate_message(&message);
+        message.content.push(ContentBlock::Thinking { text: "reason".into(), signature: signature.clone() });
+        message.content.push(ContentBlock::RedactedThinking { data: "opaque".into() });
+        let expected = unsigned + estimate_tokens("reason") + estimate_tokens("opaque")
+            + signature.as_deref().map(estimate_tokens).unwrap_or(0);
+        let wire = serde_json::to_string(&message).unwrap();
+        let replay: Message = serde_json::from_str(&wire).unwrap();
+        assert_eq!(serde_json::to_string(&replay).unwrap(), wire);
+        assert_eq!(estimate_message(&replay), expected);
+        let mut context = ContextManager::default();
+        context.push_message(replay.clone());
+        context.push_message(replay);
+        assert_eq!(estimate_context_tokens(&context), expected * 2);
+    }
+}
+
+#[test]
 fn usage_cache_breakdown_is_consistent() {
     let usage = metteur_shared::Usage {
         input_tokens: 1000,

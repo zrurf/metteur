@@ -1265,9 +1265,10 @@ function onPaneContextMenu(ev: MouseEvent) {
   menu.value = { kind: 'palette', x: ev.clientX, y: ev.clientY }
 }
 
-async function handleSave() {
+async function handleSave(): Promise<boolean> {
   const ws = workspace.active
-  if (!ws) return
+  const file = fileKey.value
+  if (!ws || store.saving[file]) return false
   store.nodes = flowNodes.value.map(toBpNode)
   store.edges = flowEdges.value.map((e) => ({
     id: e.id,
@@ -1277,21 +1278,29 @@ async function handleSave() {
     targetHandle: e.targetHandle ?? undefined,
     label: typeof e.label === 'string' ? e.label : undefined,
   }))
-  if (await store.save(ws.path, fileKey.value)) {
+  const ok = await store.save(ws.path, file, entryNodeIdOf())
+  if (workspace.active?.path === ws.path && fileKey.value === file) {
     // Recompute against the fresh baseline instead of forcing false, so the
     // dot and the baseline can never disagree.
     dirty.value = graphKey() !== savedBaseline.value
     if (props.filePath) tabs.markDirty(props.filePath, dirty.value)
   }
+  if (!ok) feedback.toast('error', 'Blueprint not synchronized', store.saveErrors[file])
+  return ok
 }
 
 async function handleRun() {
   const ws = workspace.active
   if (!ws) return
-  // Persist the canvas first so a later reload sees it, then run the in-memory
-  // graph. The graph is handed to the daemon directly, so a failed mirror
-  // cannot make Run execute a stale blueprint.
-  await handleSave()
+  const file = fileKey.value
+  const key = graphKey()
+  // A failed file write or mirror must stop Run, with the draft left intact.
+  if (!await handleSave()) return
+  if (workspace.active?.path !== ws.path || fileKey.value !== file) return
+  if (graphKey() !== key) {
+    store.saveErrors[file] = 'The graph changed while saving. Save again before running.'
+    return
+  }
   const id = store.uuidFor(fileKey.value) ?? uuid()
   const blueprint: Blueprint = {
     id,
@@ -1414,6 +1423,7 @@ function openVersionPanel() {
 
 <template>
   <div class="flex h-full flex-col">
+    <p v-if="store.saveErrors[fileKey]" role="alert" data-testid="blueprint-save-error" class="border-b border-divider px-3 py-2 text-xs text-danger">{{ store.saveErrors[fileKey] }}</p>
     <p v-if="store.catalogMessage" data-testid="node-catalog-status" class="border-b border-divider px-3 py-2 text-xs text-muted-foreground">{{ store.catalogMessage }}</p>
     <!-- Editor toolbar -->
     <div class="flex h-11 shrink-0 items-center gap-2 border-b border-divider px-3">
@@ -1494,7 +1504,7 @@ function openVersionPanel() {
         >
           <GitBranch class="h-4 w-4" />
         </button>
-        <button class="editor-tool-icon" type="button" title="Save (Ctrl+S)" aria-label="Save" @click="handleSave">
+        <button class="editor-tool-icon" type="button" title="Save (Ctrl+S)" aria-label="Save" :disabled="store.saving[fileKey]" @click="handleSave">
           <Save class="h-4 w-4" />
         </button>
         <button
@@ -1530,6 +1540,7 @@ function openVersionPanel() {
           type="button"
           title="Run (Ctrl+Enter)"
           aria-label="Run"
+          :disabled="store.saving[fileKey]"
           style="background: var(--primary)"
           @click="handleRun"
         >

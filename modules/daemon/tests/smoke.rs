@@ -2465,6 +2465,28 @@ mod -> e
 }
 
 #[tokio::test]
+async fn rejected_blueprint_mirror_preserves_the_previous_graph() {
+    let (mut client, workspace) = start_server(metteur_shared::config::Config::default()).await;
+    let ws_path = workspace.to_string_lossy().to_string();
+    client.open_workspace(OpenWorkspaceRequest { path: ws_path.clone() }).await.unwrap();
+    let compiled = client.compile_dsl(CompileDslRequest {
+        source: "blueprint \"Saved\"\nentry start: Start\ne: End\nstart -> e\n".into(),
+    }).await.unwrap().into_inner();
+    client.save_blueprint(SaveBlueprintRequest {
+        workspace_path: ws_path.clone(), blueprint: Some(compiled.clone()),
+    }).await.unwrap();
+    let load = proto::LoadBlueprintRequest { workspace_path: ws_path.clone(), blueprint_id: compiled.id.clone() };
+    let before = client.load_blueprint(load.clone()).await.unwrap().into_inner();
+    let mut invalid = compiled;
+    invalid.entry_node_id = uuid::Uuid::new_v4().to_string();
+    assert!(client.save_blueprint(SaveBlueprintRequest {
+        workspace_path: ws_path, blueprint: Some(invalid),
+    }).await.is_err());
+    let after = client.load_blueprint(load).await.unwrap().into_inner();
+    assert_eq!(before, after);
+}
+
+#[tokio::test]
 async fn smoke_full_pipeline() {
     let (mut client, workspace) = start_server(metteur_shared::config::Config::default()).await;
     let ws_path = workspace.to_string_lossy().to_string();
