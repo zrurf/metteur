@@ -15,6 +15,7 @@ pub mod harness;
 pub mod integration;
 pub mod llm;
 pub mod observability;
+pub mod oversight;
 pub mod registry;
 pub mod replan;
 pub mod sandbox;

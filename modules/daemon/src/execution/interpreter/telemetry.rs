@@ -3,10 +3,10 @@
 use metteur_shared::Node;
 
 use crate::execution::context::ExecutionContext;
-use crate::execution::tree::{TreeOp, TreeNodeKind, TreeNodeStatus};
+use crate::execution::tree::{TreeNodeKind, TreeNodeStatus, TreeOp};
 
-use super::checkpointing::now_millis;
 use super::Interpreter;
+use super::checkpointing::now_millis;
 
 impl Interpreter {
     /// Records the start of a node execution in the execution tree.
@@ -18,6 +18,9 @@ impl Interpreter {
             node.kind.clone(),
             now_millis(),
         );
+        if let Some(record) = self.view.invocations.last_mut() {
+            record.tree_id = Some(id.clone());
+        }
         self.current_tree = Some(id);
     }
 

@@ -396,6 +396,9 @@ fn parse_usage(u: &Json) -> Usage {
     let cached =
         u.pointer("/input_tokens_details/cached_tokens").and_then(|v| v.as_u64()).unwrap_or(0);
     Usage {
+        tokens_reported: u.get("input_tokens").and_then(|v| v.as_u64()).is_some()
+            && u.get("output_tokens").and_then(|v| v.as_u64()).is_some(),
+        cache_read_reported: u.pointer("/input_tokens_details/cached_tokens").and_then(|v| v.as_u64()).is_some(),
         input_tokens: input,
         output_tokens: output,
         reasoning_tokens: reasoning,
@@ -511,4 +514,13 @@ mod tests {
         let body = client.build_body(&ctx, &params, &[]);
         assert_eq!(body["reasoning"]["effort"], "high");
     }
+    #[test]
+    fn usage_distinguishes_missing_cache_from_zero() {
+        let mut raw = json!({"input_tokens": 100, "output_tokens": 10});
+        assert_eq!(parse_usage(&raw).cache_hit_rate(), None);
+        raw["input_tokens_details"] = json!({"cached_tokens": 0});
+        assert_eq!(parse_usage(&raw).cache_hit_rate(), Some(0.0));
+        assert_eq!(parse_usage(&json!({})).cache_hit_rate(), None);
+    }
+
 }

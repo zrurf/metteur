@@ -249,41 +249,53 @@ pub fn audit(list: &AuditLogList) -> String {
 
 /// Renders a usage summary: a per-model table plus total cost.
 pub fn usage(summary: &UsageSummary) -> String {
+    if !summary.oversight_json.is_empty() {
+        let mut execution = summary.clone();
+        execution.oversight_json.clear();
+        let historical = serde_json::from_str::<serde_json::Value>(&summary.oversight_json)
+            .ok().is_some_and(|value| value["calls"].as_array().is_some_and(|calls|
+                calls.iter().any(|c| c["accounting_version"].as_u64() != Some(1))));
+        return format!("{}\noversight: {}{}", usage(&execution), compact_json(&summary.oversight_json),
+            if historical { "\nHistorical accounting: original oversight budget charges are retained; legacy costs may include reasoning twice." } else { "" });
+    }
     if summary.models.is_empty() {
         return "(no usage recorded)".to_string();
     }
     let mut out = String::from(
-        "MODEL                            CALLS         INPUT        CACHED       OUTPUT    REASONING          COST\n",
+        "MODEL                            CALLS         INPUT        CACHED       OUTPUT    REASONING     EST. COST\n",
     );
     for model in &summary.models {
         // The hit rate is the signal users tune prompts for; show the share of
         // input served from cache next to the raw count.
-        let cached = if model.input_tokens > 0 {
+        let cached = if model.tokens_complete && model.cache_complete && model.input_tokens > 0 {
             format!(
                 "{} ({:.0}%)",
                 model.cached_input_tokens,
                 model.cached_input_tokens as f64 / model.input_tokens as f64 * 100.0
             )
         } else {
-            model.cached_input_tokens.to_string()
+            "Unavailable".to_string()
         };
+        let tokens = |value: u64| if model.tokens_complete { value.to_string() } else { "Unavailable".into() };
         out.push_str(&format!(
             "{:<32} {:>5} {:>13} {:>13} {:>13} {:>13}  {:>10}\n",
             model.model,
             model.calls,
-            model.input_tokens,
+            tokens(model.input_tokens),
             cached,
-            model.output_tokens,
-            model.reasoning_tokens,
-            micros(model.cost_micros)
+            tokens(model.output_tokens),
+            tokens(model.reasoning_tokens),
+            if model.cost_complete { micros(model.cost_micros) } else { "Unavailable".into() }
         ));
     }
-    out.push_str(&format!(
-        "total cost: {} micros {} ({})",
-        summary.total_cost_micros,
-        summary.currency,
-        micros(summary.total_cost_micros)
-    ));
+    if summary.models.iter().all(|m| m.cost_complete) {
+        out.push_str(&format!(
+            "estimated total cost: {} micros {} ({})",
+            summary.total_cost_micros, summary.currency, micros(summary.total_cost_micros)
+        ));
+    } else {
+        out.push_str("estimated total cost: Unavailable");
+    }
     out
 }
 
@@ -295,6 +307,7 @@ pub fn mcp_servers(list: &McpServerList) -> String {
     let mut out = String::new();
     for server in &list.servers {
         out.push_str(&format!("{}  {}  tools={}", server.name, server.status, server.tool_count));
+        if !server.owner.is_empty() {out.push_str(&format!("  addon={}  scope={}",server.owner,if server.scope_root.is_empty(){"global"}else{&server.scope_root}));}
         if !server.error.is_empty() {
             out.push_str(&format!("  error: {}", server.error));
         }
@@ -304,6 +317,24 @@ pub fn mcp_servers(list: &McpServerList) -> String {
 }
 
 /// Pretty-prints JSON text, falling back to the raw string.
+pub fn oversight_reports(text: &str) -> String {
+    let Ok(mut value) = serde_json::from_str::<serde_json::Value>(text) else {
+        return pretty_json(text);
+    };
+    fn legacy(record: &mut serde_json::Value, state: &str) {
+        if matches!(record[state].as_str(), Some("failed" | "timed_out" | "budget_exhausted" | "cancelled" | "rejected" | "closed_unhandled")) && record["diagnostic"].is_null() {
+            record["diagnostic"] = serde_json::json!({"category":"unknown_legacy","stage":"unknown","message":"Unknown legacy: no failure category was recorded."});
+        }
+    }
+    for report in value.get_mut("reports").and_then(serde_json::Value::as_array_mut).into_iter().flatten() {
+        legacy(report, "status");
+        for proposal in report.get_mut("proposals").and_then(serde_json::Value::as_array_mut).into_iter().flatten() {
+            legacy(proposal, "state");
+        }
+    }
+    serde_json::to_string_pretty(&value).unwrap_or_else(|_| text.to_string())
+}
+
 pub fn pretty_json(text: &str) -> String {
     match serde_json::from_str::<serde_json::Value>(text) {
         Ok(value) => serde_json::to_string_pretty(&value).unwrap_or_else(|_| text.to_string()),
@@ -332,9 +363,18 @@ pub fn addons(list: &metteur_proto::proto::AddonList) -> String {
             addon.fragment_count
         ));
         if !addon.required_permissions.is_empty() {
-            out.push_str(&format!("  perms={}", addon.required_permissions.join(",")));
+            out.push_str(&format!("  required={}", addon.required_permissions.join(",")));
         }
+        out.push_str(&format!("  granted={}  status={}",
+            if addon.granted_permissions.is_empty() { "none".into() } else { addon.granted_permissions.join(",") },
+            if addon.status.is_empty() { "Unknown" } else { &addon.status }));
+        if !addon.scope_root.is_empty() { out.push_str(&format!("  workspace={}",addon.scope_root)); }
+        if !addon.fingerprint.is_empty() { out.push_str(&format!("  fingerprint={}",addon.fingerprint)); }
+        if !addon.error.is_empty() { out.push_str(&format!("  error={}",addon.error)); }
         out.push('\n');
+        for hook in &addon.hooks {
+            out.push_str(&format!("  hook {} {}: {} completed={} failed={} workspace={} event={}{}\n",hook.name,hook.event,hook.status,hook.completed,hook.failed,hook.scope_root,hook.event_id,if hook.error.is_empty(){String::new()}else{format!(" error={}",hook.error)}));
+        }
     }
     out.trim_end().to_string()
 }
@@ -414,10 +454,14 @@ mod tests {
 
     fn fixture_summary() -> UsageSummary {
         UsageSummary {
+            oversight_json: String::new(),
             currency: "USD".to_string(),
             total_cost_micros: 12_750_500,
             models: vec![
                 ModelUsage {
+                    tokens_complete: true,
+                    cache_complete: true,
+                    cost_complete: true,
                     model: "gpt-5".to_string(),
                     calls: 3,
                     input_tokens: 1_000,
@@ -427,6 +471,9 @@ mod tests {
                     ..Default::default()
                 },
                 ModelUsage {
+                    tokens_complete: true,
+                    cache_complete: true,
+                    cost_complete: true,
                     model: "claude-haiku".to_string(),
                     calls: 1,
                     input_tokens: 50,
@@ -451,8 +498,20 @@ mod tests {
     }
 
     #[test]
+    fn usage_missing_coverage_is_unavailable() {
+        let mut summary = fixture_summary();
+        summary.models[0].tokens_complete = false;
+        summary.models[0].cache_complete = false;
+        summary.models[0].cost_complete = false;
+        let text = usage(&summary);
+        assert!(text.contains("estimated total cost: Unavailable"));
+        assert!(!text.contains("10.000000"));
+    }
+
+    #[test]
     fn usage_without_models_is_reported() {
         let summary = UsageSummary {
+            oversight_json: String::new(),
             currency: "USD".to_string(),
             total_cost_micros: 0,
             models: vec![],
@@ -489,5 +548,18 @@ mod tests {
                 .unwrap(),
             "1970-01-01 00:00:00"
         );
+    }
+
+    #[test]
+    fn addon_listing_distinguishes_owners_grants_and_failed_admission() {
+        let entries=[("/a","Loaded",true),("/b","Failed",false)].map(|(root,status,enabled)|metteur_proto::proto::AddonInfo {
+            id:"com.test.same".into(),scope:"workspace".into(),scope_root:root.into(),status:status.into(),enabled,
+            required_permissions:vec!["fs:read".into()],granted_permissions:if enabled {vec!["fs:read".into()]}else{vec![]},
+            error:if enabled {String::new()}else{"Package fingerprint changed".into()},..Default::default()
+        });
+        let text=addons(&metteur_proto::proto::AddonList {addons:entries.into()});
+        assert!(text.contains("workspace=/a") && text.contains("workspace=/b"));
+        assert!(text.contains("granted=none  status=Failed"));
+        assert!(text.contains("required=fs:read") && text.contains("Package fingerprint changed"));
     }
 }

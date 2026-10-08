@@ -10,13 +10,19 @@ use serde::{Deserialize, Serialize};
 /// normalizes to this single convention (see the provider modules).
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Usage {
+    /// Whether the provider explicitly reported complete normalized token totals.
+    #[serde(default)]
+    pub tokens_reported: bool,
+    /// Whether cache reads were explicitly reported, including a confirmed zero.
+    #[serde(default)]
+    pub cache_read_reported: bool,
     /// Tokens consumed by the input (cache reads and writes included).
     pub input_tokens: u64,
-    /// Tokens produced as output.
+    /// Total output tokens, including reasoning tokens.
     pub output_tokens: u64,
-    /// Reasoning tokens (only reported by some models).
+    /// Reasoning detail already included in output (only reported by some models).
     pub reasoning_tokens: u64,
-    /// Total tokens consumed.
+    /// Input plus output tokens, without adding cache or reasoning details again.
     pub total_tokens: u64,
     /// Input tokens served from the provider's prompt cache.
     #[serde(default)]
@@ -29,7 +35,11 @@ pub struct Usage {
 impl Usage {
     /// Cache-hit ratio over the input, or `None` when nothing was reportable.
     pub fn cache_hit_rate(&self) -> Option<f64> {
-        if self.input_tokens == 0 {
+        if !self.tokens_reported
+            || !self.cache_read_reported
+            || self.input_tokens == 0
+            || self.cached_input_tokens > self.input_tokens
+        {
             return None;
         }
         Some(self.cached_input_tokens as f64 / self.input_tokens as f64)
@@ -44,6 +54,9 @@ impl Usage {
 
     /// Accumulates another usage into this one.
     pub fn add(&mut self, other: &Usage) {
+        // An unknown operand cannot become complete by adding known counters.
+        self.tokens_reported &= other.tokens_reported;
+        self.cache_read_reported &= other.cache_read_reported;
         self.input_tokens += other.input_tokens;
         self.output_tokens += other.output_tokens;
         self.reasoning_tokens += other.reasoning_tokens;

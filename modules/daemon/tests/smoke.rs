@@ -650,7 +650,9 @@ async fn smoke_completed_run_cannot_continue() {
         .unwrap();
     let blueprint = build_blueprint();
     client
-        .save_blueprint(SaveBlueprintRequest { file_path: format!("blueprints/{}.blueprint", uuid::Uuid::new_v4()), file_json: String::new(),
+        .save_blueprint(SaveBlueprintRequest {
+            file_path: format!("blueprints/{}.blueprint", uuid::Uuid::new_v4()),
+            file_json: String::new(),
             workspace_path: ws_path.clone(),
             blueprint: Some(blueprint.clone()),
         })
@@ -680,6 +682,17 @@ async fn smoke_completed_run_cannot_continue() {
         .into_inner();
     assert_eq!(list.executions.len(), 1);
     assert_eq!(list.executions[0].status, "Completed");
+    let facts: serde_json::Value = serde_json::from_str(&list.executions[0].data_json).unwrap();
+    assert_eq!(facts["view"]["root"]["id"], blueprint.id);
+    assert_eq!(facts["runtime"]["active"], false);
+    let invocations = facts["view"]["invocations"].as_array().unwrap();
+    assert!(!invocations.is_empty());
+    assert!(invocations.iter().all(|i| i["status"] == "Completed"));
+    assert!(invocations.iter().all(|i| i["version"] == facts["blueprint_version"]));
+    let again = client.list_executions(ListExecutionsRequest { workspace_path: ws_path.clone() })
+        .await.unwrap().into_inner();
+    assert_eq!(again.executions.len(), 1);
+    assert_eq!(again.executions[0].data_json, list.executions[0].data_json);
 
     // Continuing a completed run is rejected.
     let err = client
@@ -703,9 +716,11 @@ async fn smoke_cancel_marks_run_cancelled() {
         })
         .await
         .unwrap();
-    let blueprint = build_cancel_blueprint(300);
+    let blueprint = build_cancel_blueprint(3000);
     client
-        .save_blueprint(SaveBlueprintRequest { file_path: format!("blueprints/{}.blueprint", uuid::Uuid::new_v4()), file_json: String::new(),
+        .save_blueprint(SaveBlueprintRequest {
+            file_path: format!("blueprints/{}.blueprint", uuid::Uuid::new_v4()),
+            file_json: String::new(),
             workspace_path: ws_path.clone(),
             blueprint: Some(blueprint.clone()),
         })
@@ -722,10 +737,29 @@ async fn smoke_cancel_marks_run_cancelled() {
         .unwrap()
         .into_inner();
 
-    // Let the run start, then cancel it while the mock LLM call is pending.
-    tokio::time::sleep(Duration::from_millis(50)).await;
+    // The stream identifies its run before controls can target it.
+    let first = stream.message().await.unwrap().unwrap();
+    let envelope: serde_json::Value = serde_json::from_str(&first.detail_json).unwrap();
+    let run_id = envelope["run_id"].as_str().unwrap().to_string();
+    assert_eq!(envelope["sequence"], 1);
+    assert!(envelope["stream_id"].as_str().is_some());
+    let stale = uuid::Uuid::new_v4().to_string();
+    assert_eq!(client.pause_execution(proto::PauseRequest { workspace_path: ws_path.clone(), run_id: stale.clone() })
+        .await.unwrap_err().code(), tonic::Code::FailedPrecondition);
+    assert_eq!(client.resume_execution(proto::ResumeRequest { workspace_path: ws_path.clone(), run_id: stale.clone() })
+        .await.unwrap_err().code(), tonic::Code::FailedPrecondition);
+    assert_eq!(client.cancel_execution(CancelRequest { workspace_path: ws_path.clone(), run_id: stale })
+        .await.unwrap_err().code(), tonic::Code::FailedPrecondition);
+    client.pause_execution(proto::PauseRequest { workspace_path: ws_path.clone(), run_id: run_id.clone() }).await.unwrap();
+    let listed = client.list_executions(ListExecutionsRequest { workspace_path: ws_path.clone() }).await.unwrap().into_inner();
+    let facts: serde_json::Value = serde_json::from_str(&listed.executions[0].data_json).unwrap();
+    assert_eq!(facts["runtime"]["active"], true);
+    assert_eq!(facts["runtime"]["pause_requested"], true);
+    assert_eq!(facts["runtime"]["cancel_requested"], false);
+    client.resume_execution(proto::ResumeRequest { workspace_path: ws_path.clone(), run_id: run_id.clone() }).await.unwrap();
     client
         .cancel_execution(CancelRequest {
+            run_id,
             workspace_path: ws_path.clone(),
         })
         .await
@@ -1351,7 +1385,7 @@ async fn smoke_abstract_node_expands_and_runs() {
         .unwrap();
 
     // The registry must expose the Abstract kind.
-    let kinds = client.list_node_kinds(proto::Empty {}).await.unwrap().into_inner();
+    let kinds = client.list_node_kinds(proto::RegistryRequest::default()).await.unwrap().into_inner();
     assert!(kinds.kinds.iter().any(|k| k == "Abstract"));
 
     // Outer blueprint: Start -> Abstract(mock-planned sub-blueprint).
@@ -1443,7 +1477,143 @@ async fn smoke_abstract_node_expands_and_runs() {
     assert_eq!(written, "nested-ok");
 }
 
+#[tokio::test]
+async fn addon_rpc_discovery_and_management_keep_two_workspace_owners_separate() {
+    let (mut client,a)=start_server(Default::default()).await;
+    let b=a.join("second");std::fs::create_dir(&b).unwrap();
+    let ap=a.to_string_lossy().into_owned();let bp=b.to_string_lossy().into_owned();
+    for path in [&ap,&bp] {client.open_workspace(OpenWorkspaceRequest{path:path.clone()}).await.unwrap();}
+    let source=a.join("pkg");build_addon_package(&source,"com.test.scoped","Shout","run");
+    for workspace in [&ap,&bp] {
+        let info=client.install_addon(proto::InstallAddonRequest {package_path:source.to_string_lossy().into_owned(),workspace_path:workspace.clone(),granted_permissions:vec!["tools".into()]}).await.unwrap().into_inner();
+        assert_eq!(info.status,"Loaded");assert!(!info.scope_root.is_empty());assert!(!info.fingerprint.is_empty());
+    }
+    assert!(!client.list_tools(proto::RegistryRequest::default()).await.unwrap().into_inner().tools.iter().any(|t|t.name=="ComTestScopedShout"));
+    client.set_addon_enabled(proto::SetAddonEnabledRequest {id:"com.test.scoped".into(),workspace_path:ap.clone(),enabled:false}).await.unwrap();
+    for (workspace,present) in [(&ap,false),(&bp,true)] {
+        let tools=client.list_tools(proto::RegistryRequest {workspace_path:workspace.clone()}).await.unwrap().into_inner();
+        assert_eq!(tools.tools.iter().any(|t|t.name=="ComTestScopedShout"),present);
+        let infos=client.list_addons(proto::ListAddonsRequest {workspace_path:workspace.clone()}).await.unwrap().into_inner();
+        assert_eq!(infos.addons.len(),1);assert_eq!(infos.addons[0].enabled,present);
+    }
+    client.uninstall_addon(proto::UninstallAddonRequest{id:"com.test.scoped".into(),workspace_path:ap}).await.unwrap();
+    assert!(client.list_tools(proto::RegistryRequest {workspace_path:bp}).await.unwrap().into_inner().tools.iter().any(|t|t.name=="ComTestScopedShout"));
+}
+
+#[tokio::test]
+async fn addon_cli_install_requires_explicit_grants_instead_of_manifest_authority() {
+    use metteur_cli::commands::{parse,dispatch,SessionState};
+    let (mut client,root)=start_server(Default::default()).await;
+    let source=root.join("addon-cli");build_addon_package(&source,"com.test.cli","Shout","run");
+    let mut state=SessionState::default();
+    let command=format!("install {} global",source.display());
+    let denied=dispatch(&mut client,&mut state,parse(&command).unwrap()).await;
+    assert!(denied.is_err(),"CLI install implicitly granted manifest permissions");
+    assert!(!client.list_tools(proto::RegistryRequest::default()).await.unwrap().into_inner().tools.iter().any(|t|t.name=="ComTestCliShout"));
+    dispatch(&mut client,&mut state,parse(&format!("{command} --grant tools")).unwrap()).await.unwrap();
+    let info=client.list_addons(proto::ListAddonsRequest::default()).await.unwrap().into_inner();
+    assert_eq!(info.addons[0].granted_permissions,vec!["tools"]);
+    let manifest=std::fs::read_to_string(source.join("manifest.toml")).unwrap().replace("required = [\"tools\"]","required = [\"tools\", \"fs:read\"]");
+    std::fs::write(source.join("manifest.toml"),manifest).unwrap();
+    assert!(dispatch(&mut client,&mut state,parse(&format!("{command} --grant tools")).unwrap()).await.is_err());
+    dispatch(&mut client,&mut state,parse(&format!("{command} --grant tools --grant fs:read")).unwrap()).await.unwrap();
+}
+
 /// Builds a minimal addon package (manifest + WAT plugin) in `dir`.
+#[cfg(unix)]
+#[tokio::test]
+async fn addon_mcp_cli_scoped_install_discovery_execution_and_cleanup() {
+    use metteur_cli::commands::{parse,dispatch,SessionState,Outcome};
+    let (mut client,root)=start_server(Default::default()).await;
+    let ws=root.to_string_lossy().into_owned();
+    client.open_workspace(OpenWorkspaceRequest {path:ws.clone()}).await.unwrap();
+    let source=root.join("mcp-cli-source");std::fs::create_dir(&source).unwrap();
+    std::fs::write(source.join("server.py"),include_str!("../src/addon/test_mcp_server.py")).unwrap();
+    std::fs::write(source.join("manifest.toml"),format!(r#"id="com.test.cli"
+version="1.0.0"
+name="MCP CLI"
+[permissions]
+required=["process"]
+[[mcp]]
+name="Local"
+[mcp.server]
+transport="stdio"
+command=["/usr/bin/python3","${{package}}/server.py","cli","normal",{}]
+"#,serde_json::to_string(&root.join("mcp.pid").to_string_lossy()).unwrap())).unwrap();
+    let mut state=SessionState {current_ws:Some(ws.clone()),..Default::default()};
+    let install=format!("install {} ws",source.display());
+    assert!(dispatch(&mut client,&mut state,parse(&install).unwrap()).await.is_err());
+    dispatch(&mut client,&mut state,parse(&format!("{install} --grant process")).unwrap()).await.unwrap();
+    let Outcome::Printed(status)=dispatch(&mut client,&mut state,parse("mcp").unwrap()).await.unwrap() else {panic!("MCP output missing")};
+    assert!(status.contains("ComTestCliLocal  Connected"));assert!(status.contains("addon=com.test.cli"));assert!(status.contains(&ws));
+    assert!(client.list_tools(proto::RegistryRequest::default()).await.unwrap().into_inner().tools.iter().all(|t|t.name!="ComTestCliLocalReadValue"));
+    let start=uuid::Uuid::new_v4().to_string();let node=uuid::Uuid::new_v4().to_string();let out=uuid::Uuid::new_v4().to_string();let input=uuid::Uuid::new_v4().to_string();
+    let blueprint=proto::Blueprint {id:uuid::Uuid::new_v4().to_string(),name:"MCP invocation".into(),entry_node_id:start.clone(),nodes:vec![
+        proto::Node {id:start.clone(),node_type:"Event".into(),kind:"Start".into(),pins:vec![proto::Pin {id:out.clone(),name:"Exec".into(),pin_type:"ExecOutput".into(),data_type:"Void".into(),..Default::default()}],..Default::default()},
+        proto::Node {id:node.clone(),node_type:"Function".into(),kind:"Tool".into(),data_json:r#"{"tool_name":"ComTestCliLocalReadValue"}"#.into(),pins:vec![proto::Pin {id:input.clone(),name:"Exec".into(),pin_type:"ExecInput".into(),data_type:"Void".into(),..Default::default()},proto::Pin {id:uuid::Uuid::new_v4().to_string(),name:"Result".into(),pin_type:"DataOutput".into(),data_type:"String".into(),..Default::default()}],..Default::default()},
+    ],edges:vec![proto::Edge {id:uuid::Uuid::new_v4().to_string(),source_node:start,source_pin:out,target_node:node,target_pin:input}]};
+    client.save_blueprint(SaveBlueprintRequest {workspace_path:ws.clone(),blueprint:Some(blueprint.clone()),file_path:"blueprints/mcp.blueprint".into(),file_json:String::new()}).await.unwrap();
+    let mut stream=client.execute_blueprint(ExecuteBlueprintRequest {workspace_path:ws.clone(),blueprint_id:blueprint.id,blueprint_json:String::new()}).await.unwrap().into_inner();
+    while let Some(event)=stream.message().await.unwrap() {assert_ne!(event.kind,"error","{}",event.message);}
+    let runs=client.list_executions(ListExecutionsRequest {workspace_path:ws.clone()}).await.unwrap().into_inner();assert_eq!(runs.executions[0].status,"Completed");assert!(runs.executions[0].data_json.contains("cli:absent:False"));
+    dispatch(&mut client,&mut state,parse("addon com.test.cli off ws").unwrap()).await.unwrap();
+    assert!(!client.list_tools(proto::RegistryRequest {workspace_path:ws.clone()}).await.unwrap().into_inner().tools.iter().any(|t|t.name=="ComTestCliLocalReadValue"));
+    dispatch(&mut client,&mut state,parse("addon com.test.cli on ws").unwrap()).await.unwrap();
+    dispatch(&mut client,&mut state,parse("uninstall com.test.cli ws").unwrap()).await.unwrap();
+    assert!(client.list_mcp_servers(proto::RegistryRequest {workspace_path:ws}).await.unwrap().into_inner().servers.is_empty());
+}
+
+/// Builds a minimal addon package (manifest + WAT plugin) in `dir`.
+#[cfg(unix)]
+#[tokio::test]
+async fn addon_lsp_cli_install_saved_lsp_check_and_scoped_close() {
+    use metteur_cli::commands::{parse,dispatch,SessionState};
+    let (mut client,root)=start_server(Default::default()).await;
+    let ws=root.to_string_lossy().into_owned();
+    client.open_workspace(OpenWorkspaceRequest {path:ws.clone()}).await.unwrap();
+    let source=root.join("lsp-cli-source"); std::fs::create_dir(&source).unwrap();
+    std::fs::write(source.join("server.py"),include_str!("../src/addon/test_lsp_server.py")).unwrap();
+    std::fs::write(root.join("file.r09"),"valid").unwrap();
+    std::fs::write(source.join("manifest.toml"),format!(r#"id="com.test.lspcli"
+version="1.0.0"
+name="LSP CLI"
+[permissions]
+required=["process"]
+[[lsp]]
+name="Local"
+[lsp.language]
+id="fixture"
+extensions=["r09"]
+command=["/usr/bin/python3","${{package}}/server.py","cli","normal",{}]
+"#,serde_json::to_string(&root.join("lsp.pid").to_string_lossy()).unwrap())).unwrap();
+    let mut state=SessionState {current_ws:Some(ws.clone()),..Default::default()};
+    let install=format!("install {} ws",source.display());
+    assert!(dispatch(&mut client,&mut state,parse(&install).unwrap()).await.is_err());
+    dispatch(&mut client,&mut state,parse(&format!("{install} --grant process")).unwrap()).await.unwrap();
+    let status=client.list_addons(proto::ListAddonsRequest {workspace_path:ws.clone()}).await.unwrap().into_inner();
+    assert_eq!(status.addons[0].status,"Loaded");
+    let blueprint=client.compile_dsl(CompileDslRequest { workspace_path: String::new(),source:"blueprint \"Addon LSP\"\nentry start: Start\ncheck: LspCheck(Path = \"file.r09\")\ne: End\nstart -> check\ncheck -> e\n".into()}).await.unwrap().into_inner();
+    client.save_blueprint(SaveBlueprintRequest {workspace_path:ws.clone(),blueprint:Some(blueprint.clone()),file_path:"blueprints/lsp.blueprint".into(),file_json:String::new()}).await.unwrap();
+    let mut stream=client.execute_blueprint(ExecuteBlueprintRequest {workspace_path:ws.clone(),blueprint_id:blueprint.id,blueprint_json:String::new()}).await.unwrap().into_inner();
+    while let Some(event)=stream.message().await.unwrap() {assert_ne!(event.kind,"error","{}",event.message);}
+    let runs=client.list_executions(ListExecutionsRequest {workspace_path:ws.clone()}).await.unwrap().into_inner();
+    assert_eq!(runs.executions[0].status,"Completed");
+    assert!(runs.executions[0].data_json.contains("no diagnostics"));
+    assert!(!runs.executions[0].data_json.contains("skipped"));
+    let previous_pids=std::fs::read_to_string(root.join("lsp.pid")).unwrap();
+    client.set_config(SetConfigRequest {workspace_path:ws.clone(),config_json:r#"{"config_version":2,"lsp":{"enabled":false}}"#.into()}).await.unwrap();
+    assert!(!previous_pids.split_whitespace().any(|pid|std::fs::read_to_string(format!("/proc/{pid}/stat")).is_ok_and(|s|!s.split(')').nth(1).unwrap_or_default().trim_start().starts_with('Z'))));
+    client.set_config(SetConfigRequest {workspace_path:ws.clone(),config_json:r#"{"config_version":2,"lsp":{"enabled":true}}"#.into()}).await.unwrap();
+    assert_ne!(std::fs::read_to_string(root.join("lsp.pid")).unwrap(),previous_pids);
+    client.close_workspace(CloseWorkspaceRequest {path:ws}).await.unwrap();
+    let pids=std::fs::read_to_string(root.join("lsp.pid")).unwrap();
+    for _ in 0..100 {
+        if !pids.split_whitespace().any(|pid|std::fs::read_to_string(format!("/proc/{pid}/stat")).is_ok_and(|s|!s.split(')').nth(1).unwrap_or_default().trim_start().starts_with('Z'))) {return;}
+        tokio::time::sleep(Duration::from_millis(20)).await;
+    }
+    panic!("workspace close left an owned LSP process alive");
+}
+
 fn build_addon_package(dir: &Path, id: &str, tool_name: &str, function: &str) {
     std::fs::create_dir_all(dir).unwrap();
     std::fs::write(
@@ -1470,15 +1640,59 @@ type = \"object\"
         ),
     )
     .unwrap();
-    let wat = format!(
-        r#"(module
-            (import "extism:host/user" "log" (func $log (param i64 i64)))
-            (func (export "{function}") (param i64) (result i64)
-                local.get 0))
-        "#
-    );
+    let output = br#""MAKE ME LOUD""#;
+    let stores=output.iter().enumerate().map(|(i,b)|format!("local.get $ptr i64.const {i} i64.add i32.const {b} call $store")).collect::<Vec<_>>().join("\n");
+    let wat = format!(r#"(module
+        (import "extism:host/env" "alloc" (func $alloc (param i64) (result i64)))
+        (import "extism:host/env" "store_u8" (func $store (param i64 i32)))
+        (import "extism:host/env" "output_set" (func $output (param i64 i64)))
+        (func (export "{function}") (result i32) (local $ptr i64)
+            i64.const {} call $alloc local.set $ptr {stores}
+            local.get $ptr i64.const {} call $output i32.const 0))"#,output.len(),output.len());
     let wasm = wat::parse_str(&wat).unwrap();
     std::fs::write(dir.join("main.wasm"), wasm).unwrap();
+}
+
+#[tokio::test]
+async fn addon_hooks_real_workspace_and_run_events_reach_rpc_and_cli() {
+    use metteur_cli::commands::{parse,dispatch,SessionState,Outcome};
+    let (mut client,root)=start_server(Default::default()).await;
+    let source=root.join("hook-source");build_addon_package(&source,"com.test.hookscli","Unused","observe");
+    let mut manifest="id=\"com.test.hookscli\"\nversion=\"1.0.0\"\nname=\"Hook CLI\"\n[addon]\nentry=\"main.wasm\"\n".to_owned();
+    for (name,event) in [("Open","workspace.open"),("Close","workspace.close"),("Node","node.finished"),("Terminal","run.terminal")] {
+        manifest.push_str(&format!("[[hooks]]\nname=\"{name}\"\nevent=\"{event}\"\nfunction=\"observe\"\n"));
+    }
+    std::fs::write(source.join("manifest.toml"),manifest).unwrap();
+    let mut state=SessionState::default();
+    dispatch(&mut client,&mut state,parse(&format!("install {} global",source.display())).unwrap()).await.unwrap();
+    let ws=root.to_string_lossy().into_owned();
+    client.open_workspace(OpenWorkspaceRequest{path:ws.clone()}).await.unwrap();
+    client.open_workspace(OpenWorkspaceRequest{path:ws.clone()}).await.unwrap();
+    let blueprint=client.compile_dsl(CompileDslRequest{workspace_path: String::new(),source:"blueprint \"Hook delivery\"\nentry start: Start\ne: End\nstart -> e\n".into()}).await.unwrap().into_inner();
+    client.save_blueprint(SaveBlueprintRequest{workspace_path:ws.clone(),blueprint:Some(blueprint.clone()),file_path:"blueprints/hooks.blueprint".into(),file_json:String::new()}).await.unwrap();
+    let mut stream=client.execute_blueprint(ExecuteBlueprintRequest{workspace_path:ws.clone(),blueprint_id:blueprint.id,blueprint_json:String::new()}).await.unwrap().into_inner();
+    while let Some(event)=stream.message().await.unwrap(){assert_ne!(event.kind,"error","{}",event.message);}
+    let mut observed=false;
+    for _ in 0..200 {
+        let addons=client.list_addons(proto::ListAddonsRequest{workspace_path:ws.clone()}).await.unwrap().into_inner();
+        let hooks=&addons.addons[0].hooks;
+        if hooks.iter().any(|h|h.name=="Terminal" && h.completed==1) {
+            assert_eq!(hooks.iter().find(|h|h.name=="Open").unwrap().completed,1,"idempotent workspace open cannot duplicate callbacks");
+            assert_eq!(hooks.iter().find(|h|h.name=="Node").unwrap().completed,2);
+            assert!(hooks.iter().all(|h|h.failed==0));observed=true;break;
+        }
+        tokio::time::sleep(Duration::from_millis(20)).await;
+    }
+    assert!(observed);
+    let Outcome::Printed(text)=dispatch(&mut client,&mut state,parse("addons").unwrap()).await.unwrap() else{panic!("addon status output missing")};
+    assert!(text.contains("hook Terminal run.terminal: Succeeded completed=1"));
+    client.close_workspace(CloseWorkspaceRequest{path:ws}).await.unwrap();
+    for _ in 0..200 {
+        let addons=client.list_addons(proto::ListAddonsRequest::default()).await.unwrap().into_inner();
+        if addons.addons[0].hooks.iter().any(|h|h.name=="Close" && h.completed==1){return;}
+        tokio::time::sleep(Duration::from_millis(20)).await;
+    }
+    panic!("committed workspace close was not observed");
 }
 
 #[tokio::test]
@@ -1524,7 +1738,7 @@ async fn smoke_addon_install_call_uninstall() {
     assert_eq!(info.tool_count, 1);
 
     // The addon tool is registered under AddonIdPascal+ToolPascal.
-    let tools = client.list_tools(proto::Empty {}).await.unwrap().into_inner();
+    let tools = client.list_tools(proto::RegistryRequest::default()).await.unwrap().into_inner();
     assert!(tools.tools.iter().any(|t| t.name == "ComSmokeAddonShout"));
 
     // Call it through a blueprint Tool node.
@@ -1629,7 +1843,11 @@ async fn smoke_addon_install_call_uninstall() {
         .await
         .unwrap()
         .into_inner();
-    while stream.message().await.transpose().is_some() {}
+    while let Some(event)=stream.message().await.unwrap() { assert_ne!(event.kind,"error","{}",event.message); }
+    let runs=client.list_executions(ListExecutionsRequest {workspace_path:ws_path.clone()}).await.unwrap().into_inner();
+    assert_eq!(runs.executions[0].status,"Completed","{}",runs.executions[0].data_json);
+    assert!(runs.executions[0].data_json.contains("MAKE ME LOUD"));
+
 
     // Uninstall removes the tool from the registry.
     client
@@ -1639,7 +1857,7 @@ async fn smoke_addon_install_call_uninstall() {
         })
         .await
         .unwrap();
-    let tools = client.list_tools(proto::Empty {}).await.unwrap().into_inner();
+    let tools = client.list_tools(proto::RegistryRequest::default()).await.unwrap().into_inner();
     assert!(!tools.tools.iter().any(|t| t.name == "ComSmokeAddonShout"));
 }
 
@@ -2058,7 +2276,7 @@ async fn smoke_extended_pure_nodes_run_via_dsl() {
         .unwrap();
 
     let compiled = client
-        .compile_dsl(CompileDslRequest {
+        .compile_dsl(CompileDslRequest { workspace_path: String::new(),
             source: "\
 blueprint \"ExtendedNodes\"
 entry start: Start(A = 8, B = 3)
@@ -2225,9 +2443,9 @@ async fn smoke_function_library_save_execute() {
     // Save a workspace-scoped function.
     let body = smoke_add_function();
     let saved = client
-        .save_function(SaveFunctionRequest {
+        .save_function(SaveFunctionRequest { import_from:String::new(),file_path:String::new(),expected_addon_binding_json:String::new(),
             workspace_path: ws_path.clone(),
-            info: Some(FunctionInfo {
+            info: Some(FunctionInfo { addon_binding_json:String::new(),file_path:String::new(),
                 id: uuid::Uuid::new_v4().to_string(),
                 name: "SmokeAdd".to_string(),
                 description: "adds numbers".to_string(),
@@ -2414,7 +2632,7 @@ async fn smoke_save_blueprint_roundtrip_decompile() {
         .unwrap();
 
     let compiled = client
-        .compile_dsl(CompileDslRequest {
+        .compile_dsl(CompileDslRequest { workspace_path: String::new(),
             source: "\
 blueprint \"Roundtrip\"
 entry start: Start
@@ -2469,7 +2687,7 @@ async fn rejected_blueprint_mirror_preserves_the_previous_graph() {
     let (mut client, workspace) = start_server(metteur_shared::config::Config::default()).await;
     let ws_path = workspace.to_string_lossy().to_string();
     client.open_workspace(OpenWorkspaceRequest { path: ws_path.clone() }).await.unwrap();
-    let compiled = client.compile_dsl(CompileDslRequest {
+    let compiled = client.compile_dsl(CompileDslRequest { workspace_path: String::new(),
         source: "blueprint \"Saved\"\nentry start: Start\ne: End\nstart -> e\n".into(),
     }).await.unwrap().into_inner();
     client.save_blueprint(SaveBlueprintRequest { file_path: format!("blueprints/{}.blueprint", uuid::Uuid::new_v4()), file_json: String::new(),
@@ -2501,7 +2719,7 @@ async fn smoke_full_pipeline() {
 
     // Compile a DSL source straight into a blueprint and save it.
     let compiled = client
-        .compile_dsl(CompileDslRequest {
+        .compile_dsl(CompileDslRequest { workspace_path: String::new(),
             source: "\
 blueprint \"FullFlow\"
 entry start: Start(A = 4, B = 3)
@@ -2664,7 +2882,7 @@ async fn spawn_openai_stub() -> String {
                 "data: {\"choices\":[{\"delta\":{\"content\":\"stub reply\"}}]}
 
 ",
-                "data: {\"choices\":[{\"delta\":{}}],\"usage\":{\"prompt_tokens\":3,\"completion_tokens\":2,\"total_tokens\":5}}
+                "data: {\"choices\":[{\"delta\":{}}],\"usage\":{\"prompt_tokens\":100,\"completion_tokens\":10,\"total_tokens\":110,\"completion_tokens_details\":{\"reasoning_tokens\":5}}}
 
 ",
                 "data: [DONE]
@@ -2749,7 +2967,7 @@ async fn smoke_chat_uses_configured_model() {
             "done" => {
                 saw_done = true;
                 assert!(
-                    event.detail_json.contains("\"total_tokens\":5"),
+                    event.detail_json.contains("\"total_tokens\":110"),
                     "usage must reach the client: {}",
                     event.detail_json
                 );
@@ -2761,6 +2979,16 @@ async fn smoke_chat_uses_configured_model() {
     assert_eq!(deltas, "stub reply");
     assert_eq!(final_text, "stub reply");
     assert!(saw_done, "the turn must terminate with a done event");
+
+    let audit = client.list_audit_log(ListAuditLogRequest { workspace_path: ws_path.clone() }).await.unwrap().into_inner();
+    let usage = audit.entries.iter().find(|e| e.operation == "llm.usage").unwrap();
+    let detail: serde_json::Value = serde_json::from_str(&usage.detail_json).unwrap();
+    assert_eq!(detail["accounting_version"], 1);
+    let summary = client.get_execution_usage(proto::GetExecutionUsageRequest {
+        workspace_path: ws_path.clone(), run_id: detail["run_id"].as_str().unwrap().into(),
+    }).await.unwrap().into_inner();
+    assert_eq!(summary.models.len(), 1);
+    assert_eq!((summary.models[0].input_tokens, summary.models[0].output_tokens, summary.models[0].reasoning_tokens), (100, 10, 5));
 
     client
         .close_workspace(CloseWorkspaceRequest {
@@ -2976,7 +3204,7 @@ edit -> check
 check -> stop
 "#;
     let compiled = client
-        .compile_dsl(CompileDslRequest {
+        .compile_dsl(CompileDslRequest { workspace_path: String::new(),
             source: source.to_string(),
         })
         .await
@@ -3890,7 +4118,7 @@ async fn smoke_rejects_exec_output_wired_to_data_input() {
 #[tokio::test]
 async fn node_catalog_rpc_matches_registry_and_web_fixture() {
     let (mut client, _workspace) = start_server(metteur_shared::config::Config::default()).await;
-    let list = client.list_node_kinds(proto::Empty {}).await.unwrap().into_inner();
+    let list = client.list_node_kinds(proto::RegistryRequest::default()).await.unwrap().into_inner();
     let registry = metteur_daemon::registry::Registry::with_builtins();
     let catalog = registry.node_signatures();
     assert_eq!(list.signature_version, 1);
@@ -3904,7 +4132,7 @@ async fn node_catalog_rpc_matches_registry_and_web_fixture() {
         assert_eq!(info.description, signature.description);
         assert_eq!(info.pins.len(), signature.pins.len());
         let compiled = client
-            .compile_dsl(proto::CompileDslRequest {
+            .compile_dsl(proto::CompileDslRequest { workspace_path: String::new(),
                 source: format!("entry n: {}", info.kind),
             })
             .await
@@ -3991,3 +4219,9 @@ async fn config_presence_survives_rpc_file_and_reset() {
 
 #[path = "smoke/blueprint_entrypoints.rs"]
 mod blueprint_entrypoints;
+#[path = "smoke/addon_nodes.rs"]
+mod addon_nodes;
+#[path = "smoke/addon_functions.rs"]
+mod addon_functions;
+#[path = "smoke/r_batch.rs"]
+mod r_batch;

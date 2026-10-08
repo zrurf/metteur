@@ -1,11 +1,13 @@
 //! Shared imports and fixtures for the interpreter engine tests.
 
+pub use metteur_daemon::Registry;
 pub use metteur_daemon::error::{DaemonError, DaemonResult};
 pub use metteur_daemon::execution::checkpoint::{CheckpointSink, ExecutionCheckpoint, RunStatus};
-pub use metteur_daemon::execution::context::{ExecutionContext, Frame, FunctionBody, RetryMark, Scheduler};
+pub use metteur_daemon::execution::context::{
+    ExecutionContext, Frame, FunctionBody, RetryMark, Scheduler,
+};
 pub use metteur_daemon::execution::interpreter::{ExecutionEvent, Interpreter};
 pub use metteur_daemon::llm::LlmClientFactory;
-pub use metteur_daemon::Registry;
 pub use metteur_shared::model::function::FunctionEntry;
 pub use metteur_shared::{Blueprint, DataType, Edge, Node, NodeType, Pin, PinType, Value};
 pub use parking_lot::RwLock as PLock;
@@ -503,6 +505,10 @@ pub fn checkpoint_after_start(blueprint: &Blueprint) -> ExecutionCheckpoint {
     let start_b = start_node.pins.iter().find(|p| p.name == "B").unwrap().id;
     let add = blueprint.nodes.iter().find(|n| n.kind == "Add").unwrap().id;
     ExecutionCheckpoint {
+        addon_identity_version: 1,
+        addon_packages: Default::default(),
+        function_identities: None,
+        view: Default::default(),
         blueprint_version: None,
         transition_version: metteur_daemon::execution::checkpoint::CHECKPOINT_TRANSITION_VERSION,
         in_flight: None,

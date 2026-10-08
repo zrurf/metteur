@@ -163,6 +163,7 @@ pub(crate) async fn handle_cancel(
     let ws = require_ws(state)?;
     client
         .cancel_execution(CancelRequest {
+            run_id: String::new(),
             workspace_path: ws,
         })
         .await
@@ -178,6 +179,7 @@ pub(crate) async fn handle_pause(
     let ws = require_ws(state)?;
     client
         .pause_execution(PauseRequest {
+            run_id: String::new(),
             workspace_path: ws,
         })
         .await
@@ -193,6 +195,7 @@ pub(crate) async fn handle_resume(
     let ws = require_ws(state)?;
     client
         .resume_execution(ResumeRequest {
+            run_id: String::new(),
             workspace_path: ws,
         })
         .await
@@ -242,6 +245,7 @@ pub(crate) async fn handle_bp_compile(
     client: &mut DaemonClient<Channel>,
     state: &SessionState,
     file: String,
+    save: bool,
     save_to: Option<String>,
 ) -> anyhow::Result<Outcome> {
     let ws = require_ws(state)?;
@@ -249,13 +253,18 @@ pub(crate) async fn handle_bp_compile(
         .map_err(|e| anyhow::anyhow!("failed to read {}: {e}", file))?;
     let blueprint = client
         .compile_dsl(CompileDslRequest {
+            workspace_path: ws.clone(),
             source,
         })
         .await
         .map_err(status)?
         .into_inner();
-    if let Some(id) = save_to {
-        let blueprint = with_id(blueprint, &id)?;
+    if save {
+        let blueprint = match save_to {
+            Some(id) => with_id(blueprint, &id)?,
+            None => blueprint,
+        };
+        let id = blueprint.id.clone();
         client
             .save_blueprint(SaveBlueprintRequest {
                 workspace_path: ws,
@@ -478,6 +487,26 @@ fn edge_value(edge: &Edge) -> Value {
         "target_node": edge.target_node,
         "target_pin": edge.target_pin,
     })
+}
+
+/// Reads only the daemon's redacted projection, with no implicit file lookup.
+pub(crate) async fn handle_blackboard(
+    client: &mut DaemonClient<Channel>,
+    state: &SessionState,
+    run_id: String,
+    query_json: String,
+) -> anyhow::Result<Outcome> {
+    let result = client
+        .get_blackboard(metteur_proto::proto::GetBlackboardRequest {
+            workspace_path: require_ws(state)?,
+            run_id,
+            query_json,
+        })
+        .await
+        .map_err(status)?
+        .into_inner();
+    let value: serde_json::Value = serde_json::from_str(&result.projection_json)?;
+    Ok(Outcome::Printed(serde_json::to_string_pretty(&value)?))
 }
 
 #[cfg(test)]

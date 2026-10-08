@@ -1,5 +1,6 @@
 import type { editor as MonacoEditor, IRange, languages as MonacoLanguages } from 'monaco-editor'
 import { gateway } from '@/core'
+import { useWorkspaceStore } from '@/stores/workspace'
 
 /**
  * Monaco language service for the blueprint DSL (`.mbp` files).
@@ -51,7 +52,7 @@ export function ensureMbpLanguage(monaco: Monaco): void {
   monaco.languages.registerCompletionItemProvider('mbp', {
     triggerCharacters: ['b', 'e', 'a', 'B', 'E', 'A'],
     async provideCompletionItems(model, position) {
-      const result = await gateway.listNodeKinds()
+      const result = await gateway.listNodeKinds(useWorkspaceStore().active?.path)
       const kindEntries = result.ok && result.data.ready ? result.data.nodes.map((node) => ({
         kind: Class, label: node.kind, insertText: `${node.kind}()`,
         detail: node.description,
@@ -96,7 +97,7 @@ export function bindMbpDiagnostics(monaco: Monaco, model: MonacoEditor.ITextMode
   bound.add(model)
   const update = async () => {
     const text = model.getValue()
-    const r = await gateway.compileDsl(text)
+    const r = await gateway.compileDsl(text, useWorkspaceStore().active?.path)
     if (!r.ok && r.error) {
       const m = POSITION_RE.exec(r.error)
       if (m) {

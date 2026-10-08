@@ -1,3 +1,6 @@
+import type { OversightReports } from './oversight'
+import type { ConciergeState, ConciergeEvent } from './concierge'
+import type { Blackboard, BoardQuery } from './blackboard'
 import { ref } from 'vue'
 import type { DaemonGateway } from './gateway'
 import type {
@@ -994,6 +997,10 @@ export class MockGateway implements DaemonGateway {
     return ok({ name: header[1], nodes: [], edges: [] } as unknown as Blueprint)
   }
 
+  async importFunction(): Promise<Result<{ name: string; filePath: string }>> {
+    return err('Connect a daemon to import addon functions')
+  }
+
   async decompileBlueprint(_ws: string, blueprintOrId: Blueprint | string): Promise<Result<string>> {
     // When given the live canvas, produce a compact textual skeleton so the
     // export flow stays usable without a real DSL compiler.
@@ -1155,11 +1162,22 @@ export class MockGateway implements DaemonGateway {
     return ok(undefined)
   }
 
-  async listMcpServers(): Promise<Result<McpServerInfo[]>> {
+  async listMcpServers(_workspacePath?: string): Promise<Result<McpServerInfo[]>> {
     await delay(80)
     return ok(DEMO_MCP)
   }
 
+  async getBlackboard(_ws: string, _runId: string, _query?: BoardQuery): Promise<Result<Blackboard>> {
+    return { ok: false, error: 'Blackboard requires a recorded daemon run.' }
+  }
+
+  async listOversightReports(_ws: string, _run: string): Promise<Result<OversightReports>> { return err('Supervisor reports require a daemon connection.') }
+  async getConciergeState(_ws: string, _run: string, _conversation: string): Promise<Result<ConciergeState>> {
+    return err('Concierge requires a live daemon and a recorded blueprint run')
+  }
+  async sendConciergeMessage(_ws: string, _run: string, _conversation: string, _id: string, _message: string, _onEvent: (event: ConciergeEvent) => void, _signal?: AbortSignal): Promise<Result<void>> {
+    return err('Concierge requires a live daemon; no request was accepted')
+  }
   async getExecutionUsage(_ws: string, _runId: string): Promise<Result<UsageSummary>> {
     await delay(150)
     return ok(DEMO_USAGE)

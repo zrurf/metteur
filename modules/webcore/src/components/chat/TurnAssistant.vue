@@ -14,6 +14,7 @@ import type { ChatMessage } from '@/core'
  * can see it grow without the layout shifting.
  */
 const props = defineProps<{
+  readOnly?: boolean
   message: ChatMessage
   onCopy: (text: string) => void
   onRetry: (id: string) => void
@@ -59,7 +60,7 @@ watch([thinking, reasoning], ([value]) => reasoning.value?.sync(value), { flush:
         <Copy class="h-3 w-3" /> Copy
       </button>
       <button
-        v-if="!message.pending"
+        v-if="!message.pending && !readOnly"
         class="chat-action"
         type="button"
         title="Restore this turn's context and regenerate the answer"

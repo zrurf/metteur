@@ -32,6 +32,10 @@ pub struct LspClient {
     diagnostics_epoch: Arc<AtomicU64>,
     /// Set by [`LspClient::shutdown`] to stop the reader task.
     closed: Arc<AtomicU64>,
+    documents: Arc<AsyncMutex<HashMap<String, i64>>>,
+    timeout_ms: u64,
+    guarded: bool,
+    reader: tokio::task::AbortHandle,
 }
 
 impl LspClient {
@@ -40,23 +44,42 @@ impl LspClient {
         read: Box<dyn tokio::io::AsyncRead + Send + Unpin>,
         write: Box<dyn tokio::io::AsyncWrite + Send + Unpin>,
     ) -> Arc<Self> {
+        Self::streams(read, write, 30_000, vec![], false)
+    }
+    pub(crate) fn guarded(
+        read: Box<dyn tokio::io::AsyncRead + Send + Unpin>,
+        write: Box<dyn tokio::io::AsyncWrite + Send + Unpin>,
+        timeout_ms: u64,
+        secrets: Vec<String>,
+    ) -> Arc<Self> {
+        Self::streams(read, write, timeout_ms.clamp(1, 30_000), secrets, true)
+    }
+    fn streams(
+        read: Box<dyn tokio::io::AsyncRead + Send + Unpin>,
+        write: Box<dyn tokio::io::AsyncWrite + Send + Unpin>,
+        timeout_ms: u64,
+        secrets: Vec<String>,
+        guarded: bool,
+    ) -> Arc<Self> {
         let writer: Writer = Arc::new(AsyncMutex::new(write));
         let pending: Arc<AsyncMutex<PendingMap>> = Arc::new(AsyncMutex::new(HashMap::new()));
         let diagnostics = Arc::new(AsyncMutex::new(HashMap::new()));
         let epoch = Arc::new(AtomicU64::new(0));
         let closed = Arc::new(AtomicU64::new(0));
+        let documents = Arc::new(AsyncMutex::new(HashMap::<String, i64>::new()));
 
-        {
+        let reader = {
             let mut read = read;
             let task_pending = pending.clone();
             let task_diagnostics = diagnostics.clone();
             let task_epoch = epoch.clone();
             let task_writer = writer.clone();
             let task_closed = closed.clone();
+            let task_documents = documents.clone();
             tokio::spawn(async move {
                 let mut buffer: Vec<u8> = Vec::new();
                 loop {
-                    if task_closed.load(Ordering::SeqCst) != 0 {
+                    if task_closed.load(Ordering::SeqCst) != 0 || buffer.len() > 1024 * 1024 {
                         break;
                     }
                     // Drain every complete frame currently buffered.
@@ -66,8 +89,35 @@ impl LspClient {
                                 payload,
                                 consumed,
                             } => {
-                                let payload = payload.to_vec();
+                                let mut payload = payload.to_vec();
                                 buffer.drain(..consumed);
+                                if guarded {
+                                    let Ok(mut message) = serde_json::from_slice::<Value>(&payload)
+                                    else {
+                                        continue;
+                                    };
+                                    redact(&mut message, &secrets);
+                                    if message.get("method").and_then(Value::as_str)
+                                        == Some("textDocument/publishDiagnostics")
+                                    {
+                                        let uri = message
+                                            .pointer("/params/uri")
+                                            .and_then(Value::as_str)
+                                            .unwrap_or("");
+                                        let docs = task_documents.lock().await;
+                                        let Some(version) = docs.get(uri) else {
+                                            continue;
+                                        };
+                                        if message
+                                            .pointer("/params/version")
+                                            .and_then(Value::as_i64)
+                                            .is_some_and(|v| v != *version)
+                                        {
+                                            continue;
+                                        }
+                                    }
+                                    payload = serde_json::to_vec(&message).unwrap_or_default();
+                                }
                                 handle_message(
                                     &task_pending,
                                     &task_diagnostics,
@@ -76,6 +126,10 @@ impl LspClient {
                                     &payload,
                                 )
                                 .await;
+                                if task_diagnostics.lock().await.len() > 1024 {
+                                    task_closed.store(1, Ordering::SeqCst);
+                                    break;
+                                }
                             }
                             // Resynchronize past a corrupt header block so
                             // the stream cannot wedge or grow without bound.
@@ -87,14 +141,21 @@ impl LspClient {
                             Frame::Incomplete => break,
                         }
                     }
+                    if buffer.len() > 1024 * 1024 || task_closed.load(Ordering::SeqCst) != 0 {
+                        break;
+                    }
                     let mut chunk = [0u8; 8192];
                     match read.read(&mut chunk).await {
                         Ok(0) | Err(_) => break,
                         Ok(n) => buffer.extend_from_slice(&chunk[..n]),
                     }
                 }
-            });
-        }
+                task_closed.store(1, Ordering::SeqCst);
+                task_pending.lock().await.clear();
+                task_diagnostics.lock().await.clear();
+            })
+            .abort_handle()
+        };
 
         Arc::new(Self {
             writer,
@@ -103,16 +164,34 @@ impl LspClient {
             diagnostics,
             diagnostics_epoch: epoch,
             closed,
+            documents,
+            timeout_ms,
+            guarded,
+            reader,
         })
     }
 
     async fn send_raw(&self, message: &Value) -> DaemonResult<()> {
+        if self.is_closed() {
+            return Err(DaemonError::Lsp("language server connection closed".into()));
+        }
         let payload =
             serde_json::to_vec(message).map_err(|err| DaemonError::Lsp(err.to_string()))?;
         let frame = encode_frame(&payload);
-        let mut writer = self.writer.lock().await;
-        writer.write_all(&frame).await.map_err(|err| DaemonError::Lsp(err.to_string()))?;
-        writer.flush().await.map_err(|err| DaemonError::Lsp(err.to_string()))
+        let result =
+            tokio::time::timeout(std::time::Duration::from_millis(self.timeout_ms), async {
+                let mut writer = self.writer.lock().await;
+                writer.write_all(&frame).await?;
+                writer.flush().await
+            })
+            .await;
+        match result {
+            Ok(Ok(())) => Ok(()),
+            _ => {
+                self.shutdown().await;
+                Err(DaemonError::Lsp("language server write failed or timed out".into()))
+            }
+        }
     }
 
     /// Sends a request and awaits its response result.
@@ -125,15 +204,33 @@ impl LspClient {
             "params": params,
         });
         let (tx, rx) = oneshot::channel();
-        self.pending.lock().await.insert(id, tx);
+        {
+            let mut pending = self.pending.lock().await;
+            if pending.len() >= 256 {
+                return Err(DaemonError::Lsp(
+                    "language server pending request limit exceeded".into(),
+                ));
+            }
+            pending.insert(id, tx);
+        }
         if let Err(err) = self.send_raw(&message).await {
             self.pending.lock().await.remove(&id);
             return Err(err);
         }
-        match rx.await {
-            Ok(Ok(result)) => Ok(result),
-            Ok(Err(message)) => Err(DaemonError::Lsp(message)),
-            Err(_) => Err(DaemonError::Lsp("server dropped the response".to_string())),
+        let response =
+            tokio::time::timeout(std::time::Duration::from_millis(self.timeout_ms), rx).await;
+        self.pending.lock().await.remove(&id);
+        match response {
+            Ok(Ok(Ok(result))) => Ok(result),
+            Ok(Ok(Err(message))) => Err(DaemonError::Lsp(if self.guarded {
+                "Addon LSP request failed".into()
+            } else {
+                message
+            })),
+            _ => {
+                self.shutdown().await;
+                Err(DaemonError::Lsp("language server response failed or timed out".into()))
+            }
         }
     }
 
@@ -166,12 +263,23 @@ impl LspClient {
         text: &str,
         language_id: &str,
     ) -> DaemonResult<()> {
-        let known = self.diagnostics.lock().await.contains_key(uri);
+        let mut documents = self.documents.lock().await;
+        if !documents.contains_key(uri) && documents.len() >= 1024 {
+            return Err(DaemonError::Lsp("language server document limit exceeded".into()));
+        }
+        let version = documents.entry(uri.to_owned()).or_insert(0);
+        *version += 1;
+        let version = *version;
+        drop(documents);
+        let known = version > 1;
+        if self.guarded {
+            self.diagnostics.lock().await.remove(uri);
+        }
         if known {
             self.notify(
                 "textDocument/didChange",
                 json!({
-                    "textDocument": {"uri": uri, "version": 1},
+                    "textDocument": {"uri": uri, "version": version},
                     "contentChanges": [{"text": text}],
                 }),
             )
@@ -183,7 +291,7 @@ impl LspClient {
                     "textDocument": {
                         "uri": uri,
                         "languageId": language_id,
-                        "version": 1,
+                        "version": version,
                         "text": text,
                     },
                 }),
@@ -216,6 +324,38 @@ impl LspClient {
         tokio::time::sleep(std::time::Duration::from_millis(100)).await;
     }
 
+    /// Owned servers must publish current document diagnostics or explicitly fail.
+    pub async fn wait_document(
+        &self,
+        uri: &str,
+        since_epoch: u64,
+        timeout_ms: u64,
+    ) -> DaemonResult<()> {
+        if !self.guarded {
+            self.wait_diagnostics(since_epoch, timeout_ms).await;
+            return Ok(());
+        }
+        let deadline = tokio::time::Instant::now()
+            + std::time::Duration::from_millis(timeout_ms.max(1).min(self.timeout_ms));
+        loop {
+            if self.is_closed() {
+                return Err(DaemonError::Lsp("Addon LSP connection failed".into()));
+            }
+            if self.diagnostics.lock().await.contains_key(uri) {
+                return Ok(());
+            }
+            if tokio::time::Instant::now() >= deadline {
+                self.shutdown().await;
+                return Err(DaemonError::Lsp("Addon LSP diagnostics timed out".into()));
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        }
+    }
+
+    pub(crate) fn is_closed(&self) -> bool {
+        self.closed.load(Ordering::SeqCst) != 0
+    }
+
     /// Returns the current epoch counter for diagnostics updates.
     pub fn current_epoch(&self) -> u64 {
         self.diagnostics_epoch.load(Ordering::SeqCst)
@@ -229,6 +369,42 @@ impl LspClient {
     /// Marks the client closed; the reader task exits on its next wake-up.
     pub async fn shutdown(&self) {
         self.closed.store(1, Ordering::SeqCst);
+        self.reader.abort();
+        self.pending.lock().await.clear();
+        self.diagnostics.lock().await.clear();
+    }
+}
+
+impl Drop for LspClient {
+    fn drop(&mut self) {
+        self.reader.abort();
+    }
+}
+
+fn redact(value: &mut Value, secrets: &[String]) {
+    match value {
+        Value::String(text) => {
+            for secret in secrets {
+                if !secret.is_empty() {
+                    *text = text.replace(secret, "[redacted]");
+                }
+            }
+        }
+        Value::Array(values) => {
+            for value in values {
+                redact(value, secrets);
+            }
+        }
+        Value::Object(values) => {
+            let old = std::mem::take(values);
+            for (key, mut value) in old {
+                let mut key = Value::String(key);
+                redact(&mut key, secrets);
+                redact(&mut value, secrets);
+                values.insert(key.as_str().unwrap_or_default().into(), value);
+            }
+        }
+        _ => {}
     }
 }
 

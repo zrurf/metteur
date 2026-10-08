@@ -237,11 +237,12 @@ async fn workspace_open_reports_conflicts_and_allows_manual_resolution() {
     drop(journal);
     drop(db);
     let manager = metteur_daemon::workspace::WorkspaceManager::new();
-    let error = manager.open(&root).await.err().unwrap().to_string();
+    let workspace = manager.open(&root).await.unwrap();
+    let error = workspace.reconcile_files().unwrap_err().to_string();
     assert!(error.contains("file recovery conflicts"), "{error}");
     assert_eq!(std::fs::read(&path).unwrap(), b"foreign");
     std::fs::remove_file(&path).unwrap();
-    let workspace = manager.open(&root).await.unwrap();
+    workspace.reconcile_files().unwrap();
     assert_eq!(
         FileJournal::new(root, Arc::new(DbFileJournal(workspace.db.clone())))
             .store

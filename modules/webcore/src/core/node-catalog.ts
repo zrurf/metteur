@@ -45,14 +45,14 @@ export function fromWirePin(p: WirePin): BlueprintPin {
 export function fromWireCatalog(raw: {
   kinds: string[]
   signatureVersion?: number
-  infos?: Array<{ kind: string; nodeType: string; pins: WirePin[]; dynamicPins: boolean; description: string }>
+  infos?: Array<{ kind: string; nodeType: string; pins: WirePin[]; dynamicPins: boolean; description: string; addonBindingJson?: string }>
 }): NodeCatalog {
   const kinds = [...new Set(raw.kinds)]
   const infos = raw.infos ?? []
   const ready = raw.signatureVersion === 1 && kinds.every((k) => infos.filter((n) => n.kind === k).length === 1)
   return {
     kinds, signatureVersion: raw.signatureVersion ?? 0, ready,
-    nodes: ready ? infos.filter((n) => kinds.includes(n.kind)).map((n) => ({ ...n, pins: n.pins.map(fromWirePin) })) : [],
+    nodes: ready ? infos.filter((n) => kinds.includes(n.kind)).map((n) => ({ ...n, addonBinding: parseDefault(n.addonBindingJson) as Record<string, unknown> | undefined, pins: n.pins.map(fromWirePin) })) : [],
   }
 }
 

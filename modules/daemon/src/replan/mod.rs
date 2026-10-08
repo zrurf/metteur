@@ -1,13 +1,11 @@
 //! Replanning: user-approved edits to the executing blueprint.
 //!
-//! The `ReplanBlueprint` tool and the circuit breaker both funnel a JSON
-//! *edit script* into [`approve_and_apply`], which asks the user for
-//! approval and then applies the edits to the shared root blueprint,
-//! persisting the result back to the workspace database so future runs
-//! honour it too.
+//! Local ReplanBlueprint tools and the bounded supervisor share the same
+//! versioned application service. The interpreter owns circuit review and retry;
+//! the legacy PlanAgent helper only produces edits and grants no authority.
 
+use metteur_shared::Blueprint;
 use metteur_shared::llm::ContextManager;
-use metteur_shared::{Blueprint, NodeId};
 
 use crate::error::{DaemonError, DaemonResult};
 use crate::execution::context::ExecutionContext;
@@ -245,64 +243,6 @@ fn strip_code_fence(text: &str) -> String {
     let start = trimmed.find('[').unwrap_or(0);
     let end = trimmed.rfind(']').map(|i| i + 1).unwrap_or(trimmed.len());
     trimmed[start..end].to_string()
-}
-
-/// The circuit breaker: asks the user, runs the plan agent, re-approves the
-/// produced edits and applies them. Returns the apply summary.
-pub async fn trip_and_replan(
-    ctx: &mut ExecutionContext,
-    failing_node: NodeId,
-    failures: u32,
-) -> DaemonResult<String> {
-    trip_and_replan_core(ctx, failing_node, failures, None).await
-}
-
-/// [`trip_and_replan`] with a scripted plan-agent output (tests).
-pub async fn trip_and_replan_mock(
-    ctx: &mut ExecutionContext,
-    failing_node: NodeId,
-    failures: u32,
-    mock_text: String,
-) -> DaemonResult<String> {
-    trip_and_replan_core(ctx, failing_node, failures, Some(mock_text)).await
-}
-
-async fn trip_and_replan_core(
-    ctx: &mut ExecutionContext,
-    failing_node: NodeId,
-    failures: u32,
-    plan_mock: Option<String>,
-) -> DaemonResult<String> {
-    let task = format!(
-        "Validation failed {failures} consecutive times at node {failing_node}. \
-         Propose edits that make it pass. If a CallLLM node feeds it, tighten its \
-         system/prompt; if the validator compares against a constant, fix that \
-         constant, ensuring the caller output satisfies it."
-    );
-    let allow = await_approval(
-        ctx,
-        "circuit_tripped",
-        "The run hit the circuit breaker after repeated validation failures.",
-        serde_json::json!({
-            "request_type": "circuit_tripped",
-            "node_id": failing_node.to_string(),
-            "failures": failures,
-        }),
-    )
-    .await?;
-    if !allow {
-        return Err(DaemonError::Execution("circuit tripped; aborted by user".to_string()));
-    }
-    let edits = run_plan_agent(ctx, &task, plan_mock).await?;
-    application::approve(
-        ctx,
-        &format!("Plan agent produced a revised plan for {failing_node}"),
-        &edits,
-        application::Source::Circuit {
-            failing_node,
-        },
-    )
-    .await
 }
 
 #[cfg(test)]

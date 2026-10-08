@@ -45,6 +45,8 @@ pub struct FunctionSignature {
 /// The origin of a registered function.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum FunctionSource {
+    /// Read-only contribution of a verified addon package.
+    Addon,
     /// Shipped with the daemon.
     Builtin,
     /// Stored in the global database.

@@ -64,12 +64,12 @@ for (const theme of ['light', 'dark'] as const) {
     await openChat(page)
     const thread = page.locator('.chat-thread-inner')
     const composer = page.locator('.chat-column-composer')
-    const readingBox = await thread.boundingBox()
-    const composerBox = await composer.boundingBox()
-    expect(readingBox).not.toBeNull()
-    expect(composerBox).not.toBeNull()
-    expect(readingBox!.width).toBeLessThanOrEqual(920)
-    expect(Math.abs(readingBox!.x - composerBox!.x)).toBeLessThan(1)
+    // Workspace hydration can replace the empty transcript after it is visible.
+    await expect.poll(async () => {
+      const readingBox = await thread.boundingBox()
+      const composerBox = await composer.boundingBox()
+      return !!readingBox && !!composerBox && readingBox.width <= 920 && Math.abs(readingBox.x - composerBox.x) < 1
+    }).toBe(true)
     await expect(page.locator('.chat-starter')).toHaveCount(3)
     await page.getByRole('button', { name: /Explain this workspace/ }).click()
     await expect(page.getByRole('textbox', { name: 'Message' })).toHaveValue(

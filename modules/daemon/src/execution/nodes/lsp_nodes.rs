@@ -45,11 +45,8 @@ impl NodeExecutor for LspCheckExecutor {
             .and_then(|value| value.as_int())
             .filter(|value| *value > 0)
             .unwrap_or(5000) as u64;
-        let allow_warnings = node
-            .data
-            .get("allow_warnings")
-            .and_then(|value| value.as_bool())
-            .unwrap_or(true);
+        let allow_warnings =
+            node.data.get("allow_warnings").and_then(|value| value.as_bool()).unwrap_or(true);
 
         // No language server configured is not a failure: the rule simply has
         // nothing to observe, and failing here would break every workspace
@@ -191,9 +188,7 @@ fn collect_paths(node: &Node, inputs: &HashMap<PinId, Value>) -> DaemonResult<Ve
             return Ok(collected);
         }
     }
-    Err(DaemonError::Execution(
-        "LspCheck requires a Path input or a `paths` list".to_string(),
-    ))
+    Err(DaemonError::Execution("LspCheck requires a Path input or a `paths` list".to_string()))
 }
 
 fn value_to_path(value: &Value) -> DaemonResult<String> {
@@ -226,8 +221,9 @@ async fn diagnose(
     let uri = manager.to_file_uri(&absolute);
     let content = fs.read(path)?;
     let since = client.current_epoch();
-    client.sync_document(&uri, &String::from_utf8_lossy(&content), &extension).await?;
-    client.wait_diagnostics(since, timeout_ms).await;
+    let language_id = manager.language_for_extension(&extension).unwrap_or(extension.clone());
+    client.sync_document(&uri, &String::from_utf8_lossy(&content), &language_id).await?;
+    client.wait_document(&uri, since, timeout_ms).await?;
     let mut items = Vec::new();
     for entry in client.diagnostics_snapshot().await {
         if entry.uri == uri {

@@ -12,9 +12,11 @@
 //! - [`events`]: the event enum.
 
 mod checkpointing;
+mod circuit;
 mod edges;
 mod events;
 mod foreach;
+mod oversight;
 mod frames;
 mod lifecycle;
 mod retry;
@@ -31,11 +33,11 @@ use metteur_shared::{Blueprint, NodeId};
 use parking_lot::RwLock as PLock;
 use tokio::sync::RwLock;
 
+use crate::execution::JobManager;
 use crate::execution::checkpoint::CheckpointSink;
 use crate::execution::context::{ExecutionState, RetryMark, Scheduler};
 use crate::execution::transaction::TransactionLog;
 use crate::execution::tree::ExecTree;
-use crate::execution::JobManager;
 use crate::integration::lsp::LspManager;
 use crate::llm::LlmClientFactory;
 use crate::observability::audit::AuditWriter;
@@ -62,6 +64,7 @@ pub struct Interpreter {
     pub(crate) state: ExecutionState,
     pub(crate) scheduler: Scheduler,
     pub(crate) events: Vec<ExecutionEvent>,
+    pub(crate) view: crate::execution::view::ExecutionView,
     pub(crate) checkpoint: Option<Arc<dyn CheckpointSink>>,
     pub(crate) in_flight: Option<NodeId>,
     pub(crate) audit: Option<AuditWriter>,
@@ -99,6 +102,7 @@ pub struct Interpreter {
     /// Task list restored from a checkpoint, applied to the first context built
     /// for the resumed run (the list lives on the context, not the scheduler).
     pub(crate) resume_todos: Vec<TodoItem>,
+    pub(crate) hook_cursor: crate::addon::hooks::Cursor,
 }
 
 impl Interpreter {
@@ -115,6 +119,7 @@ impl Interpreter {
             state: ExecutionState::default(),
             scheduler: Scheduler::default(),
             events: Vec::new(),
+            view: Default::default(),
             checkpoint: None,
             in_flight: None,
             audit: None,
@@ -142,6 +147,7 @@ impl Interpreter {
             frame_trees: Vec::new(),
             current_tree: None,
             resume_todos: Vec::new(),
+            hook_cursor: Default::default(),
         }
     }
 
@@ -251,6 +257,13 @@ impl Interpreter {
 
     /// Emits an event to the live sink or buffers it when no sink is set.
     pub(crate) fn emit(&mut self, event: ExecutionEvent) {
+        let scope = self
+            .active_function()
+            .and_then(|id| self.registry.function_by_id(id))
+            .map(|f| f.body.id)
+            .unwrap_or(self.blueprint_id)
+            .to_string();
+        self.view.observe(&event, &scope, checkpointing::now_millis());
         match &self.event_tx {
             Some(tx) => {
                 let _ = tx.send(event);

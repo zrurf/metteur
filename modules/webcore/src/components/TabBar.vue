@@ -4,16 +4,15 @@ import { useRouter } from 'vue-router'
 import { Plus, X } from '@lucide/vue'
 import { SURFACES, useTabsStore, type TabItem } from '@/stores/tabs'
 import { useWorkspaceStore } from '@/stores/workspace'
-import { useSurfaceNavigation } from '@/lib/surface'
+import { useSurfaceNavigation, type SurfaceKey } from '@/lib/surface'
 import { wurl } from '@/lib/workspace-url'
 import ContextMenu, { type MenuGroup } from '@/components/ContextMenu.vue'
 
 /**
  * IDE-style file tab strip (single-workspace shell).
  *
- * Only *files* are tabs — views reached from the activity rail (Explorer view,
- * Chat, Execution, Version Flow) are switched by the shell and never appear
- * here. Closing the active tab re-navigates the editor to the next tab (or to
+ * Files and app surfaces share the same closable tab strip.
+ * Closing the active tab re-navigates the editor to the next tab (or to
  * the empty Explorer view when none remain). The trailing **+** opens a menu of
  * built-in surfaces (Chat / Audit / Version / Settings) plus Open Workspace,
  * instead of directly dropping the workspace.
@@ -34,7 +33,7 @@ function activate(tab: TabItem) {
   // panel must be re-asserted — a plain route push loses the rail after the
   // panel was handed to another owner (Explorer).
   if (tabs.isSurface(tab.id)) {
-    openSurface(tab.id as 'chat' | 'version' | 'settings')
+    openSurface(tab.id as SurfaceKey)
     return
   }
   tabs.activate(tab.id)
@@ -61,7 +60,7 @@ function onMiddleClick(tab: TabItem, e: MouseEvent) {
 function onContext(e: MouseEvent, tab: TabItem) {
   e.preventDefault()
   if (tabs.isSurface(tab.id)) {
-    openSurface(tab.id as 'chat' | 'version' | 'settings')
+    openSurface(tab.id as SurfaceKey)
   } else {
     tabs.activate(tab.id)
     router.push(tab.route)

@@ -231,6 +231,7 @@ export interface BlueprintNode {
 
 /** Daemon-owned execution metadata, separate from visual presets. */
 export interface NodeKindInfo {
+  addonBinding?: Record<string, unknown>
   kind: string
   nodeType: string
   pins: BlueprintPin[]
@@ -286,7 +287,7 @@ export interface Blueprint {
 }
 
 /** Execution lifecycle observed by the UI. */
-export type ExecStatus = 'idle' | 'running' | 'paused' | 'finished' | 'cancelled' | 'failed'
+export type ExecStatus = 'idle' | 'running' | 'paused' | 'finished' | 'cancelled' | 'failed' | 'unknown' | 'suspended'
 
 /** A region of the live LLM context, reported by a CallLLM node. */
 export interface ContextRegion {
@@ -351,10 +352,26 @@ export interface AddonInfo {
   scope: string
   toolCount: number
   fragmentCount: number
+  scopeRoot?: string
+  fingerprint?: string
+  status?: string
+  error?: string
+  requiredPermissions?: string[]
+  grantedPermissions?: string[]
+  hooks?: Array<{ name: string; event: string; scopeRoot: string; eventId: string; status: string; completed: number; failed: number; error: string }>
 }
 
-/** Aggregated token/cost usage for an execution scope. */
+/** Aggregated token/cost usage for an execution scope. Missing completeness fields are unknown. */
+export interface OversightUsage {
+  limit: number
+  charged: number
+  warning: boolean
+  exhausted: boolean
+  concierge_available: boolean
+  calls: Array<{ caller: 'supervisor' | 'concierge'; charged: number; state: string; cost_micros: number | null; currency: string; accounting_version?: number }>
+}
 export interface UsageSummary {
+  oversight?: OversightUsage
   currency: string
   totalCostMicros: number
   models: Array<{
@@ -366,6 +383,9 @@ export interface UsageSummary {
     costMicros: number
     /** Input tokens served from the provider's prompt cache. */
     cachedInputTokens: number
+    tokensComplete?: boolean
+    cacheComplete?: boolean
+    costComplete?: boolean
     /** Input tokens written into the provider's prompt cache. */
     cacheWriteInputTokens: number
   }>
@@ -373,6 +393,7 @@ export interface UsageSummary {
 
 /** An execution run recorded by the daemon. */
 export interface ExecutionInfo {
+  snapshot?: import('./execution-view').ExecutionSnapshot
   runId: string
   blueprintId: string
   /** Running | Suspended | RecoveryRequired | Completed | Cancelled | Failed */
@@ -384,6 +405,8 @@ export interface ExecutionInfo {
 
 /** A registered MCP server surfaced by the daemon. */
 export interface McpServerInfo {
+  owner?: string
+  scopeRoot?: string
   name: string
   /** Connected | Failed | Disabled */
   status: string
@@ -403,6 +426,8 @@ export interface FnPinInfo {
 
 /** A callable blueprint function from the daemon's function library. */
 export interface FunctionItem {
+  addonBinding?: Record<string, unknown>
+  filePath?: string
   id: string
   name: string
   description: string

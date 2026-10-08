@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { blueprintEdgeVisual, CATEGORY_ACCENT as ACCENT } from '@/lib/blueprint-edges'
 import { computed, nextTick, onBeforeUnmount, onMounted, provide, ref, watch } from 'vue'
 import { useVueFlow, VueFlow, ConnectionMode } from '@vue-flow/core'
 import { Background } from '@vue-flow/background'
@@ -33,6 +34,7 @@ import { gateway } from '@/core'
 import { useFeedbackStore } from '@/stores/feedback'
 import { useWorkspaceStore } from '@/stores/workspace'
 import { fileNameOf, useBlueprintStore } from '@/stores/blueprint'
+import { useSurfaceNavigation } from '@/lib/surface'
 import { useExecutionStore } from '@/stores/execution'
 import { useTabsStore } from '@/stores/tabs'
 import { useRightPanelStore } from '@/stores/right-panel'
@@ -47,6 +49,7 @@ import { CATEGORIES, execInOf, isPinCompatible, makeCallFunctionNode, makeFlowNo
 const workspace = useWorkspaceStore()
 const store = useBlueprintStore()
 const execution = useExecutionStore()
+const { openSurface: openExecutionSurface } = useSurfaceNavigation()
 const tabs = useTabsStore()
 const rightPanel = useRightPanelStore()
 const feedback = useFeedbackStore()
@@ -59,38 +62,8 @@ const PALETTE_COLLAPSED = ['Events', 'Module', 'Actions', 'Flow', 'Functions']
 /** Whether the docked audit drawer is open. */
 const auditOpen = ref(false)
 
-/** Whether the given node has started executing (drives the trail). */
-function nodeStarted(nodeId: string): boolean {
-  const a = execution.nodeAudits.get(nodeId)
-  return !!a?.startedAt
-}
-
-/** Mirror the live execution trail onto the canvas: node status classes plus
- *  pulse animation on the exec edges already crossed (Unreal debug mode). The
- *  drawn trail state never feeds `graphKey`, so it cannot dirty a clean file. */
-watch(
-  [execution.runningNodeId, execution.status, execution.nodeAudits],
-  () => {
-    for (const node of flowNodes.value) {
-      const data = node.data
-      if (!data) continue
-      const audit = execution.nodeAudits.get(node.id)
-      data.status = audit?.startedAt
-        ? audit.finishedAt || node.id !== execution.runningNodeId
-          ? 'done'
-          : 'running'
-        : undefined
-    }
-    const live = execution.status === 'running' || execution.status === 'paused'
-    for (const edge of flowEdges.value) {
-      if (edge.class !== 'metteur-edge--exec' || !edge.target) continue
-      const traversed = nodeStarted(edge.target)
-      edge.animated = live && traversed
-      edge.class = traversed ? 'metteur-edge--exec is-traversed' : 'metteur-edge--exec'
-    }
-  },
-  { deep: true },
-)
+// Execution facts are rendered on the immutable runtime graph in Execution.
+// This canvas remains the editable draft, including while another version runs.
 
 const statusChip = computed(() => {
   switch (execution.status) {
@@ -323,12 +296,7 @@ const isExecHandle = (h?: string): boolean => {
 }
 
 /** Category tint, aligned with the palette swatches in the context menu. */
-const ACCENT: Record<NodeCategory, string> = {
-  event: '#3f8cff',
-  module: '#8b5cf6',
-  action: '#f2994a',
-  flow: '#2fbf8f',
-}
+
 
 /** The live registry controls available kinds, including extensions without visual presets. */
 const kindList = computed(() => store.signatures.map((s) => s.kind))
@@ -442,14 +410,8 @@ function edgeVisual(
   sourceHandle: string | undefined,
   sourceNodeId?: string,
 ): { class: string; animated: boolean; style?: Record<string, string> } {
-  if (isExecHandle(sourceHandle)) {
-    // Control flow: heavy, solid exec wire (colour comes from --exec-wire).
-    return { class: 'metteur-edge--exec', animated: false }
-  }
-  // Data flow: normal-thickness coloured wire tinted by the source category.
   const node = flowNodes.value.find((n) => n.id === sourceNodeId)
-  const category = (node?.data?.category as NodeCategory) ?? 'module'
-  return { class: 'metteur-edge--data', animated: false, style: { stroke: ACCENT[category] } }
+  return blueprintEdgeVisual(isExecHandle(sourceHandle), (node?.data?.category as NodeCategory) ?? 'module')
 }
 
 function toFlowNode(n: BlueprintNode): FlowNode {
@@ -1292,6 +1254,7 @@ async function handleSave(): Promise<boolean> {
 async function handleRun() {
   const ws = workspace.active
   if (!ws) return
+  if (execution.running) { openExecutionSurface('execution'); return }
   const file = fileKey.value
   const key = graphKey()
   // A failed file write or mirror must stop Run, with the draft left intact.
@@ -1310,9 +1273,9 @@ async function handleRun() {
     nodes: store.nodes,
     edges: store.edges,
   }
-  auditOpen.value = true
+  openExecutionSurface('execution')
   try {
-    await execution.run(id, blueprint)
+    await execution.run(id, blueprint, file)
   } catch (err) {
     feedback.toast('error', 'Run failed', String(err))
   }
@@ -1381,7 +1344,7 @@ async function importDslFrom(filePath: string) {
     feedback.toast('error', 'DSL read failed', file.error)
     return
   }
-  const compiled = await gateway.compileDsl(file.data.content)
+  const compiled = await gateway.compileDsl(file.data.content, ws.path)
   if (!compiled.ok) {
     feedback.toast('error', 'DSL compile failed', compiled.error)
     return

@@ -7,6 +7,8 @@ use metteur_shared::{NodeId, PinId, Value};
 #[derive(Debug, Clone)]
 #[allow(dead_code)]
 pub enum ExecutionEvent {
+    /// Trusted review lifecycle notification; model text cannot emit this.
+    Oversight { review_id: String, detail: String },
     /// A node started executing.
     NodeStarted {
         node_id: NodeId,

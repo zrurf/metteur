@@ -21,6 +21,8 @@ pub struct VersionRef {
 #[derive(Clone, Copy)]
 pub(crate) enum ExpectedFile<'a> {
     Any,
+    /// Manual save may update only a valid file with the same identity.
+    Blueprint(Uuid),
     Absent,
     Version(&'a VersionRef),
 }
@@ -134,8 +136,23 @@ impl VersionManager {
         }
         let mut operation_id = None;
         let before = read_optional(&path)?;
+        if let ExpectedFile::Blueprint(id) = expected
+            && let Some(previous) = &before
+        {
+            let graph = crate::storage::blueprint_files::decode(previous).map_err(|_| {
+                DaemonError::Execution("existing blueprint file is invalid; save to a new file".into())
+            })?;
+            if graph.id != id {
+                return Err(DaemonError::Execution(
+                    "existing file contains a different blueprint id; choose another file or its explicit id".into(),
+                ));
+            }
+            if previous != bytes && std::fs::metadata(&path)?.permissions().readonly() {
+                return Err(DaemonError::PermissionDenied("blueprint file is read-only".into()));
+            }
+        }
         let mismatch = match expected {
-            ExpectedFile::Any => false,
+            ExpectedFile::Any | ExpectedFile::Blueprint(_) => false,
             ExpectedFile::Absent => before.is_some(),
             ExpectedFile::Version(base) => {
                 before.as_deref().map(hash_content).as_ref() != Some(&base.blob_hash)

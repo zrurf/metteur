@@ -18,6 +18,8 @@ use super::types::compatible;
 /// A single reason a blueprint is invalid, anchored to the node that caused it.
 #[derive(Debug, Clone, PartialEq)]
 pub enum BlueprintError {
+    /// A package node no longer matches its immutable declared contract.
+    AddonContract { node_id: NodeId, detail: String },
     /// The entry node id does not resolve to a node in the graph.
     MissingEntryNode(NodeId),
     /// An edge names a node that is not in the graph.
@@ -76,6 +78,7 @@ pub enum BlueprintError {
 impl fmt::Display for BlueprintError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::AddonContract { node_id, detail } => write!(f,"addon node {node_id}: {detail}"),
             Self::MissingEntryNode(id) => {
                 write!(f, "entry node {id} is not part of the blueprint")
             }
@@ -315,7 +318,27 @@ pub fn validate_with_catalog(
             }
         }
     }
-    validate(&resolved)
+    let mut report = validate(&resolved);
+    for node in &blueprint.nodes {
+        let function_binding = node.data.get("function").and_then(|v|v.as_str()).and_then(|name|catalog.addon_function_bindings.get(name));
+        if node.kind=="CallFunction" {
+            let key=crate::node_catalog::addon::FUNCTION_BINDING_KEY;
+            let result=match function_binding {
+                Some(binding)=>catalog.resolve(&node.kind,&node.data).ok_or_else(||"Addon function unavailable".into()).and_then(|s|crate::node_catalog::addon::validate_bound_instance(node,&s,binding,key)),
+                None if node.data.get(key).is_some()=>Err("Addon function or dependency is missing or disabled".into()),
+                _=>Ok(())
+            };
+            if let Err(detail)=result {report.errors.push(BlueprintError::AddonContract{node_id:node.id,detail});}
+        }
+        let result = match catalog.addon_bindings.get(&node.kind) {
+            Some(binding) => catalog.get(&node.kind).ok_or_else(|| "Addon node unavailable".into())
+                .and_then(|s| crate::node_catalog::addon::validate_instance(node,s,binding)),
+            None if node.data.get(crate::node_catalog::addon::BINDING_KEY).is_some() => Err("Addon package is missing, disabled or unavailable".into()),
+            None => Ok(()),
+        };
+        if let Err(detail)=result { report.errors.push(BlueprintError::AddonContract {node_id:node.id,detail}); }
+    }
+    report
 }
 
 /// Visit state for the execution-graph cycle check.

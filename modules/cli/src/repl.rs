@@ -57,6 +57,7 @@ pub async fn run(
     println!("Metteur REPL connected. Type 'help' for commands.");
     let mut active: Option<ActiveRun> = None;
     let mut chat: Option<ActiveChat> = None;
+    let mut concierge: Option<tonic::codec::Streaming<metteur_proto::proto::ConciergeEvent>> = None;
     loop {
         tokio::select! {
             line = line_rx.recv() => {
@@ -77,6 +78,7 @@ pub async fn run(
                                 label: start.label,
                             });
                         }
+                        Ok(Outcome::StartedConcierge(stream)) => { concierge=Some(*stream); }
                         Ok(Outcome::StartedChat(start)) => {
                             println!("-- started: {} --", start.label);
                             chat = Some(ActiveChat {
@@ -109,6 +111,18 @@ pub async fn run(
                             println!("-- run finished: {} --", run.label);
                         }
                     }
+                }
+            }
+            event = async {
+                match concierge.as_mut() {
+                    Some(stream)=>stream.message().await,
+                    None=>std::future::pending().await,
+                }
+            } => {
+                match event {
+                    Ok(Some(event))=>println!("{}",commands::concierge::line(&event)),
+                    Ok(None)=>{concierge=None;},
+                    Err(error)=>{println!("concierge failed: {error}");concierge=None;}
                 }
             }
             chat_event = async {

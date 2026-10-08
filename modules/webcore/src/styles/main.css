@@ -491,3 +491,23 @@ html.dark .diff-add {
 html.dark .diff-del {
   color: rgb(240 130 130);
 }
+
+/* Runtime motion is enabled only for an observed, currently advancing edge. */
+.execution-flow .vue-flow__edge-path {
+  stroke-linecap: round;
+  transition: opacity 180ms ease, stroke 180ms ease, filter 180ms ease;
+}
+.execution-flow .vue-flow__edge.is-traversed:not(.animated) .vue-flow__edge-path {
+  filter: none;
+}
+.execution-flow .vue-flow__edge.animated .vue-flow__edge-path {
+  stroke-dasharray: 7 9;
+  animation: execution-wire-flow 1.1s linear infinite;
+  filter: drop-shadow(0 0 3px var(--exec-wire));
+}
+@keyframes execution-wire-flow { to { stroke-dashoffset: -32; } }
+@media (prefers-reduced-motion: reduce) {
+  .execution-flow .vue-flow__edge-path,
+  .execution-flow .metteur-node { animation: none !important; transition: none !important; }
+  .execution-flow .vue-flow__edge.animated .vue-flow__edge-path { stroke-dasharray: none; }
+}

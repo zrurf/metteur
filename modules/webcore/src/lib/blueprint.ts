@@ -90,7 +90,7 @@ export function makeFlowNode(signature: NodeKindInfo, position: { x: number; y: 
     id, type: 'blueprint', position,
     data: { ...pinsFor(signature), kind: signature.kind, nodeType: signature.nodeType,
       title: NODE_PRESETS[signature.kind]?.title ?? signature.kind,
-      category: categoryFor(signature.kind, signature.nodeType), data: {}, values: {} },
+      category: categoryFor(signature.kind, signature.nodeType), data: signature.addonBinding ? { _addon_binding: JSON.parse(JSON.stringify(signature.addonBinding)) } : {}, values: {} },
   }
 }
 
@@ -104,6 +104,7 @@ export function makeCallFunctionNode(entry: FunctionItem, signature: NodeKindInf
   node.data!.outputs.push(...pins(entry.outputs, 'data-out'))
   node.data!.title = entry.name
   node.data!.data = { function: entry.name }
+  if (entry.addonBinding) node.data!.data['_addon_function_binding'] = JSON.parse(JSON.stringify(entry.addonBinding))
   return node
 }
 

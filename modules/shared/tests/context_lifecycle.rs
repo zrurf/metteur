@@ -256,6 +256,8 @@ fn thinking_signatures_survive_roundtrip_and_are_counted_once() {
 #[test]
 fn usage_cache_breakdown_is_consistent() {
     let usage = metteur_shared::Usage {
+        tokens_reported: true,
+        cache_read_reported: true,
         input_tokens: 1000,
         cached_input_tokens: 600,
         cache_write_input_tokens: 100,

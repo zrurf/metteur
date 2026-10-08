@@ -191,7 +191,9 @@ pub fn save(
     bytes: &[u8],
     expected: Option<&VersionRef>,
 ) -> DaemonResult<VersionRef> {
-    save_with_origin(db, versions, blueprint, uri, bytes, expected.into(), None)
+    let expected = expected.map(super::versioning::ExpectedFile::Version)
+        .unwrap_or(super::versioning::ExpectedFile::Blueprint(blueprint.id));
+    save_with_origin(db, versions, blueprint, uri, bytes, expected, None)
         .map(|(version, _)| version)
 }
 

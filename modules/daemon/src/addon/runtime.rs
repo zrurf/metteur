@@ -1,7 +1,6 @@
 //! Extism plugin invocation with permission-gated host functions.
 
 use std::collections::HashSet;
-use std::path::Path;
 use std::sync::Arc;
 
 use extism::{Manifest as ExtismManifest, PTR, PluginBuilder, UserData, Wasm};
@@ -22,6 +21,8 @@ pub enum Permission {
     Network,
     Llm,
     Tools,
+    Process,
+    Environment,
 }
 
 impl Permission {
@@ -33,6 +34,8 @@ impl Permission {
             "network" => Some(Self::Network),
             "llm" => Some(Self::Llm),
             "tools" => Some(Self::Tools),
+            "process" => Some(Self::Process),
+            "environment" => Some(Self::Environment),
             _ => None,
         }
     }
@@ -43,15 +46,7 @@ pub struct InvocationContext {
     /// Runtime handle captured before entering `spawn_blocking`.
     pub runtime: tokio::runtime::Handle,
     pub permissions: HashSet<Permission>,
-    /// Registry names of all addon tools, hidden from `call_tool`.
-    pub addon_tool_names: HashSet<String>,
-    pub registry: Arc<crate::registry::Registry>,
-    pub workspace_fs: Option<Arc<crate::workspace::fs::WorkspaceFs>>,
-    pub transaction_log: crate::execution::transaction::TransactionLog,
-    pub file_origin: crate::execution::file_journal::FileOrigin,
-    pub llm_factory: crate::llm::LlmClientFactory,
-    pub config: Option<Arc<tokio::sync::RwLock<metteur_shared::config::Config>>>,
-    pub audit: Option<crate::observability::audit::AuditWriter>,
+    pub execution: parking_lot::Mutex<crate::execution::context::ExecutionContext>,
     pub http: reqwest::blocking::Client,
 }
 
@@ -75,9 +70,18 @@ fn host_error(err: impl std::fmt::Display) -> extism::Error {
     extism::Error::msg(err.to_string())
 }
 
-/// Tools that addons may never reach through `call_tool`.
-fn is_hidden_from_addons(name: &str, addon_tools: &HashSet<String>) -> bool {
-    matches!(name, "ExecuteCommand" | "SpawnSubAgent") || addon_tools.contains(name)
+fn file_path(
+    ctx: &crate::execution::context::ExecutionContext,
+    path: &str,
+) -> DaemonResult<std::path::PathBuf> {
+    let fs = crate::workspace::fs::WorkspaceFs::new(ctx.workspace_root.clone());
+    let resolved = fs.resolve(path)?;
+    if resolved.starts_with(fs.root().join(crate::workspace::METADATA_DIR)) {
+        return Err(DaemonError::PermissionDenied(
+            "Addon filesystem access excludes daemon metadata".into(),
+        ));
+    }
+    Ok(resolved)
 }
 
 /// Shared per-invocation handle passed to every host function.
@@ -101,19 +105,24 @@ extism::host_fn!(hf_log(user_data: Ctx; level: String, message: String) -> () {
 extism::host_fn!(hf_call_tool(user_data: Ctx; name: String, args_json: String) -> String {
     let ctx = shared(user_data)?;
     require(&ctx.permissions, Permission::Tools, "tools")?;
-    if is_hidden_from_addons(&name, &ctx.addon_tool_names) {
-        return Err(extism::Error::msg(format!("tool '{name}' is not available to addons")));
-    }
-    let Some(tool) = ctx.registry.tool(&name) else {
-        return Err(extism::Error::msg(format!("unknown tool '{name}'")));
+    // Explicit file-tool allowlist prevents process, replan, nested-addon and
+    // other authority-bearing tools from bypassing the granted capabilities.
+    let permission=match name.as_str() {
+        "ReadFile" | "ListDirectory" => Permission::FsRead,
+        "WriteFile" | "EditFile" => Permission::FsWrite,
+        _ => return Err(denied("tool is not exposed to addons")),
     };
+    require(&ctx.permissions,permission,"file tool capability")?;
+    let mut exec_ctx=ctx.execution.lock();
+    let Some(tool)=exec_ctx.registry.tool(&name) else { return Err(denied("tool unavailable")); };
     let args: Value = serde_json::from_str(&args_json)
         .map_err(|err| extism::Error::msg(format!("invalid tool arguments JSON: {err}")))?;
     let object = match args {
         Value::Object(map) => map,
         _ => serde_json::Map::new(),
     };
-    let mut exec_ctx = build_exec_context(&ctx).map_err(host_error)?;
+    let path=object.get("path").and_then(Value::as_str).ok_or_else(||denied("explicit file path required"))?;
+    file_path(&exec_ctx,path).map_err(host_error)?;
     let values = vec![metteur_shared::Value::Json(Value::Object(object))];
     let result = ctx.runtime.block_on(tool.call(&values, &mut exec_ctx));
     let result = result.map_err(host_error)?;
@@ -123,20 +132,26 @@ extism::host_fn!(hf_call_tool(user_data: Ctx; name: String, args_json: String) -
 extism::host_fn!(hf_fs_read(user_data: Ctx; path: String) -> Vec<u8> {
     let ctx = shared(user_data)?;
     require(&ctx.permissions, Permission::FsRead, "fs:read")?;
-    let fs = ctx.workspace_fs.as_ref().ok_or_else(|| {
-        extism::Error::msg("filesystem access requires an active workspace")
-    })?;
-    fs.read(&path).map_err(host_error)
+    let mut execution=ctx.execution.lock();
+    let resolved=file_path(&execution,&path).map_err(host_error)?;
+    let mut file=std::fs::File::open(&resolved).map_err(host_error)?;
+    use std::io::Read;
+    let mut bytes=vec![]; (&mut file).take(1024*1024+1).read_to_end(&mut bytes).map_err(host_error)?;
+    if bytes.len()>1024*1024 { return Err(denied("file exceeds addon read limit")); }
+    execution.note_full_read([resolved]);
+    Ok(bytes)
 });
 
 extism::host_fn!(hf_fs_write(user_data: Ctx; path: String, data: Vec<u8>) -> () {
     let ctx = shared(user_data)?;
     require(&ctx.permissions, Permission::FsWrite, "fs:write")?;
-    let fs = ctx.workspace_fs.as_ref().ok_or_else(|| {
-        extism::Error::msg("filesystem access requires an active workspace")
-    })?;
-    let resolved = fs.resolve(&path).map_err(host_error)?;
-    ctx.transaction_log.mutate_file(fs.root(), &resolved, Some(&data), ctx.file_origin.clone(), None).map_err(host_error)?;
+    if data.len()>1024*1024 { return Err(denied("file exceeds addon write limit")); }
+    let mut execution=ctx.execution.lock();
+    let resolved=file_path(&execution,&path).map_err(host_error)?;
+    if !ctx.runtime.block_on(crate::sandbox::authorize_write(&execution,&resolved,&path,"Addon file write")).map_err(host_error)? {
+        return Err(denied("file write approval"));
+    }
+    execution.write_file(&resolved,&data,None).map_err(host_error)?;
     Ok(())
 });
 
@@ -166,7 +181,10 @@ extism::host_fn!(hf_http_request(
     }
     let response = request.body(body).send().map_err(host_error)?;
     let status = response.status().as_u16();
-    let body_bytes = response.bytes().map_err(host_error)?;
+    use std::io::Read;
+    let mut body_bytes=vec![];
+    response.take(1024*1024+1).read_to_end(&mut body_bytes).map_err(host_error)?;
+    if body_bytes.len()>1024*1024 { return Err(denied("HTTP response exceeds addon limit")); }
     Ok(serde_json::json!({
         "status": status,
         "body_base64": base64_encode(&body_bytes),
@@ -184,7 +202,7 @@ extism::host_fn!(hf_llm_complete(
     require(&ctx.permissions, Permission::Llm, "llm")?;
     let context = parse_messages(&messages_json)
         .map_err(|err| extism::Error::msg(format!("invalid messages JSON: {err}")))?;
-    let mut exec_ctx = build_exec_context(&ctx).map_err(host_error)?;
+    let mut exec_ctx = ctx.execution.lock();
     let opts = crate::execution::react::ReactOptions {
         provider: if provider.is_empty() { "openai-chat".to_string() } else { provider },
         model: resolve_default_model(&exec_ctx, model),
@@ -202,27 +220,6 @@ extism::host_fn!(hf_llm_complete(
         Err(err) => Err(extism::Error::msg(err.to_string())),
     }
 });
-
-fn build_exec_context(
-    ctx: &InvocationContext,
-) -> DaemonResult<crate::execution::context::ExecutionContext> {
-    let mut exec_ctx = crate::execution::context::ExecutionContext::new(
-        ctx.registry.clone(),
-        ctx.llm_factory.clone(),
-        ctx.workspace_fs.as_ref().map(|fs| fs.root().to_path_buf()).unwrap_or_default(),
-    );
-    exec_ctx.transaction_log = ctx.transaction_log.clone();
-    exec_ctx.run_id = ctx.file_origin.run_id;
-    exec_ctx.current_node = ctx.file_origin.node_id;
-    exec_ctx.file_attempt = ctx.file_origin.attempt;
-    if let Some(config) = &ctx.config {
-        exec_ctx.config = Some(config.clone());
-    }
-    if let Some(audit) = &ctx.audit {
-        exec_ctx.audit = Some(audit.clone());
-    }
-    Ok(exec_ctx)
-}
 
 fn resolve_default_model(
     exec_ctx: &crate::execution::context::ExecutionContext,
@@ -306,21 +303,24 @@ fn base64_encode(data: &[u8]) -> String {
 /// The plugin is instantiated per call: stateless, timeout-enforced and safe
 /// under concurrency.
 pub fn invoke(
-    package_dir: &Path,
+    wasm: &[u8],
     manifest: &Manifest,
     function: &str,
     input_json: &str,
     call_context: Arc<InvocationContext>,
     fallback_timeout_ms: u64,
 ) -> DaemonResult<String> {
-    let entry = package_dir.join(&manifest.addon.entry);
-    let mut wasm_manifest = ExtismManifest::new(vec![Wasm::file(entry)]);
-    let fallback = if fallback_timeout_ms == 0 {
-        DEFAULT_CALL_TIMEOUT_MS
-    } else {
-        fallback_timeout_ms
-    };
-    wasm_manifest.timeout_ms = Some(manifest.call_timeout_ms(fallback).min(u64::from(u32::MAX)));
+    if input_json.len() > 1024 * 1024 {
+        return Err(DaemonError::Addon("Addon input exceeds limit".into()));
+    }
+    let wasm_manifest = bounded_manifest(
+        wasm,
+        manifest.call_timeout_ms(if fallback_timeout_ms == 0 {
+            DEFAULT_CALL_TIMEOUT_MS
+        } else {
+            fallback_timeout_ms
+        }),
+    );
     let user_data = UserData::new(call_context);
 
     let mut plugin = PluginBuilder::new(wasm_manifest)
@@ -343,6 +343,74 @@ pub fn invoke(
     let output: Vec<u8> = plugin
         .call(function, input_json)
         .map_err(|err| DaemonError::Addon(format!("addon call '{function}' failed: {err}")))?;
+    if output.len() > 1024 * 1024 {
+        return Err(DaemonError::Addon("Addon output exceeds limit".into()));
+    }
     String::from_utf8(output)
         .map_err(|err| DaemonError::Addon(format!("addon returned invalid UTF-8: {err}")))
+}
+
+fn bounded_manifest(wasm: &[u8], timeout: u64) -> ExtismManifest {
+    let mut manifest = ExtismManifest::new(vec![Wasm::data(wasm.to_vec())]);
+    manifest.timeout_ms = Some(timeout.clamp(1, DEFAULT_CALL_TIMEOUT_MS));
+    manifest.memory.max_pages = Some(1024);
+    manifest.memory.max_http_response_bytes = Some(1024 * 1024);
+    manifest
+}
+
+/// Compile and link every declared export before registering any contribution.
+/// Admission exposes inert host functions; package startup cannot gain effects.
+pub(crate) fn validate(wasm: &[u8], manifest: &Manifest) -> DaemonResult<()> {
+    if wasm.is_empty() && manifest.tools.is_empty() && manifest.hooks.is_empty() && manifest.nodes.is_empty() {return Ok(());}
+    let mut builder = PluginBuilder::new(bounded_manifest(wasm, 1000)).with_wasi(true);
+    for (name, arguments, results) in [
+        ("log", 2, 0),
+        ("call_tool", 2, 1),
+        ("fs_read", 1, 1),
+        ("fs_write", 2, 0),
+        ("http_request", 4, 1),
+        ("llm_complete", 3, 1),
+    ] {
+        builder = builder.with_function(
+            name,
+            vec![PTR; arguments],
+            vec![PTR; results],
+            UserData::new(()),
+            |_, _, _, _| Err(denied("admission has no capabilities")),
+        );
+    }
+    let plugin =
+        builder.build().map_err(|_| DaemonError::Addon("Addon Wasm failed admission".into()))?;
+    for tool in &manifest.tools {
+        if !plugin.function_exists(&tool.function) {
+            return Err(DaemonError::Addon(format!("Missing addon export: {}", tool.function)));
+        }
+    }
+    for hook in &manifest.hooks {
+        if !plugin.function_exists(&hook.function) {
+            return Err(DaemonError::Addon(format!("Missing addon hook export: {}", hook.function)));
+        }
+    }
+    for node in &manifest.nodes {
+        if !plugin.function_exists(&node.function) {
+            return Err(DaemonError::Addon(format!("Missing addon node export: {}",node.function)));
+        }
+    }
+    Ok(())
+}
+
+/// Lifecycle observers receive only a host-built event. No execution context,
+/// WASI, log, filesystem, tool, process, network or model capability is attached.
+pub(super) fn observe(wasm: &[u8], function: &str, input: &str, timeout_ms: u64) -> DaemonResult<()> {
+    let failure = || DaemonError::Addon("Hook callback failed, exceeded its limits or timed out".into());
+    if input.len() > 4096 { return Err(failure()); }
+    let mut builder = PluginBuilder::new(bounded_manifest(wasm, timeout_ms.clamp(1, 1000))).with_wasi(false);
+    for (name, arguments, results) in [("log",2,0),("call_tool",2,1),("fs_read",1,1),("fs_write",2,0),("http_request",4,1),("llm_complete",3,1)] {
+        builder = builder.with_function(name, vec![PTR;arguments], vec![PTR;results], UserData::new(()), |_,_,_,_|Err(denied("lifecycle observers have no capabilities")));
+    }
+    let mut plugin = builder.build().map_err(|_|failure())?;
+    let output: Vec<u8> = plugin.call(function,input).map_err(|_|failure())?;
+    if output.len() > 65536 { return Err(failure()); }
+    // Plugin output is untrusted and cannot supply another event or authority.
+    Ok(())
 }

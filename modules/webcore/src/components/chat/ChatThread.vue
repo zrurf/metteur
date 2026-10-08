@@ -20,6 +20,7 @@ import type { ChatMessage } from '@/core'
  */
 const props = defineProps<{
   messages: ChatMessage[]
+  readOnly?: boolean
   onOpenFile: (path: string) => void
   onCopy: (text: string) => void
   onEdit: (text: string) => void
@@ -169,6 +170,7 @@ defineExpose({ scrollToBottom })
           </p>
           <TurnUser
             v-else-if="row.message.role === 'user'"
+            :read-only="readOnly"
             :content="row.message.content"
             :created-at="row.message.createdAt"
             :queued="row.message.queued === true"
@@ -180,6 +182,7 @@ defineExpose({ scrollToBottom })
           />
           <TurnAssistant
             v-else
+            :read-only="readOnly"
             :message="row.message"
             :on-copy="onCopy"
             :on-retry="onRetry"

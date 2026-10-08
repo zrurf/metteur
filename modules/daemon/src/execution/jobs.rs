@@ -677,7 +677,7 @@ fn spawn_reader(
 /// Killing the shell alone would leave a forked build or test runner running:
 /// on Unix the child leads its own process group (see `start`), on Windows
 /// `taskkill /T` walks the tree.
-async fn terminate(child: &mut tokio::process::Child) {
+pub(crate) async fn terminate(child: &mut tokio::process::Child) {
     let Some(pid) = child.id() else {
         let _ = child.kill().await;
         return;

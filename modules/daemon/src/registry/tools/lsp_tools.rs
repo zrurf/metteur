@@ -57,7 +57,8 @@ async fn open_document(
     };
     let uri = manager.to_file_uri(&absolute);
     let content = fs.read(path)?;
-    client.sync_document(&uri, &String::from_utf8_lossy(&content), &extension).await?;
+    let language_id = manager.language_for_extension(&extension).unwrap_or(extension.clone());
+    client.sync_document(&uri, &String::from_utf8_lossy(&content), &language_id).await?;
     Ok(DocumentTarget {
         client,
         uri,
@@ -216,9 +217,11 @@ impl Tool for CheckDiagnostics {
         let since = client.current_epoch();
         let decision = manager.should_sync(&uri, true).await;
         if decision == crate::integration::lsp::debounce::SyncDecision::SyncNow {
-            client.sync_document(&uri, &String::from_utf8_lossy(&content), &extension).await?;
+            let language_id =
+                manager.language_for_extension(&extension).unwrap_or(extension.clone());
+            client.sync_document(&uri, &String::from_utf8_lossy(&content), &language_id).await?;
         }
-        client.wait_diagnostics(since, timeout_ms).await;
+        client.wait_document(&uri, since, timeout_ms).await?;
         let mut items = Vec::new();
         for entry in client.diagnostics_snapshot().await {
             if entry.uri == uri {

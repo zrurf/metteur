@@ -19,7 +19,9 @@ impl DaemonService {
         let subject = subject_from_request(&request).unwrap_or_else(|| "local".to_string());
         let req = request.into_inner();
         let _config_guard = self.state.config_gate.lock().await;
+        let already_open = self.state.workspaces.get(&PathBuf::from(&req.path)).await.is_some();
         let ws = self.state.workspaces.open(&PathBuf::from(req.path)).await.map_err(to_status)?;
+        if let Some(host)=&self.state.addon_host {host.opened_workspace(ws.root()).await;}
         // Register this workspace's function library into the shared registry,
         // remembering the names so only this workspace's set is retired later.
         match self.state.registry.load_functions(&ws.db, FunctionSource::Workspace) {
@@ -34,6 +36,7 @@ impl DaemonService {
             // available through ListMcpServers; SetConfig reports this failure.
             tracing::warn!("workspace MCP reload failed: {error}");
         }
+        if !already_open && let Some(host) = &self.state.addon_host { host.observe_workspace_open(ws.root()); }
         record_global_audit(
             &self.state,
             &subject,
@@ -66,7 +69,9 @@ impl DaemonService {
             .await
             .map(|ws| ws.root().to_path_buf())
             .ok_or_else(|| Status::not_found("workspace is not open"))?;
-        self.state.workspaces.close(&PathBuf::from(&req.path)).await.map_err(to_status)?;
+        if self.state.running.read().await.contains_key(&root) || self.state.chats.read().await.contains_key(&root) {return Err(Status::failed_precondition("Workspace has an active execution or chat turn"));}
+        if let Some(host)=&self.state.addon_host {host.close_workspace(&root,&self.state.workspaces).await.map_err(to_status)?;}
+        else {self.state.workspaces.close(&root).await.map_err(to_status)?;}
         // Retire exactly this workspace's functions. A name another open
         // workspace also defines is restored from that workspace's database;
         // otherwise the global definition (if any) takes over, so closing one

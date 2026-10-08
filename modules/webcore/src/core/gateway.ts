@@ -1,3 +1,6 @@
+import type { OversightReports } from './oversight'
+import type { ConciergeState, ConciergeEvent } from './concierge'
+import type { Blackboard, BoardQuery } from './blackboard'
 import type { Ref } from 'vue'
 import type {
   AddonInfo,
@@ -152,9 +155,10 @@ export interface DaemonGateway {
   deleteChatSession(workspacePath: string, sessionId?: string): Promise<Result<void>>
 
   // Blueprints -----------------------------------------------------------------
-  listNodeKinds(): Promise<Result<NodeCatalog>>
+  listNodeKinds(workspacePath?: string): Promise<Result<NodeCatalog>>
   listFunctions(workspacePath: string): Promise<Result<FunctionItem[]>>
-  compileDsl(source: string): Promise<Result<Blueprint>>
+  importFunction(workspacePath: string, source: FunctionItem, name: string, filePath: string): Promise<Result<{ name: string; filePath: string }>>
+  compileDsl(source: string, workspacePath?: string): Promise<Result<Blueprint>>
   decompileBlueprint(workspacePath: string, blueprintOrId: Blueprint | string): Promise<Result<string>>
   saveBlueprint(workspacePath: string, blueprint: Blueprint, filePath?: string): Promise<Result<void>>
   loadBlueprint(workspacePath: string, blueprintId: string): Promise<Result<Blueprint>>
@@ -175,9 +179,9 @@ export interface DaemonGateway {
   ): Promise<Result<void>>
   listExecutions(workspacePath: string): Promise<Result<ExecutionInfo[]>>
   getExecutionTree(workspacePath: string, runId: string): Promise<Result<ExecTreeData>>
-  cancel(workspacePath: string): Promise<Result<void>>
-  pause(workspacePath: string): Promise<Result<void>>
-  resume(workspacePath: string): Promise<Result<void>>
+  cancel(workspacePath: string, runId?: string): Promise<Result<void>>
+  pause(workspacePath: string, runId?: string): Promise<Result<void>>
+  resume(workspacePath: string, runId?: string): Promise<Result<void>>
 
   // Approvals ------------------------------------------------------------------
   respondApproval(workspacePath: string, requestId: string, allow: boolean): Promise<Result<void>>
@@ -197,6 +201,10 @@ export interface DaemonGateway {
   /** Toggle an addon. `workspacePath` selects the workspace scope; empty means
    *  the global scope. */
   setAddonEnabled(id: string, enabled: boolean, workspacePath?: string): Promise<Result<void>>
-  listMcpServers(): Promise<Result<McpServerInfo[]>>
+  listMcpServers(workspacePath?: string): Promise<Result<McpServerInfo[]>>
+  getBlackboard(workspacePath: string, runId: string, query?: BoardQuery): Promise<Result<Blackboard>>
+  listOversightReports(workspacePath: string, runId: string): Promise<Result<OversightReports>>
+  getConciergeState(workspacePath: string, runId: string, conversationId: string): Promise<Result<ConciergeState>>
+  sendConciergeMessage(workspacePath: string, runId: string, conversationId: string, messageId: string, message: string, onEvent: (event: ConciergeEvent) => void, signal?: AbortSignal): Promise<Result<void>>
   getExecutionUsage(workspacePath: string, runId: string): Promise<Result<UsageSummary>>
 }

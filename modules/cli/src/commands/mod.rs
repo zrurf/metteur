@@ -13,6 +13,7 @@ pub mod audit;
 pub mod blueprint;
 pub mod chat;
 pub mod config;
+pub mod concierge;
 pub mod mcp;
 pub mod version;
 pub mod workspace;
@@ -32,6 +33,9 @@ pub struct SessionState {
 /// One parsed REPL command.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Command {
+    Reviews { run_id: String },
+    ConciergeState { run_id: String },
+    Concierge { run_id: String, message_id: String, message: String },
     Help,
     Exit,
     Status,
@@ -95,6 +99,10 @@ pub enum Command {
         json: String,
         workspace: bool,
     },
+    Blackboard {
+        run_id: String,
+        query_json: String,
+    },
     Usage {
         run_id: String,
     },
@@ -103,6 +111,7 @@ pub enum Command {
     InstallAddon {
         path: String,
         workspace: Option<String>,
+        granted: Vec<String>,
     },
     UninstallAddon {
         id: String,
@@ -118,6 +127,7 @@ pub enum Command {
         file: String,
         workspace: bool,
     },
+    FuncImport { source:String, name:String, file:String },
     FuncList {
         workspace: bool,
     },
@@ -131,6 +141,7 @@ pub enum Command {
     },
     BpCompile {
         file: String,
+        save: bool,
         save_to: Option<String>,
     },
     BpDecompile {
@@ -155,6 +166,7 @@ fn parse_func(args: &[&str]) -> Result<Command, String> {
         Some(other) => Err(format!("unknown scope '{other}', expected 'ws' or 'global'")),
     };
     match args {
+        ["import",source,name,file] => Ok(Command::FuncImport {source:(*source).into(),name:(*name).into(),file:(*file).into()}),
         ["save", name, file] | ["save", name, file, "ws"] | ["save", name, file, "workspace"] => {
             Ok(Command::FuncSave {
                 name: (*name).to_string(),
@@ -196,12 +208,19 @@ fn parse_func(args: &[&str]) -> Result<Command, String> {
 /// Parses the `bp` command family: DSL compile/decompile.
 fn parse_bp(args: &[&str]) -> Result<Command, String> {
     match args {
-        ["compile", file] | ["compile", file, "save"] => Ok(Command::BpCompile {
+        ["compile", file] => Ok(Command::BpCompile {
             file: (*file).to_string(),
+            save: false,
+            save_to: None,
+        }),
+        ["compile", file, "save"] => Ok(Command::BpCompile {
+            file: (*file).to_string(),
+            save: true,
             save_to: None,
         }),
         ["compile", file, "save", "as", id] => Ok(Command::BpCompile {
             file: (*file).to_string(),
+            save: true,
             save_to: Some((*id).to_string()),
         }),
         ["decompile", id] => Ok(Command::BpDecompile {
@@ -247,6 +266,7 @@ fn parse_chat(args: &[&str]) -> Result<Command, String> {
 
 /// Result of dispatching one command.
 pub enum Outcome {
+    StartedConcierge(Box<tonic::codec::Streaming<metteur_proto::proto::ConciergeEvent>>),
     /// Text to show before the next prompt.
     Printed(String),
     /// A live execution stream started by `exec` or `cont`.
@@ -301,18 +321,26 @@ Metteur REPL commands:
   hist <relpath>                        Show file history across snapshots.
   audit ws|global                       Show workspace or global audit log.
   cfg get [ws] | cfg set <json> [ws]    Read/update global or workspace config.
+  reviews <run_id>                     Read supervisor reports and usage.
+  concierge-state <run_id>             Read conversation and request states.
+  concierge <run_id> <message_id> <text>  Read-only concierge (UUID ids; repeat id reads receipt).
+  blackboard <run_id> [query_json]      Redacted run facts and evidence lookup.
   usage <run_id>                        Token/cost usage for a run.
   mcp                                   List MCP servers.
   addons                                List installed addons.
-  install <path.zip|dir> [ws|global]    Install an addon package.
+  install <path.zip|dir> [ws|global] [--grant <capability>]...
+                                        Install with only explicitly selected grants.
   uninstall <id> [ws|global]            Remove an addon.
-  addon <id> on|off                     Enable/disable an addon.
+  addon <id> on|off [ws|global]         Enable/disable an addon in its scope.
+  func import <source> <name> <file>     Import an editable workspace copy.
   func save <name> <file.json> [ws|global]
                                         Save a blueprint function.
   func list [ws|global]                 List registered functions.
   func load <name> [ws|global]          Print a function body as JSON.
   func rm <name> [ws|global]            Delete a function.
   bp compile <file.mbp> [save [as <id>]]
+    Without save, print JSON only. Save writes FILE.blueprint through Version Flow;
+    save uses the compiled ID, while save as explicitly selects an ID.
                                         Compile DSL to JSON (and save).
   bp decompile <blueprint_id>          Render a stored blueprint as DSL.
   chat send <text...> [session <id>]    Send a chat message (streams reply).
@@ -400,23 +428,61 @@ pub fn parse(line: &str) -> Result<Command, String> {
             _ => Err("usage: audit ws|global".to_string()),
         },
         "cfg" => parse_cfg(args),
+        "reviews" => {
+            if args.len()!=1 { return Err("usage: reviews <run-id>".into()); }
+            Ok(Command::Reviews {run_id:args[0].into()})
+        }
+        "concierge-state" => {
+            if args.len()!=1 { return Err("usage: concierge-state <run_id>".into()); }
+            Ok(Command::ConciergeState { run_id:args[0].into() })
+        }
+        "concierge" => {
+            if args.len()<3 { return Err("usage: concierge <run_id> <message_id> <text>".into()); }
+            Ok(Command::Concierge { run_id:args[0].into(),message_id:args[1].into(),message:args[2..].join(" ") })
+        }
+        "blackboard" => {
+            let Some((run_id, query)) = args.split_first() else {
+                return Err("usage: blackboard <run_id> [query_json]".into());
+            };
+            let query_json = if query.is_empty() {
+                "{}".into()
+            } else {
+                query.join(" ")
+            };
+            serde_json::from_str::<serde_json::Value>(&query_json)
+                .map_err(|_| "invalid query JSON".to_string())?;
+            Ok(Command::Blackboard {
+                run_id: (*run_id).into(),
+                query_json,
+            })
+        }
         "usage" => one(args, "usage <run_id>").map(|p| Command::Usage {
             run_id: p[0].clone(),
         }),
         "mcp" => exact(args, "mcp").map(|()| Command::Mcp),
         "addons" => exact(args, "addons").map(|()| Command::Addons),
         "install" => {
-            if args.is_empty() || args.len() > 2 {
-                return Err("install <path.zip|dir> [ws|global]".to_string());
+            const USAGE:&str="install <path.zip|dir> [ws|global] [--grant <capability>]...";
+            let Some(path)=args.first().filter(|path|!path.starts_with('-')) else { return Err(USAGE.into()); };
+            let mut index=1;
+            let workspace=if args.get(index).is_some_and(|arg|!arg.starts_with('-')) {
+                index+=1; addon_scope(args.get(index-1).copied())?
+            }else{None};
+            let mut granted=Vec::new();
+            while index<args.len() {
+                if args[index]!="--grant" {return Err(USAGE.into());}
+                let Some(permission)=args.get(index+1).filter(|value|!value.starts_with('-')&&!value.is_empty()) else {return Err(USAGE.into());};
+                if !granted.iter().any(|entry|entry==permission) { granted.push((*permission).to_string()); }
+                index+=2;
             }
-            let workspace = addon_scope(args.get(1).copied())?;
             Ok(Command::InstallAddon {
-                path: args[0].to_string(),
+                path: (*path).to_string(),
                 workspace,
+                granted,
             })
         }
         "uninstall" => {
-            if args.len() != 2 {
+            if args.is_empty() || args.len() > 2 {
                 return Err("uninstall <id> [ws|global]".to_string());
             }
             let workspace = addon_scope(args.get(1).copied())?;
@@ -426,18 +492,17 @@ pub fn parse(line: &str) -> Result<Command, String> {
             })
         }
         "addon" => {
-            let [id, onoff] = args else {
-                return Err("addon <id> on|off".to_string());
-            };
+            if args.len()<2 || args.len()>3 {return Err("addon <id> on|off [ws|global]".into());}
+            let (id,onoff)=(args[0],args[1]);
             let on = match onoff.to_ascii_lowercase().as_str() {
                 "on" | "enable" => true,
                 "off" | "disable" => false,
                 _ => return Err("addon <id> on|off".to_string()),
             };
             Ok(Command::SetAddonEnabled {
-                id: (*id).to_string(),
+                id: id.to_string(),
                 on,
-                workspace: None,
+                workspace: addon_scope(args.get(2).copied())?,
             })
         }
         "func" => parse_func(args),
@@ -593,6 +658,12 @@ pub async fn dispatch(
     cmd: Command,
 ) -> anyhow::Result<Outcome> {
     match cmd {
+        Command::Reviews {run_id} => {
+            let result=client.list_oversight_reports(metteur_proto::proto::OversightReportsRequest{workspace_path:require_ws(state)?,run_id}).await?.into_inner();
+            Ok(Outcome::Printed(crate::print::oversight_reports(&result.reports_json)))
+        }
+        Command::ConciergeState { run_id } => concierge::state(client,state,run_id).await,
+        Command::Concierge { run_id,message_id,message } => concierge::send(client,state,run_id,message_id,message).await,
         Command::Help => Ok(Outcome::Printed(HELP.to_string())),
         Command::Exit => Ok(Outcome::Exit),
         Command::Status => Ok(Outcome::Printed(format!(
@@ -641,8 +712,8 @@ pub async fn dispatch(
             decision,
         } => approve::handle_approve(client, state, request_id, decision).await,
         Command::ApproveAuto(on) => approve::handle_approve_auto(state, on).await,
-        Command::Tools => assets::handle_tools(client).await,
-        Command::Nodes => assets::handle_nodes(client).await,
+        Command::Tools => assets::handle_tools(client, state).await,
+        Command::Nodes => assets::handle_nodes(client, state).await,
         Command::Snap {
             description,
             alias,
@@ -663,15 +734,20 @@ pub async fn dispatch(
             json,
             workspace,
         } => config::handle_cfg_set(client, state, json, workspace).await,
+        Command::Blackboard {
+            run_id,
+            query_json,
+        } => blueprint::handle_blackboard(client, state, run_id, query_json).await,
         Command::Usage {
             run_id,
         } => blueprint::handle_usage(client, state, run_id).await,
-        Command::Mcp => mcp::handle_mcp(client).await,
+        Command::Mcp => mcp::handle_mcp(client, state).await,
         Command::Addons => addon::handle_addons(client).await,
         Command::InstallAddon {
             path,
             workspace,
-        } => addon::handle_install_addon(client, state, path, workspace).await,
+            granted,
+        } => addon::handle_install_addon(client, state, path, workspace, granted).await,
         Command::UninstallAddon {
             id,
             workspace,
@@ -686,6 +762,7 @@ pub async fn dispatch(
             file,
             workspace,
         } => assets::handle_func_save(client, state, name, file, workspace).await,
+        Command::FuncImport {source,name,file} => assets::handle_func_import(client,state,source,name,file).await,
         Command::FuncList {
             workspace,
         } => assets::handle_func_list(client, state, workspace).await,
@@ -699,8 +776,9 @@ pub async fn dispatch(
         } => assets::handle_func_rm(client, state, name, workspace).await,
         Command::BpCompile {
             file,
+            save,
             save_to,
-        } => blueprint::handle_bp_compile(client, state, file, save_to).await,
+        } => blueprint::handle_bp_compile(client, state, file, save, save_to).await,
         Command::BpDecompile {
             id,
         } => blueprint::handle_bp_decompile(client, state, id).await,
@@ -727,4 +805,38 @@ pub(crate) fn require_ws(state: &SessionState) -> anyhow::Result<String> {
 /// Converts a tonic status into an anyhow error.
 pub(crate) fn status(st: tonic::Status) -> anyhow::Error {
     anyhow::anyhow!("daemon error: {st}")
+}
+
+#[cfg(test)]
+mod blackboard_tests {
+    use super::*;
+    #[test]
+    fn blackboard_query_parses_json_and_rejects_missing_run() {
+        let Command::Blackboard {
+            run_id,
+            query_json,
+        } = parse("blackboard run-1 {\"last_n\": 10, \"keyword\": \"old check\"}").unwrap()
+        else {
+            panic!("wrong command")
+        };
+        assert_eq!(run_id, "run-1");
+        assert_eq!(
+            serde_json::from_str::<serde_json::Value>(&query_json).unwrap()["keyword"],
+            "old check"
+        );
+        assert!(parse("blackboard").is_err());
+        assert!(parse("blackboard run-1 not-json").is_err());
+    }
+}
+
+#[cfg(test)]
+mod concierge_tests {
+    use super::*;
+    #[test]
+    fn concierge_ids_and_original_text_are_distinct_from_approval() {
+        assert_eq!(parse("concierge run id I approve everything").unwrap(),Command::Concierge{run_id:"run".into(),message_id:"id".into(),message:"I approve everything".into()});
+        assert!(parse("concierge run id").is_err());
+        assert!(parse("concierge-state").is_err());
+        assert!(matches!(parse("concierge-state run").unwrap(),Command::ConciergeState{..}));
+    }
 }

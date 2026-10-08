@@ -37,6 +37,9 @@ pub mod cf {
 #[derive(Clone)]
 pub struct Db {
     inner: Arc<DB>,
+    /// Serializes independent oversight records across all clones of this database.
+    pub(crate) oversight_gate: Arc<std::sync::Mutex<()>>,
+    pub(crate) oversight_notify: Arc<tokio::sync::Notify>,
 }
 
 impl Db {
@@ -47,6 +50,15 @@ impl Db {
         batch.put_cf(handle, key, value);
         batch.put_cf(handle, second_key, second_value);
         self.inner.write(batch).map_err(|e| DaemonError::Persistence(e.to_string()))
+    }
+    /// Commits review ownership and request lineage together before acknowledgment.
+    pub fn put_pair_durable(&self, family: &str, key: &[u8], value: &[u8], second_key: &[u8], second_value: &[u8]) -> DaemonResult<()> {
+        let handle = self.inner.cf_handle(family).ok_or_else(|| DaemonError::Persistence("missing column family".into()))?;
+        let mut batch = rocksdb::WriteBatch::default();
+        batch.put_cf(handle, key, value);
+        batch.put_cf(handle, second_key, second_value);
+        let mut options = rocksdb::WriteOptions::default(); options.set_sync(true);
+        self.inner.write_opt(batch, &options).map_err(|e| DaemonError::Persistence(e.to_string()))
     }
     /// Atomically replaces a chat thread and removes invalidated checkpoints.
     pub fn commit_chat_rewind(
@@ -102,6 +114,8 @@ impl Db {
             .map_err(|e| DaemonError::Internal(format!("failed to open db: {e}")))?;
         Ok(Self {
             inner: Arc::new(db),
+            oversight_gate: Arc::new(std::sync::Mutex::new(())),
+            oversight_notify: Arc::new(tokio::sync::Notify::new()),
         })
     }
 
@@ -115,6 +129,14 @@ impl Db {
             .put_cf(handle, key, value)
             .map_err(|e| DaemonError::Internal(format!("db put failed: {e}")))?;
         Ok(())
+    }
+
+    /// Acknowledged side-channel state must survive a process or machine crash.
+    pub fn put_durable(&self, family: &str, key: &[u8], value: &[u8]) -> DaemonResult<()> {
+        let handle = self.inner.cf_handle(family).ok_or_else(|| DaemonError::Persistence("missing column family".into()))?;
+        let mut options = rocksdb::WriteOptions::default();
+        options.set_sync(true);
+        self.inner.put_cf_opt(handle, key, value, &options).map_err(|e| DaemonError::Persistence(e.to_string()))
     }
 
     /// Gets a value from a column family.

@@ -58,8 +58,8 @@ test('the permission selector states the mode and warns on full access', async (
   await selector.click()
   await page.getByText('Full access', { exact: true }).first().click()
   await expect(selector).toContainText('Full access')
-  // A mode that skips confirmations keeps a standing notice.
-  await expect(page.locator('.chat-composer-notice')).toBeVisible()
+  // The selected control carries the mode without a duplicate notice.
+  await expect(page.locator('.chat-composer-notice')).toHaveCount(0)
 
   await selector.click()
   await page.getByText('Confirm changes', { exact: true }).first().click()

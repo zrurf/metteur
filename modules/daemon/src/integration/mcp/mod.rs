@@ -27,10 +27,7 @@ use connection::McpConnectionOps;
 /// specific scope wins), and servers only some workspace declares stay
 /// available while that workspace is open. The section-level timeout keeps the
 /// global value, since one host carries a single timeout.
-pub fn merge_servers(
-    global: &McpConfig,
-    workspace_configs: &[McpConfig],
-) -> McpConfig {
+pub fn merge_servers(global: &McpConfig, workspace_configs: &[McpConfig]) -> McpConfig {
     let mut merged = global.clone();
     for config in workspace_configs {
         for (alias, server) in &config.servers {
@@ -75,6 +72,79 @@ pub struct McpHost {
 }
 
 impl McpHost {
+    /// An addon owns this host; adapters are published atomically by AddonHost.
+    pub(crate) fn owned(metrics: Arc<Metrics>) -> Arc<Self> {
+        Arc::new(Self {
+            registry: Arc::new(Registry::default()),
+            metrics,
+            servers: Default::default(),
+            call_lock: AsyncMutex::new(()),
+        })
+    }
+
+    pub(crate) async fn adopt(
+        self: &Arc<Self>,
+        alias: &str,
+        conn: Arc<dyn McpConnectionOps>,
+        timeout: u64,
+    ) -> DaemonResult<Vec<Arc<dyn crate::registry::Tool>>> {
+        let discovered =
+            tokio::time::timeout(Duration::from_secs(timeout), conn.list_tools()).await;
+        let result = (|| {
+            let remotes = discovered
+                .map_err(|_| DaemonError::Mcp("Addon MCP discovery timed out".into()))??;
+            if remotes.len() > 256 {
+                return Err(DaemonError::Mcp("Addon MCP tool limit exceeded".into()));
+            }
+            let mut names = HashSet::new();
+            let mut adapters = Vec::<Arc<dyn crate::registry::Tool>>::new();
+            for remote in remotes {
+                if remote.name.len() > 128
+                    || remote.description.len() > 16384
+                    || remote.schema.to_string().len() > 65536
+                {
+                    return Err(DaemonError::Mcp("Addon MCP discovery limit exceeded".into()));
+                }
+                let (name, _) =
+                    tools::unique_server_tool_name(alias, &remote.name, &HashSet::new());
+                if !names.insert(name.clone()) {
+                    return Err(DaemonError::Mcp("Addon MCP tool name collision".into()));
+                }
+                adapters.push(Arc::new(tools::McpServerTool::new(
+                    self.clone(),
+                    alias,
+                    remote,
+                    name,
+                )));
+            }
+            Ok(adapters)
+        })();
+        match result {
+            Ok(adapters) => {
+                self.servers.write().insert(
+                    alias.into(),
+                    ServerEntry {
+                        state: ServerState::Connected(adapters.len()),
+                        conn: Some(conn),
+                        registered_tools: vec![],
+                        fingerprint: String::new(),
+                        timeout_secs: timeout,
+                    },
+                );
+                Ok(adapters)
+            }
+            Err(error) => {
+                conn.shutdown().await;
+                Err(error)
+            }
+        }
+    }
+    pub(crate) async fn shutdown(&self) {
+        let aliases: Vec<_> = self.servers.read().keys().cloned().collect();
+        for alias in aliases {
+            self.teardown_server(&alias).await;
+        }
+    }
     /// Creates a host attached to the shared registry and metrics.
     ///
     /// The host-level resource tools (`ListMcpResources`, `ReadMcpResource`)
@@ -210,6 +280,11 @@ impl McpHost {
             let entry = servers.get(alias).ok_or_else(|| {
                 DaemonError::NotFound(format!("MCP server '{alias}' is not connected"))
             })?;
+            if matches!(entry.state, ServerState::Failed(_)) {
+                return Err(DaemonError::Mcp(
+                    "MCP connection failed; refresh service status".into(),
+                ));
+            }
             let conn = entry.conn.clone().ok_or_else(|| {
                 DaemonError::Mcp(format!("server '{alias}' has no active connection"))
             })?;
@@ -222,10 +297,21 @@ impl McpHost {
             conn.call_tool(remote_name, serde_json::Value::Object(args)),
         )
         .await
-        .map_err(|_| DaemonError::Mcp(format!("tool {remote_name} timed out after {timeout}s")))?
-        .map_err(|err| DaemonError::Mcp(format!("tool {remote_name} failed: {err}")))?;
+        .map_err(|_| DaemonError::Mcp(format!("tool {remote_name} timed out after {timeout}s")))
+        .and_then(|r| {
+            r.map_err(|err| DaemonError::Mcp(format!("tool {remote_name} failed: {err}")))
+        });
+        if result.is_err() {
+            let mut servers = self.servers.write();
+            if let Some(entry) = servers.get_mut(alias)
+                && entry.fingerprint.is_empty()
+            {
+                entry.state =
+                    ServerState::Failed("Addon MCP request failed or connection closed".into());
+            }
+        }
         self.metrics.record_mcp_call(alias);
-        Ok(result)
+        result
     }
 
     /// Lists resources exposed by the given server.

@@ -12,6 +12,17 @@ declare module 'vue-router' {
 }
 
 const routes = [
+  { path: '/work/:wid/execution', name: 'execution', component: () => import('./views/ExecutionView.vue'), meta: { title: 'Execution', workspace: true } },
+  ...(import.meta.env.DEV && import.meta.env.VITE_MOCK === '1' ? [{
+    path: '/preview/execution',
+    name: 'execution-preview',
+    component: () => import('./views/ExecutionPreview.vue'),
+    beforeEnter: async () => {
+      const workspace = useWorkspaceStore()
+      if (!workspace.hasActive) await workspace.open('F:/space/06_Projects/Agent/metteur')
+    },
+    meta: { title: 'Execution preview' },
+  }] : []),
   {
     path: '/',
     name: 'root',

@@ -4,7 +4,7 @@ use crate::common::*;
 
 fn circuit_config(threshold: u32) -> Arc<RwLock<metteur_shared::config::Config>> {
     use metteur_shared::config::{Config, ExecutionConfig, LlmConfig, LlmModelConfig};
-    Arc::new(RwLock::new(Config {
+    let mut config = Config {
         execution: ExecutionConfig {
             circuit_break_after: threshold,
             validation_max_attempts: 1,
@@ -23,7 +23,11 @@ fn circuit_config(threshold: u32) -> Arc<RwLock<metteur_shared::config::Config>>
             ..Default::default()
         },
         ..Default::default()
-    }))
+    };
+    config
+        .extra
+        .insert("oversight".into(), serde_json::json!({"triggers":{"on_validation_failed":true}}));
+    Arc::new(RwLock::new(config))
 }
 
 #[tokio::test]
@@ -76,7 +80,7 @@ async fn approved_replan_saves_only_the_rerun_before_its_successor() {
     let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
     let mut runner = Interpreter::new(
         Arc::new(Registry::with_builtins()),
-        LlmClientFactory::with_override(Arc::new(MockClient::text(script))),
+        LlmClientFactory::with_override(Arc::new(MockClient::new(vec![metteur_daemon::llm::MockStep::Tools(vec![metteur_shared::llm::ToolCall{id:"repair".into(),name:"ProposeBlueprintEdits".into(),arguments:serde_json::json!({"summary":"Repair validator mode","edits":serde_json::from_str::<serde_json::Value>(script).unwrap()})}]),metteur_daemon::llm::MockStep::Text(r#"{"verdict":"concern","summary":"Rerun required"}"#.into())]))),
         root.clone(),
     )
     .with_workspace_db(db.clone())
@@ -114,7 +118,14 @@ async fn approved_replan_saves_only_the_rerun_before_its_successor() {
         .unwrap();
     drop(runner);
     let (approved, started) = approvals.await.unwrap();
-    assert_eq!(approved, 2);
+    assert_eq!(approved, 1);
+    let reports = metteur_daemon::oversight::scheduler::load(&db, sink.run_id()).unwrap().unwrap();
+    assert_eq!(
+        reports.reviews.len(),
+        1,
+        "the circuit must own the failure before the generic validation trigger can claim it"
+    );
+    assert!(reports.reviews[0].triggers.contains("circuit"));
     let validations: Vec<_> =
         started.iter().enumerate().filter(|(_, id)| **id == validator).map(|(i, _)| i).collect();
     assert_eq!(validations.len(), 2);

@@ -169,12 +169,46 @@ fn branch_blueprint(condition: bool) -> (Blueprint, PathBuf) {
 async fn branch_routes_true_and_false() {
     for (condition, expected) in [(true, "true"), (false, "false")] {
         let (blueprint, workspace) = branch_blueprint(condition);
+        let sink = Arc::new(RecordSink::new());
+        let taken_edges: Vec<_> = blueprint
+            .edges
+            .iter()
+            .filter(|e| {
+                blueprint.pin(e.source_pin).unwrap().name
+                    == if condition {
+                        "True"
+                    } else {
+                        "False"
+                    }
+            })
+            .map(|e| e.id)
+            .collect();
+        let untaken_edges: Vec<_> = blueprint
+            .edges
+            .iter()
+            .filter(|e| {
+                blueprint.pin(e.source_pin).unwrap().name
+                    == if condition {
+                        "False"
+                    } else {
+                        "True"
+                    }
+            })
+            .map(|e| e.id)
+            .collect();
         let mut interpreter = Interpreter::new(
             Arc::new(Registry::with_builtins()),
             LlmClientFactory::new(),
             workspace.clone(),
-        );
+        )
+        .with_checkpoint_sink(sink.clone());
         interpreter.run(&shared(blueprint), None).await.unwrap();
+        let checkpoints = sink.checkpoints.lock().unwrap();
+        let view = &checkpoints.last().unwrap().view;
+        assert!(taken_edges.iter().all(|id| view.edges.iter().any(|edge| edge.edge_id == *id)));
+        assert!(untaken_edges.iter().all(|id| view.edges.iter().all(|edge| edge.edge_id != *id)));
+        assert_eq!(view.invocations.len(), 4);
+        assert!(view.invocations.iter().all(|i| i.status == "Completed" && i.attempt == 1));
         assert_eq!(std::fs::read_to_string(workspace.join("hit.txt")).unwrap(), expected);
     }
 }

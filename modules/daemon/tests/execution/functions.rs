@@ -8,8 +8,7 @@ async fn executes_function_call_via_frames() {
     let registry = Arc::new(Registry::with_builtins());
     registry.register_function(func.clone());
     let blueprint = call_function_blueprint("AddFunc");
-    let mut interpreter =
-        Interpreter::new(registry, LlmClientFactory::new(), std::env::temp_dir());
+    let mut interpreter = Interpreter::new(registry, LlmClientFactory::new(), std::env::temp_dir());
     let events = interpreter.run(&shared(blueprint.clone()), None).await.unwrap();
 
     // Caller result is 5 + 3 = 8 and is reported through a NodeData event.
@@ -20,11 +19,7 @@ async fn executes_function_call_via_frames() {
                 node_id,
                 outputs,
                 ..
-            } if blueprint
-                .node(*node_id)
-                .map(|n| n.kind == "CallFunction")
-                .unwrap_or(false) =>
-            {
+            } if blueprint.node(*node_id).map(|n| n.kind == "CallFunction").unwrap_or(false) => {
                 Some((*node_id, outputs.clone()))
             }
             _ => None,
@@ -117,8 +112,7 @@ async fn function_recursion_is_depth_limited() {
     let registry = Arc::new(Registry::with_builtins());
     registry.register_function(func.clone());
     let blueprint = call_function_blueprint("Selfish");
-    let mut interpreter =
-        Interpreter::new(registry, LlmClientFactory::new(), std::env::temp_dir());
+    let mut interpreter = Interpreter::new(registry, LlmClientFactory::new(), std::env::temp_dir());
     let result = interpreter.run(&shared(blueprint), None).await;
     assert!(matches!(
         result,
@@ -162,6 +156,10 @@ async fn resumes_with_function_frame_from_checkpoint() {
     let mut frame_sched = Scheduler::default();
     frame_sched.seed(entry_node);
     let checkpoint = ExecutionCheckpoint {
+        addon_identity_version: 1,
+        addon_packages: Default::default(),
+        function_identities: Some(registry.function_identities()),
+        view: Default::default(),
         blueprint_version: None,
         transition_version: metteur_daemon::execution::checkpoint::CHECKPOINT_TRANSITION_VERSION,
         in_flight: None,
@@ -207,8 +205,7 @@ async fn resumes_with_function_frame_from_checkpoint() {
         circuit_failures: 0,
         error: None,
     };
-    let mut interpreter =
-        Interpreter::new(registry, LlmClientFactory::new(), std::env::temp_dir());
+    let mut interpreter = Interpreter::new(registry, LlmClientFactory::new(), std::env::temp_dir());
     let events = interpreter
         .resume_with_control(
             &shared(blueprint),
@@ -403,8 +400,7 @@ async fn function_locals_do_not_leak_to_caller() {
     };
     let registry = Arc::new(Registry::with_builtins());
     registry.register_function(func);
-    let mut interpreter =
-        Interpreter::new(registry, LlmClientFactory::new(), std::env::temp_dir());
+    let mut interpreter = Interpreter::new(registry, LlmClientFactory::new(), std::env::temp_dir());
     let result = interpreter.run(&shared(blueprint), None).await;
     assert!(matches!(
         result,

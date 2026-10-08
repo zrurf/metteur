@@ -83,6 +83,10 @@ function parseDetail(raw: string): Record<string, unknown> {
             class="mt-3 max-h-[50vh] overflow-auto rounded-lg bg-surface-muted p-3 font-mono text-[12px] leading-5 text-foreground"
             >{{ request.command }}</pre>
 
+          <div v-if="execution.approval && execution.active" class="mt-4 flex flex-wrap gap-2 border-t border-border pt-3">
+            <button class="btn" type="button" :disabled="execution.controlBusy" @click="execution.status === 'paused' ? execution.resume() : execution.pause()">{{ execution.status === 'paused' ? 'Resume run directly' : 'Pause run directly' }}</button>
+            <button class="btn btn-danger-outline" type="button" :disabled="execution.controlBusy" @click="execution.cancel()">Stop run directly</button>
+          </div>
           <div class="mt-5 flex justify-end gap-2">
             <button class="btn btn-danger-outline" type="button" @click="request.respond(false)">
               Deny

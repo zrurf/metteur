@@ -92,6 +92,7 @@ impl DaemonService {
         if self.state.chats.read().await.contains_key(&ws_key) {
             return Err(Status::failed_precondition("workspace already has an active chat"));
         }
+        let registry=self.state.registry_for(Some(ws.root()),true).await?;
         ws.reconcile_files().map_err(to_status)?;
         // Capture the exact model state, not a reconstruction from UI messages.
         let before = existing.clone().unwrap_or_else(|| {
@@ -124,14 +125,10 @@ impl DaemonService {
             },
         );
 
-        let addon_fragments = match &self.state.addon_host {
-            Some(host) => host.fragments_for(ws.root()).await,
-            None => Vec::new(),
-        };
+        let addon_fragments: Vec<_> = registry.addon_fragments.values().flatten().cloned().collect();
         let (event_tx, event_rx) =
             tokio::sync::mpsc::unbounded_channel::<Result<ChatEvent, Status>>();
         let state = self.state.clone();
-        let registry = self.state.registry.clone();
         let llm_factory = self.state.llm_factory.clone();
         let root = ws.root().to_path_buf();
         let ws_config = ws.config.clone();

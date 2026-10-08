@@ -16,6 +16,7 @@ import { projectName } from '@/lib/path'
 import { USER_CONFIG_PATH, WORKSPACE_CONFIG_PATH } from '@/lib/toml'
 import { fileRoute } from '@/lib/file-token'
 import SettingsNav from '@/components/SettingsNav.vue'
+import AddonFunctions from '@/components/settings/AddonFunctions.vue'
 import SettingRow from '@/components/settings/SettingRow.vue'
 import ConfigModal, { type ModalField } from '@/components/settings/ConfigModal.vue'
 import Combobox from '@/components/settings/Combobox.vue'
@@ -875,6 +876,18 @@ const modelsText = computed(() => {
 
     <!-- MCP -->
     <section v-else-if="settings.active === 'mcp'" class="max-w-2xl space-y-4 p-5">
+      <div class="panel divide-y divide-divider" data-testid="mcp-status">
+        <div class="flex items-center justify-between px-4 py-3">
+          <h3 class="text-[13px] font-medium">Live connections</h3>
+          <button class="btn btn-outline" type="button" @click="addons.refresh()">Refresh status</button>
+        </div>
+        <div v-for="server in addons.mcpServers" :key="`${server.scopeRoot}:${server.owner}:${server.name}`" class="space-y-1 px-4 py-3">
+          <p class="text-[13px] font-medium">{{ server.name }} · {{ server.status }}</p>
+          <p class="break-all text-[12px] text-muted-foreground">{{ server.owner ? `Addon ${server.owner}` : 'User configuration' }} · {{ server.scopeRoot || 'Global' }} · {{ server.toolCount }} tools</p>
+          <p v-if="server.error" role="alert" class="text-[12px] text-destructive">{{ server.error }}</p>
+        </div>
+        <p v-if="addons.mcpError" role="alert" class="px-4 py-3 text-[12px] text-destructive">{{ addons.mcpError }}</p>
+      </div>
       <div class="panel divide-y divide-divider">
         <SettingRow
           v-for="def in GROUPS.mcp"
@@ -985,8 +998,9 @@ const modelsText = computed(() => {
 
     <!-- Addons (live daemon data) -->
     <section v-else-if="settings.active === 'addons'" class="max-w-2xl space-y-4 p-5">
+      <button class="btn btn-outline" type="button" @click="addons.refresh()">Refresh addon status</button>
       <div class="panel divide-y divide-divider">
-        <div v-for="a in addons.addons" :key="a.id" class="flex items-center gap-3 px-4 py-3">
+        <div v-for="a in addons.addons" :key="`${a.scopeRoot ?? a.scope}:${a.id}`" class="flex items-center gap-3 px-4 py-3">
           <div class="min-w-0 flex-1">
             <div class="flex items-center gap-2">
               <span class="text-[13px] font-medium">{{ a.name }}</span>
@@ -995,12 +1009,25 @@ const modelsText = computed(() => {
               <span class="chip">{{ a.toolCount }} tool{{ a.toolCount === 1 ? '' : 's' }}</span>
             </div>
             <p class="mt-0.5 text-[12px] text-muted-foreground">{{ a.description || 'No description' }}</p>
+            <p class="break-all text-[12px] text-muted-foreground">{{ a.scopeRoot || 'Global' }} · {{ a.status || 'Status unavailable' }}</p>
+            <p v-if="a.error" class="break-words text-[12px] text-destructive">{{ a.error }}</p>
+            <p class="text-[12px] text-muted-foreground">Granted: {{ a.grantedPermissions?.join(', ') || 'None' }}</p>
+            <div v-if="a.hooks?.length" class="mt-2 space-y-2 border-t border-divider pt-2" data-testid="addon-hook-status">
+              <p class="text-[12px] font-medium">Lifecycle observers</p>
+              <div v-for="hook in a.hooks" :key="`${hook.scopeRoot}:${hook.name}`" class="break-words text-[12px]">
+                <p>{{ hook.name }} · {{ hook.event }} · {{ hook.status }}</p>
+                <p class="text-muted-foreground">{{ hook.completed }} completed · {{ hook.failed }} failed · {{ hook.scopeRoot }}</p>
+                <p v-if="hook.eventId" class="break-all text-muted-foreground">Event {{ hook.eventId }}</p>
+                <p v-if="hook.error" class="text-destructive">{{ hook.error }}</p>
+              </div>
+              <p class="text-[11px] text-muted-foreground">Read-only notifications. Delivery is bounded and is not replayed after restart.</p>
+            </div>
           </div>
           <button
             class="btn"
             :class="a.enabled ? 'btn-primary' : 'btn-outline'"
             type="button"
-            @click="addons.setEnabled(a.id, !a.enabled)"
+            @click="addons.setEnabled(a, !a.enabled)"
           >
             <Check v-if="a.enabled" class="h-4 w-4" />
             {{ a.enabled ? 'Enabled' : 'Disabled' }}
@@ -1010,6 +1037,8 @@ const modelsText = computed(() => {
           No addons installed.
         </p>
       </div>
+      <p v-if="addons.error" role="alert" class="text-[12px] text-destructive">{{ addons.error }}</p>
+      <AddonFunctions :workspace-path="workspace.active?.path ?? ''" />
     </section>
 
     <!-- Versioning -->

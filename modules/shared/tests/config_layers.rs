@@ -7,15 +7,15 @@ fn layer(value: serde_json::Value) -> ConfigLayer {
 
 #[test]
 fn explicit_values_reset_and_roundtrip() {
-    let global = layer(json!({"sandbox":{"enabled":true},"llm":{"thinking_budget_tokens":4096,"default_model":"global"},"oversight":{"enabled":true,"budget":10}})).effective().unwrap();
+    let global = layer(json!({"sandbox":{"enabled":true},"llm":{"thinking_budget_tokens":4096,"default_model":"global"},"oversight":{"mode":"assisted","run_token_budget":10}})).effective().unwrap();
     let mut ws = layer(
-        json!({"config_version":2,"sandbox":{"enabled":false},"llm":{"thinking_budget_tokens":0,"default_model":""},"oversight":{"enabled":false,"budget":0}}),
+        json!({"config_version":2,"sandbox":{"enabled":false},"llm":{"thinking_budget_tokens":0,"default_model":""},"oversight":{"mode":"off","run_token_budget":0}}),
     );
     let merged = ws.merge(&global).unwrap();
     assert!(!merged.sandbox.enabled);
     assert_eq!(merged.llm.thinking_budget_tokens, 0);
     assert_eq!(merged.llm.default_model.as_deref(), Some(""));
-    assert_eq!(merged.extra["oversight"], json!({"enabled":false,"budget":0}));
+    assert_eq!(merged.extra["oversight"], json!({"mode":"off","run_token_budget":0}));
     let saved = toml::to_string(&ws).unwrap();
     let reloaded: ConfigLayer = toml::from_str(&saved).unwrap();
     assert_eq!(reloaded.merge(&global).unwrap(), merged);

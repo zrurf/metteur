@@ -56,13 +56,19 @@ impl Interpreter {
         let cancelled = matches!(&result, Err(DaemonError::Interrupted(_)));
         let rollback_on_cancel = self.should_rollback_on_cancel(ctx);
         let mut rolled_back = false;
+        let mut restored_operations = None;
+        let mut rollback_error = None;
         if cancelled && rollback_on_cancel {
+            // Rollback can fail after restoring a prefix; none of the old results
+            // may be advertised as currently valid in either outcome.
+            self.view.invalidate_all(crate::execution::blackboard::ChangeKind::CancelRollback);
             // Undo the file mutations this run made, so cancelling leaves the
             // workspace as it was found. Command side effects are outside the
             // WAL and are not undone.
             match ctx.transaction_log.rollback_after(0) {
                 Ok(undone) => {
                     rolled_back = true;
+                    restored_operations = Some(undone);
                     ctx.audit(
                         "execution.cancel_rollback",
                         serde_json::json!({
@@ -75,6 +81,7 @@ impl Interpreter {
                     });
                 }
                 Err(err) => {
+                    rollback_error = Some(err.to_string());
                     ctx.audit(
                         "execution.cancel_rollback_failed",
                         serde_json::json!({
@@ -91,6 +98,16 @@ impl Interpreter {
                     result = Err(DaemonError::Interrupted(message));
                 }
             }
+        }
+        if cancelled
+            && let Err(error) = crate::oversight::control::record_result(
+                ctx,
+                rollback_on_cancel,
+                restored_operations,
+                rollback_error,
+            )
+        {
+            tracing::warn!(%error, "Cancel outcome could not be recorded");
         }
         let status = match &result {
             Ok(()) => {
@@ -125,6 +142,15 @@ impl Interpreter {
                 RunStatus::Failed
             }
         };
+        self.view.end(
+            match status {
+                RunStatus::Completed => "Completed",
+                RunStatus::Cancelled => "Stopped",
+                _ => "Failed",
+            },
+            result.as_ref().err().map(|e| e.to_string()).as_deref(),
+            now_millis(),
+        );
         if let Err(err) = self.write_terminal_checkpoint(
             ctx,
             status,
@@ -164,6 +190,14 @@ impl Interpreter {
         loop {
             // Honor cancellation and pause requests between nodes.
             crate::execution::control::gate(ctx).await?;
+
+            // A supervisor can stage an edit while this loop is paused.
+            // Apply it before snapshotting the next node or persisting an
+            // in-flight checkpoint that would invalidate its approved state.
+            let pending_edit = ctx.blueprint_apply.lock().has_pending();
+            if pending_edit {
+                self.write_checkpoint(ctx)?;
+            }
 
             // Resolve the active frame: the innermost entered function body,
             // or the root blueprint when no function is on the stack.
@@ -233,6 +267,19 @@ impl Interpreter {
                 (node, inputs)
             };
 
+            self.view.begin(
+                &active_bp,
+                node_id,
+                self.frame_trees.clone(),
+                ctx.blueprint_apply.lock().version.clone(),
+                &inputs,
+                now_millis(),
+            );
+            for edge in active_bp.incoming_edges(node_id) {
+                if inputs.contains_key(&edge.target_pin) {
+                    self.view.traverse(&active_bp, edge.id, self.frame_trees.clone());
+                }
+            }
             self.emit(ExecutionEvent::NodeStarted {
                 node_id,
             });
@@ -291,8 +338,23 @@ impl Interpreter {
             // than an apparently unstarted node that is safe to repeat.
             self.in_flight = Some(node_id);
             self.write_checkpoint(ctx)?;
-            let outputs = executor.execute(&node, &inputs, ctx).await?;
+            let outputs = if node.kind == "OversightCheckpoint" {
+                self.oversight_checkpoint(&node, &active_bp, ctx).await?
+            } else {
+                executor.execute(&node, &inputs, ctx).await?
+            };
             self.in_flight = None;
+            if matches!(node.kind.as_str(), "Validator" | "LspCheck") {
+                let passed = node
+                    .pins
+                    .iter()
+                    .find(|p| p.name == "Passed")
+                    .and_then(|p| outputs.get(&p.id))
+                    .and_then(|v| v.as_bool());
+                if let Some(record) = self.view.invocations.last_mut() {
+                    record.check = passed;
+                }
+            }
             self.state.data_values.extend(outputs.iter().map(|(id, v)| (*id, v.clone())));
             let function = self.active_function();
             self.emit(ExecutionEvent::NodeData {

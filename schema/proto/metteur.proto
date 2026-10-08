@@ -4,6 +4,9 @@ package metteur;
 
 // The Metteur daemon service.
 service Daemon {
+  rpc ListOversightReports(OversightReportsRequest) returns (OversightReports);
+  rpc GetConciergeState(ConciergeStateRequest) returns (ConciergeState);
+  rpc SendConciergeMessage(SendConciergeMessageRequest) returns (stream ConciergeEvent);
   // Workspace management.
   rpc OpenWorkspace(OpenWorkspaceRequest) returns (WorkspaceInfo);
   rpc CloseWorkspace(CloseWorkspaceRequest) returns (Empty);
@@ -21,7 +24,7 @@ service Daemon {
   rpc SendInterrupt(InterruptRequest) returns (Empty);
 
   // Registry.
-  rpc ListTools(Empty) returns (ToolList);
+  rpc ListTools(RegistryRequest) returns (ToolList);
 
   // Configuration.
   rpc GetConfig(GetConfigRequest) returns (Config);
@@ -46,12 +49,14 @@ service Daemon {
 
   // Usage and cost.
   rpc GetExecutionUsage(GetExecutionUsageRequest) returns (UsageSummary);
+  // Redacted, bounded run facts; does not grant file or context access.
+  rpc GetBlackboard(GetBlackboardRequest) returns (BlackboardProjection);
 
   // Registry.
-  rpc ListNodeKinds(Empty) returns (NodeKindList);
+  rpc ListNodeKinds(RegistryRequest) returns (NodeKindList);
 
   // MCP host.
-  rpc ListMcpServers(Empty) returns (McpServerList);
+  rpc ListMcpServers(RegistryRequest) returns (McpServerList);
 
   // Addon management.
   rpc InstallAddon(InstallAddonRequest) returns (AddonInfo);
@@ -151,14 +156,20 @@ message ExecutionEvent {
 
 message CancelRequest {
   string workspace_path = 1;
+  // Optional expected run identity; stale controls must not affect a replacement run.
+  string run_id = 2;
 }
 
 message PauseRequest {
   string workspace_path = 1;
+  // Optional expected run identity; stale controls must not affect a replacement run.
+  string run_id = 2;
 }
 
 message ResumeRequest {
   string workspace_path = 1;
+  // Optional expected run identity; stale controls must not affect a replacement run.
+  string run_id = 2;
 }
 
 message InterruptRequest {
@@ -326,9 +337,15 @@ message ModelUsage {
   // Prompt-cache breakdown of input_tokens (0 when the provider reports none).
   uint64 cached_input_tokens = 7;
   uint64 cache_write_input_tokens = 8;
+  // False for legacy, absent or partially reported counters.
+  bool tokens_complete = 9;
+  bool cache_complete = 10;
+  // Configured-price estimates only; false when any call is unpriced.
+  bool cost_complete = 11;
 }
 
 message UsageSummary {
+  string oversight_json = 4;
   string currency = 1;
   uint64 total_cost_micros = 2;
   repeated ModelUsage models = 3;
@@ -349,9 +366,12 @@ message NodeKindInfo {
   repeated Pin pins = 3;
   string description = 4;
   bool dynamic_pins = 5;
+  string addon_binding_json = 6;
 }
 
 message McpServerInfo {
+  string owner = 5;
+  string scope_root = 6;
   string name = 1;
   string status = 2; // Connected | Failed | Disabled
   uint32 tool_count = 3;
@@ -370,6 +390,8 @@ message InstallAddonRequest {
   repeated string granted_permissions = 3;
 }
 
+message RegistryRequest { string workspace_path = 1; }
+
 message AddonInfo {
   string id = 1;
   string version = 2;
@@ -381,6 +403,22 @@ message AddonInfo {
   repeated string granted_permissions = 8;
   uint32 tool_count = 9;
   uint32 fragment_count = 10;
+  string scope_root = 11;
+  string fingerprint = 12;
+  string status = 13;
+  string error = 14;
+  repeated AddonHookStatus hooks = 15;
+}
+
+message AddonHookStatus {
+  string name = 1;
+  string event = 2;
+  string scope_root = 3;
+  string event_id = 4;
+  string status = 5;
+  uint64 completed = 6;
+  uint64 failed = 7;
+  string error = 8;
 }
 
 message ListAddonsRequest {
@@ -419,14 +457,19 @@ message FunctionInfo {
   string description = 3;
   repeated FnPin inputs = 4;
   repeated FnPin outputs = 5;
-  string source = 6; // builtin | global | workspace
+  string source = 6; // builtin | global | workspace | addon (read-only)
   int64 updated_at = 7;
+  string addon_binding_json = 8;
+  string file_path = 9;
 }
 
 message SaveFunctionRequest {
   string workspace_path = 1; // empty = global library
   FunctionInfo info = 2;
   Blueprint body = 3;
+  string import_from = 4; // explicit read-only addon -> editable workspace copy
+  string file_path = 5; // required for import; existing bound path for later edits
+  string expected_addon_binding_json = 6;
 }
 
 message SaveFunctionResponse { FunctionInfo info = 1; }
@@ -452,7 +495,7 @@ message DeleteFunctionRequest {
 
 // ---- Blueprint DSL -----------------------------------------------------------
 
-message CompileDslRequest { string source = 1; }
+message CompileDslRequest { string source = 1; string workspace_path = 2; }
 
 message DecompileBlueprintRequest {
   string workspace_path = 1;
@@ -732,3 +775,37 @@ message Edge {
   string target_node = 4;
   string target_pin = 5;
 }
+
+message GetBlackboardRequest {
+  string workspace_path = 1;
+  string run_id = 2;
+  // {last_n, origins, status, keyword, entry_id}; limits are server enforced.
+  string query_json = 3;
+}
+message BlackboardProjection {
+  // JSON projection, containing only redacted summaries and opaque refs.
+  string projection_json = 1;
+}
+
+message ConciergeStateRequest {
+  string workspace_path = 1;
+  string run_id = 2;
+  string conversation_id = 3;
+}
+message ConciergeState { string state_json = 1; }
+message SendConciergeMessageRequest {
+  string workspace_path = 1;
+  string run_id = 2;
+  string conversation_id = 3;
+  string message_id = 4;
+  string message = 5;
+}
+message ConciergeEvent {
+  string run_id = 1;
+  string message_id = 2;
+  string kind = 3;
+  string detail_json = 4;
+}
+
+message OversightReportsRequest { string workspace_path = 1; string run_id = 2; }
+message OversightReports { string reports_json = 1; }

@@ -61,13 +61,16 @@ const { openSurface } = useSurfaceNavigation()
 /* Activity rail                                                        */
 
 interface Activity {
-  key: 'explorer' | 'chat' | 'version'
+  key: 'explorer' | 'chat' | 'version' | 'execution' | 'execution-preview'
   label: string
   icon: Component
 }
 
 const activities: Activity[] = [
   { key: 'explorer', label: 'Explorer', icon: Files },
+  { key: 'execution', label: 'Execution', icon: Workflow },
+  ...(import.meta.env.DEV && import.meta.env.VITE_MOCK === '1'
+    ? [{ key: 'execution-preview' as const, label: 'Execution preview', icon: Workflow }] : []),
   { key: 'chat', label: 'Chat', icon: MessageSquare },
   { key: 'version', label: 'Version Flow', icon: History },
 ]
@@ -75,6 +78,8 @@ const activities: Activity[] = [
 /** Route → which activity it belongs to (drives rail highlight when no panel
  *  owns the sidebar). `route.name` may be undefined before mount. */
 function routeActivity(name: string | symbol | null | undefined): Activity['key'] | null {
+  if (name === 'execution') return 'execution'
+  if (name === 'execution-preview') return 'execution-preview'
   if (name === 'chat') return 'chat'
   if (name === 'version') return 'version'
   if (name === 'explorer' || name === 'file') return 'explorer'
@@ -92,6 +97,10 @@ function toggleExplorer() {
  *  asserted centrally in {@link openSurface} (lib/surface), mirrored by the
  *  tab bar, so both entry points restore the correct rail. */
 function openActivity(a: Activity['key']) {
+  if (a === 'execution-preview' || a === 'execution') {
+    openSurface(a)
+    return
+  }
   if (a === 'explorer') {
     toggleExplorer()
     return
@@ -108,7 +117,7 @@ function openSettings() {
  *  otherwise an open panel wins, falling back to the route. */
 const activeKey = computed<Activity['key'] | null>(() => {
   const r = routeActivity(route.name)
-  if (r === 'chat') return r
+  if (r === 'chat' || r === 'execution-preview' || r === 'execution') return r
   const owner = panel.open ? panel.owner : null
   return owner === 'explorer' || owner === 'version' ? owner : r
 })
@@ -147,6 +156,8 @@ function openJobs() {
 // Reopen the last-used workspace so a refresh returns to the IDE shell, then
 // resume the route that was stashed by the workspace gate (deep links).
 onMounted(async () => {
+  if (import.meta.env.DEV && import.meta.env.VITE_MOCK === '1'
+    && window.location.pathname === '/preview/execution') return
   await workspace.restore()
   void configStore.load()
   if (workspace.hasActive) {

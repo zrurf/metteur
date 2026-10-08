@@ -48,6 +48,80 @@ pub trait McpConnectionOps: Send + Sync {
     async fn shutdown(&self);
 }
 
+/// Credential references are resolved by the owner, never exposed by adapters.
+pub(crate) struct GuardedConnection {
+    pub inner: RmcpConnection,
+    pub secrets: Vec<String>,
+}
+impl GuardedConnection {
+    fn text(&self, mut value: String) -> DaemonResult<String> {
+        if value.len() > 1024 * 1024 {
+            return Err(DaemonError::Mcp("Addon MCP response limit exceeded".into()));
+        }
+        for secret in &self.secrets {
+            if !secret.is_empty() {
+                value = value.replace(secret, "[redacted]");
+            }
+        }
+        Ok(value)
+    }
+    fn json(&self, value: &mut Value) -> DaemonResult<()> {
+        match value {
+            Value::String(s) => *s = self.text(s.clone())?,
+            Value::Array(a) => {
+                for v in a {
+                    self.json(v)?;
+                }
+            }
+            Value::Object(o) => {
+                let old = std::mem::take(o);
+                for (k, mut v) in old {
+                    self.json(&mut v)?;
+                    o.insert(self.text(k)?, v);
+                }
+            }
+            _ => {}
+        }
+        Ok(())
+    }
+}
+fn owned_error(_: DaemonError) -> DaemonError {
+    DaemonError::Mcp("Addon MCP request failed or connection closed".into())
+}
+#[async_trait]
+impl McpConnectionOps for GuardedConnection {
+    async fn list_tools(&self) -> DaemonResult<Vec<RemoteTool>> {
+        let mut tools = self.inner.list_tools().await.map_err(owned_error)?;
+        for tool in &mut tools {
+            if self.text(tool.name.clone())? != tool.name {
+                return Err(owned_error(DaemonError::Mcp(String::new())));
+            }
+            tool.description = self.text(tool.description.clone())?;
+            self.json(&mut tool.schema)?;
+        }
+        Ok(tools)
+    }
+    async fn call_tool(&self, name: &str, args: Value) -> DaemonResult<String> {
+        self.text(self.inner.call_tool(name, args).await.map_err(owned_error)?)
+    }
+    async fn list_resources(&self) -> DaemonResult<Vec<RemoteResource>> {
+        let mut resources = self.inner.list_resources().await.map_err(owned_error)?;
+        for r in &mut resources {
+            r.uri = self.text(r.uri.clone())?;
+            r.name = self.text(r.name.clone())?;
+            r.description = self.text(r.description.clone())?;
+            r.mime_type = self.text(r.mime_type.clone())?;
+        }
+        Ok(resources)
+    }
+    async fn read_resource_text(&self, uri: &str) -> DaemonResult<String> {
+        self.text(self.inner.read_resource_text(uri).await.map_err(owned_error)?)
+    }
+    async fn shutdown(&self) {
+        self.inner.shutdown().await;
+    }
+}
+
 /// An active rmcp client session.
 ///
 /// The service lives inside an [`AsyncMutex`] so [`McpConnectionOps::shutdown`]
@@ -55,9 +129,122 @@ pub trait McpConnectionOps: Send + Sync {
 /// references to the connection.
 pub struct RmcpConnection {
     service: AsyncMutex<Option<RunningService<RoleClient, ()>>>,
+    /// Managed addon processes retain the child handle until tree cleanup, so
+    /// an exited/reused PID cannot be mistaken for an owned process.
+    child: AsyncMutex<Option<OwnedChild>>,
+}
+
+pub(crate) struct OwnedChild(pub(crate) Option<tokio::process::Child>);
+impl OwnedChild {
+    pub(crate) async fn shutdown(mut self) {
+        if let Some(mut child) = self.0.take() {
+            crate::execution::jobs::terminate(&mut child).await;
+        }
+    }
+}
+impl Drop for OwnedChild {
+    fn drop(&mut self) {
+        let Some(mut child) = self.0.take() else {
+            return;
+        };
+        #[cfg(unix)]
+        if let Some(pid) = child.id() {
+            // This child still has an unreaped owned handle and led its group.
+            unsafe {
+                libc::killpg(pid as i32, libc::SIGKILL);
+            }
+        }
+        #[cfg(windows)]
+        if let Some(pid) = child.id() {
+            use std::os::windows::process::CommandExt;
+            let _ = std::process::Command::new("taskkill")
+                .args(["/PID", &pid.to_string(), "/T", "/F"])
+                .creation_flags(0x08000000)
+                .stdin(std::process::Stdio::null())
+                .stdout(std::process::Stdio::null())
+                .stderr(std::process::Stdio::null())
+                .status();
+        }
+        let _ = child.start_kill();
+        if let Ok(runtime) = tokio::runtime::Handle::try_current() {
+            runtime.spawn(async move {
+                let _ = child.wait().await;
+            });
+        }
+    }
 }
 
 impl RmcpConnection {
+    pub(crate) async fn connect_stdio_owned(
+        command: &[String],
+        env: &HashMap<String, String>,
+        cwd: &std::path::Path,
+    ) -> DaemonResult<Self> {
+        let (program, args) = command
+            .split_first()
+            .ok_or_else(|| DaemonError::Mcp("Missing addon MCP executable".into()))?;
+        let mut command = tokio::process::Command::new(program);
+        command
+            .args(args)
+            .env_clear()
+            .envs(env)
+            .current_dir(cwd)
+            .kill_on_drop(true)
+            .stdin(std::process::Stdio::piped())
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::null());
+        #[cfg(unix)]
+        command.process_group(0);
+        #[cfg(windows)]
+        command.creation_flags(0x08000000);
+        let mut child = OwnedChild(Some(
+            command
+                .spawn()
+                .map_err(|_| DaemonError::Mcp("Addon MCP process could not start".into()))?,
+        ));
+        let process = child.0.as_mut().expect("owned child");
+        let stdout = process
+            .stdout
+            .take()
+            .ok_or_else(|| DaemonError::Mcp("Addon MCP stdout unavailable".into()))?;
+        let stdin = process
+            .stdin
+            .take()
+            .ok_or_else(|| DaemonError::Mcp("Addon MCP stdin unavailable".into()))?;
+        let service =
+            ().serve((stdout, stdin))
+                .await
+                .map_err(|_| DaemonError::Mcp("Addon MCP initialization failed".into()))?;
+        Ok(Self {
+            service: AsyncMutex::new(Some(service)),
+            child: AsyncMutex::new(Some(child)),
+        })
+    }
+
+    pub(crate) async fn connect_http_owned(
+        url: &str,
+        authorization: Option<&str>,
+    ) -> DaemonResult<Self> {
+        use rmcp::transport::streamable_http_client::StreamableHttpClientTransportConfig;
+        let client = reqwest::Client::builder()
+            .redirect(reqwest::redirect::Policy::none())
+            .no_proxy()
+            .connect_timeout(std::time::Duration::from_secs(5))
+            .build()
+            .map_err(|_| DaemonError::Mcp("Addon MCP HTTP client unavailable".into()))?;
+        let mut config = StreamableHttpClientTransportConfig::with_uri(url);
+        config.auth_header = authorization.map(str::to_owned);
+        config.reinit_on_expired_session = false;
+        config.max_sse_event_size = 1024 * 1024;
+        let service = ()
+            .serve(StreamableHttpClientTransport::with_client(client, config))
+            .await
+            .map_err(|_| DaemonError::Mcp("Addon MCP HTTP initialization failed".into()))?;
+        Ok(Self {
+            service: AsyncMutex::new(Some(service)),
+            child: AsyncMutex::new(None),
+        })
+    }
     /// Clones the live service peer, failing after shutdown.
     async fn peer(&self) -> DaemonResult<Peer<RoleClient>> {
         let guard = self.service.lock().await;
@@ -95,6 +282,7 @@ impl RmcpConnection {
             .map_err(|err| DaemonError::Mcp(format!("MCP initialization failed: {err}")))?;
         Ok(Self {
             service: AsyncMutex::new(Some(service)),
+            child: AsyncMutex::new(None),
         })
     }
 
@@ -107,6 +295,7 @@ impl RmcpConnection {
             .map_err(|err| DaemonError::Mcp(format!("MCP initialization failed: {err}")))?;
         Ok(Self {
             service: AsyncMutex::new(Some(service)),
+            child: AsyncMutex::new(None),
         })
     }
 }
@@ -199,8 +388,12 @@ impl McpConnectionOps for RmcpConnection {
         // Taking the lock waits for any in-flight operation on this
         // connection; `take()` guarantees exactly-once cancellation even if
         // shutdown itself is called twice.
+        let child = self.child.lock().await.take();
+        if let Some(child) = child {
+            child.shutdown().await;
+        }
         if let Some(service) = self.service.lock().await.take() {
-            let _ = service.cancel().await;
+            let _ = tokio::time::timeout(std::time::Duration::from_secs(3), service.cancel()).await;
         }
     }
 }

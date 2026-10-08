@@ -177,7 +177,7 @@ export const useChatStore = defineStore('chat', () => {
     addonsLoading.value = true
     try {
       const r = await gateway.listAddons()
-      if (r.ok) addons.value = r.data
+      if (r.ok) addons.value = r.data.filter((a) => a.scope === 'global' || a.scopeRoot === workspace.active?.path)
     } finally {
       addonsLoading.value = false
     }
@@ -185,7 +185,9 @@ export const useChatStore = defineStore('chat', () => {
 
   /** Persist a plugin switch and refresh the list. */
   async function toggleAddon(id: string, enabled: boolean): Promise<void> {
-    const r = await gateway.setAddonEnabled(id, enabled)
+    const target = addons.value.find((a) => a.id === id)
+    if (!target || (target.scope === 'workspace' && !target.scopeRoot)) return
+    const r = await gateway.setAddonEnabled(id, enabled, target.scopeRoot ?? '')
     if (r.ok) await loadAddons()
   }
 

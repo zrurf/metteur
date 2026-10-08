@@ -220,7 +220,8 @@ impl LlmClient for AnthropicClient {
         let mut text_out = String::new();
         let mut thinking: Vec<ThinkingBlock> = Vec::new();
         let mut tool_calls: Vec<ToolCall> = Vec::new();
-        let mut usage = Usage::default();
+        let mut usage_fields = json!({});
+        let mut usage_final = false;
         let mut buf = String::new();
 
         use tokio_stream::StreamExt;
@@ -240,6 +241,9 @@ impl LlmClient for AnthropicClient {
                     Err(_) => continue,
                 };
                 match event.get("type").and_then(|t| t.as_str()) {
+                    Some("message_start") => {
+                        if let Some(u) = event.pointer("/message/usage") { merge_usage(&mut usage_fields, u); }
+                    }
                     Some("content_block_delta") => {
                         if let Some(text) = event.pointer("/delta/text").and_then(|v| v.as_str()) {
                             text_out.push_str(text);
@@ -324,7 +328,8 @@ impl LlmClient for AnthropicClient {
                     }
                     Some("message_delta") => {
                         if let Some(u) = event.get("usage") {
-                            usage = parse_usage(u);
+                            usage_final |= u.get("output_tokens").and_then(|v| v.as_u64()).is_some();
+                            merge_usage(&mut usage_fields, u);
                         }
                     }
                     _ => {}
@@ -335,7 +340,7 @@ impl LlmClient for AnthropicClient {
             text: text_out,
             thinking,
             tool_calls,
-            usage,
+            usage: parse_stream_usage(&usage_fields, usage_final),
         })
     }
 }
@@ -538,11 +543,24 @@ fn parse_response(parsed: &Json) -> DaemonResult<LlmResponse> {
     })
 }
 
+/// Streaming usage updates replace reported fields without erasing prior counters.
+fn merge_usage(total: &mut Json, delta: &Json) {
+    if let (Some(total), Some(delta)) = (total.as_object_mut(), delta.as_object()) {
+        total.extend(delta.iter().map(|(key, value)| (key.clone(), value.clone())));
+    }
+}
+
 /// Parses an Anthropic usage object.
 ///
 /// Anthropic reports cache traffic *outside* `input_tokens`, so the total is
 /// the sum of the three counters; this provider normalizes to the shared
 /// convention where `input_tokens` includes the cached parts.
+fn parse_stream_usage(total: &Json, finalized: bool) -> Usage {
+    let mut usage = parse_usage(total);
+    usage.tokens_reported &= finalized;
+    usage
+}
+
 fn parse_usage(u: &Json) -> Usage {
     let fresh = u.get("input_tokens").and_then(|v| v.as_u64()).unwrap_or(0);
     let output = u.get("output_tokens").and_then(|v| v.as_u64()).unwrap_or(0);
@@ -550,6 +568,11 @@ fn parse_usage(u: &Json) -> Usage {
     let cache_write = u.get("cache_creation_input_tokens").and_then(|v| v.as_u64()).unwrap_or(0);
     let input = fresh + cache_read + cache_write;
     Usage {
+        tokens_reported: u.get("input_tokens").and_then(|v| v.as_u64()).is_some()
+            && u.get("output_tokens").and_then(|v| v.as_u64()).is_some()
+            && u.get("cache_read_input_tokens").and_then(|v| v.as_u64()).is_some()
+            && u.get("cache_creation_input_tokens").and_then(|v| v.as_u64()).is_some(),
+        cache_read_reported: u.pointer("/cache_read_input_tokens").and_then(|v| v.as_u64()).is_some(),
         input_tokens: input,
         output_tokens: output,
         reasoning_tokens: 0,
@@ -816,4 +839,28 @@ mod tests {
         assert_eq!(usage.cache_write_input_tokens, 50);
         assert_eq!(usage.uncached_input_tokens(), 100);
     }
+    #[test]
+    fn usage_distinguishes_missing_cache_from_zero() {
+        let mut raw = json!({"input_tokens": 100, "output_tokens": 10});
+        assert_eq!(parse_usage(&raw).cache_hit_rate(), None);
+        raw["cache_read_input_tokens"] = json!(0);
+        raw["cache_creation_input_tokens"] = json!(20);
+        assert_eq!(parse_usage(&raw).cache_hit_rate(), Some(0.0));
+        assert_eq!(parse_usage(&json!({})).cache_hit_rate(), None);
+    }
+
+    #[test]
+    fn streaming_output_updates_preserve_input_and_cache_counters() {
+        let mut total = json!({});
+        merge_usage(&mut total, &json!({"input_tokens": 100, "cache_read_input_tokens": 800, "cache_creation_input_tokens": 100, "output_tokens": 1}));
+        merge_usage(&mut total, &json!({"output_tokens": 50}));
+        merge_usage(&mut total, &json!({"output_tokens": 50}));
+        assert_eq!(parse_stream_usage(&total, false).cache_hit_rate(), None);
+        let usage = parse_stream_usage(&total, true);
+        assert_eq!(usage.input_tokens, 1000);
+        assert_eq!(usage.output_tokens, 50);
+        assert_eq!(usage.cache_hit_rate(), Some(0.8));
+        assert_eq!(usage.uncached_input_tokens(), 100);
+    }
+
 }

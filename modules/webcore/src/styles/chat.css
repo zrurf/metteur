@@ -645,9 +645,9 @@
   flex-wrap: wrap;
   padding: 8px 12px 12px;
 }
-.chat-composer-notice {
-  padding: 0 20px 14px;
-  font-size: 11.5px;
+.chat-menu-item-danger,
+.chat-menu-item-danger .text-muted-foreground,
+.chat-menu-item-danger .text-primary {
   color: var(--status-error);
 }
 

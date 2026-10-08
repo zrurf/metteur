@@ -16,7 +16,7 @@ test('execution and resume persistence errors stay failed instead of finished', 
     await execution.run('test')
     const runStatus = execution.status
     execution.runId = 'test'
-    await execution.resume()
+    await execution.recover()
     return { runStatus, resumeStatus: execution.status, messages: execution.events.map((e: { message: string }) => e.message) }
   })
   expect(result.runStatus).toBe('failed')
@@ -36,8 +36,9 @@ test('cancelled execution retains partial rollback diagnostics', async ({ page }
     const { gateway } = await import(corePath)
     const { useExecutionStore } = await import(storePath)
     const execution = useExecutionStore()
-    gateway.cancel = async () => ({ ok: true, data: undefined })
+    gateway.cancel = async () => { gateway.listExecutions = async () => ({ ok: true, data: [{ runId: 'cancelled-run', blueprintId: 'test', status: 'Cancelled' }] }); return { ok: true, data: undefined } }
     gateway.executeBlueprint = async (_path: string, _id: string, onEvent: (event: unknown) => void) => {
+      onEvent({ nodeId: 'write', kind: 'started', message: '', detail: { run_id: 'cancelled-run', stream_id: 'stream', sequence: 1 } })
       await execution.cancel()
       onEvent({ nodeId: 'write', kind: 'message', message: 'cancelled: rollback incomplete: restored 1 operation(s); file conflict at user.txt; manual recovery required' })
       return { ok: false, error: 'cancelled with partial rollback' }

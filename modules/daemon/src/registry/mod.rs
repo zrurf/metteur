@@ -23,18 +23,32 @@ pub use tool::Tool;
 /// them at runtime.
 #[derive(Default)]
 pub struct Registry {
-    tools: RwLock<HashMap<String, Arc<dyn Tool>>>,
-    nodes: NodeRegistry,
+    tools: RwLock<Tools>,
+    nodes: Arc<NodeRegistry>,
     functions: RwLock<HashMap<String, FunctionEntry>>,
+    pub(crate) addon_function_bindings: std::collections::BTreeMap<String, serde_json::Value>,
+    function_owners: std::collections::BTreeMap<String,String>,
+    pub(crate) addon_packages: std::collections::BTreeMap<String, crate::addon::package::Identity>,
+    pub(crate) addon_fragments:
+        std::collections::BTreeMap<String, Vec<metteur_shared::SystemFragment>>,
+    pub(crate) addon_lease: Option<Arc<crate::addon::services::Lease>>,
+    pub(crate) addon_lsp: Vec<Arc<crate::integration::lsp::LspManager>>,
+    pub(crate) addon_lsp_claims: std::collections::BTreeMap<String, String>,
+    pub(crate) addon_hooks: Vec<Arc<crate::addon::hooks::Binding>>,
+}
+
+#[derive(Default, Clone)]
+struct Tools {
+    values: HashMap<String, Arc<dyn Tool>>,
+    owners: HashMap<String, String>,
 }
 
 impl Registry {
     /// Creates a registry pre-populated with built-in resources.
     pub fn with_builtins() -> Self {
         let registry = Self {
-            tools: RwLock::new(HashMap::new()),
-            nodes: NodeRegistry::with_builtins(),
-            functions: RwLock::new(HashMap::new()),
+            nodes: Arc::new(NodeRegistry::with_builtins()),
+            ..Default::default()
         };
         for tool in [
             Arc::new(tools::fs_tools::ReadFile) as Arc<dyn Tool>,
@@ -78,7 +92,11 @@ impl Registry {
                 "tool name '{name}' must be PascalCase imperative"
             )));
         }
-        self.tools.write().insert(name, tool);
+        let mut tools = self.tools.write();
+        if tools.owners.contains_key(&name) {
+            return Err(DaemonError::Addon(format!("tool '{name}' is owned by an addon")));
+        }
+        tools.values.insert(name, tool);
         Ok(())
     }
 
@@ -92,12 +110,16 @@ impl Registry {
 
     /// Removes a tool by name, returning it when it was registered.
     pub fn unregister_tool(&self, name: &str) -> Option<Arc<dyn Tool>> {
-        self.tools.write().remove(name)
+        let mut tools = self.tools.write();
+        if tools.owners.contains_key(name) {
+            return None;
+        }
+        tools.values.remove(name)
     }
 
     /// Returns a tool by name, if registered.
     pub fn tool(&self, name: &str) -> Option<Arc<dyn Tool>> {
-        self.tools.read().get(name).cloned()
+        self.tools.read().values.get(name).cloned()
     }
 
     /// Returns all registered tools, sorted by name.
@@ -106,21 +128,139 @@ impl Registry {
     /// unordered iteration would reshuffle the tool array and defeat the
     /// provider's prefix cache.
     pub fn tools(&self) -> Vec<Arc<dyn Tool>> {
-        let mut tools: Vec<Arc<dyn Tool>> = self.tools.read().values().cloned().collect();
+        let mut tools: Vec<Arc<dyn Tool>> = self.tools.read().values.values().cloned().collect();
         tools.sort_by(|a, b| a.name().cmp(b.name()));
         tools
     }
 
     /// Returns all registered tool names, sorted.
     pub fn tool_names(&self) -> Vec<String> {
-        let mut names: Vec<String> = self.tools.read().keys().cloned().collect();
+        let mut names: Vec<String> = self.tools.read().values.keys().cloned().collect();
         names.sort();
         names
+    }
+
+    /// Copy a stable registry for a workspace or execution. Later registrations
+    /// in another workspace cannot silently change the captured tool handles.
+    pub(crate) fn snapshot(&self) -> Self {
+        Self {
+            tools: RwLock::new(self.tools.read().clone()),
+            nodes: self.nodes.clone(),
+            functions: RwLock::new(self.functions.read().clone()),
+            addon_function_bindings:self.addon_function_bindings.clone(),
+            function_owners:self.function_owners.clone(),
+            addon_packages: self.addon_packages.clone(),
+            addon_fragments: self.addon_fragments.clone(),
+            addon_lease: self.addon_lease.clone(),
+            addon_lsp: self.addon_lsp.clone(),
+            addon_lsp_claims: self.addon_lsp_claims.clone(),
+            addon_hooks: self.addon_hooks.clone(),
+        }
+    }
+    pub(crate) fn addon_base_snapshot(&self) -> Self {
+        let snapshot = self.snapshot();
+        snapshot
+            .functions
+            .write()
+            .retain(|_, f| f.source != FunctionSource::Workspace);
+        snapshot
+    }
+    pub(crate) fn scoped_functions(
+        &self,
+        global: Option<&crate::storage::persistence::Db>,
+        workspace: Option<(
+            &crate::storage::persistence::Db,
+            &crate::storage::versioning::VersionManager,
+        )>,
+    ) -> DaemonResult<Self> {
+        let snapshot = self.snapshot();
+        snapshot.functions.write().retain(|_, f| {
+            f.source == FunctionSource::Builtin
+                || (global.is_none() && f.source == FunctionSource::Global)
+        });
+        if let Some(db) = global {
+            snapshot.load_functions(db, FunctionSource::Global)?;
+        }
+        if let Some((db, versions)) = workspace {
+            for mut entry in crate::registry::library::load_all(db)? {
+                entry.source = FunctionSource::Workspace;
+                if crate::storage::blueprint_files::binding(db, entry.body.id)?.is_some() {
+                    entry.body =
+                        crate::storage::blueprint_files::load(db, versions, entry.body.id)?;
+                    entry.signature =
+                        FunctionEntry::derive_signature(&entry.body).map_err(DaemonError::Addon)?;
+                }
+                snapshot.register_function(entry);
+            }
+        }
+        Ok(snapshot)
+    }
+    /// Canonical immutable evidence used by checkpoints for non-builtin functions.
+    pub fn function_identities(&self) -> std::collections::BTreeMap<String, String> {
+        self.functions()
+            .into_iter()
+            .filter(|f| f.source != FunctionSource::Builtin)
+            .map(|f| (f.name.clone(), crate::addon::functions::digest(&f)))
+            .collect()
+    }
+    pub(crate) fn replace_owned_tools(
+        &self,
+        owner: &str,
+        additions: Vec<Arc<dyn Tool>>,
+    ) -> DaemonResult<()> {
+        let mut names = std::collections::HashSet::new();
+        let mut tools = self.tools.write();
+        for tool in &additions {
+            let name = tool.name();
+            if !tool::is_valid_tool_name(name)
+                || !names.insert(name.to_string())
+                || self.nodes.get(name).is_some()
+                || self.functions.read().contains_key(name)
+                || (tools.values.contains_key(name)
+                    && tools.owners.get(name).map(String::as_str) != Some(owner))
+            {
+                return Err(DaemonError::Addon(format!(
+                    "addon tool registration conflicts: {name}"
+                )));
+            }
+        }
+        Self::remove_owned_locked(&mut tools, owner);
+        for tool in additions {
+            tools.owners.insert(tool.name().into(), owner.into());
+            tools.values.insert(tool.name().into(), tool);
+        }
+        Ok(())
+    }
+    fn remove_owned_locked(tools: &mut Tools, owner: &str) {
+        let names: Vec<_> = tools
+            .owners
+            .iter()
+            .filter(|(_, value)| *value == owner)
+            .map(|(name, _)| name.clone())
+            .collect();
+        for name in names {
+            tools.owners.remove(&name);
+            tools.values.remove(&name);
+        }
+    }
+    pub(crate) fn remove_owned_tools(&self, owner: &str) {
+        Self::remove_owned_locked(&mut self.tools.write(), owner);
     }
 
     /// Registers a function, replacing any existing one with the same name.
     pub fn register_function(&self, entry: FunctionEntry) {
         self.functions.write().insert(entry.name.clone(), entry);
+    }
+
+    pub(crate) fn remove_owned_functions(&mut self,owner:&str) {
+        let names:Vec<_>=self.function_owners.iter().filter(|(_,o)|o.as_str()==owner).map(|(n,_)|n.clone()).collect();
+        for name in names {self.functions.write().remove(&name);self.function_owners.remove(&name);self.addon_function_bindings.remove(&name);}
+    }
+    pub(crate) fn register_owned_function(&mut self,owner:&str,entry:FunctionEntry,binding:serde_json::Value)->DaemonResult<()> {
+        if self.function(&entry.name).is_some() || self.function_by_id(entry.id).is_some() || self.node_executor(&entry.name).is_some() || self.tool(&entry.name).is_some() {
+            return Err(DaemonError::Addon("Addon function name or identity conflicts".into()));
+        }
+        self.function_owners.insert(entry.name.clone(),owner.into());self.addon_function_bindings.insert(entry.name.clone(),binding);self.register_function(entry);Ok(())
     }
 
     /// Removes a function by name, returning it when registered.
@@ -186,9 +326,28 @@ impl Registry {
         self.nodes.get(kind)
     }
 
+    pub(crate) fn replace_owned_nodes(&mut self, owner:&str, additions:Vec<Arc<dyn NodeExecutor>>, binding:serde_json::Value) -> DaemonResult<()> {
+        for node in &additions {
+            if self.tools.read().values.contains_key(node.kind()) || self.functions.read().contains_key(node.kind()) {
+                return Err(DaemonError::Addon("Addon node conflicts with a tool or function".into()));
+            }
+        }
+        Arc::make_mut(&mut self.nodes).replace_owned(owner,additions,binding)
+    }
+
     /// Returns all registered node kinds.
     pub fn node_kinds(&self) -> Vec<String> {
         self.nodes.kinds()
+    }
+
+    pub(crate) fn validate_addon_nodes(&self, blueprint:&metteur_shared::Blueprint) -> DaemonResult<()> {
+        let report=metteur_shared::model::validate::validate_with_catalog(blueprint,&self.node_signatures());
+        for error in report.errors {
+            if matches!(error,metteur_shared::model::validate::BlueprintError::AddonContract{..}) {
+                return Err(DaemonError::Addon(error.to_string()));
+            }
+        }
+        Ok(())
     }
 
     /// Canonical signatures of the executors actually installed in this registry.
@@ -196,6 +355,7 @@ impl Registry {
         let mut catalog = self.nodes.signatures();
         catalog.functions =
             self.functions().into_iter().map(|entry| (entry.name, entry.signature)).collect();
+        catalog.addon_function_bindings=self.addon_function_bindings.clone();
         catalog
     }
 

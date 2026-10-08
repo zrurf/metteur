@@ -28,6 +28,7 @@ use super::super::proto::{AddonInfo, ExecutionEvent};
 #[derive(Clone)]
 pub(crate) struct RunningExecution {
     pub(crate) blueprint_id: Uuid,
+    pub(crate) run_id: Uuid,
     /// Bus for injecting interrupts into the execution.
     pub(crate) interrupt_bus: Option<InterruptBus>,
     /// Set when a pause has been requested (shared with the execution).
@@ -92,6 +93,78 @@ pub struct AppState {
 }
 
 impl AppState {
+    pub(crate) async fn registry_for(
+        &self,
+        root: Option<&std::path::Path>,
+        execution: bool,
+    ) -> Result<Arc<Registry>, Status> {
+        let ws = if let Some(root) = root {
+            Some(
+                self.workspaces
+                    .get(root)
+                    .await
+                    .ok_or_else(|| Status::not_found("workspace not open"))?,
+            )
+        } else {
+            None
+        };
+        let base = Arc::new(
+            self.registry
+                .scoped_functions(
+                    self.global_db.as_ref(),
+                    ws.as_ref().map(|ws| (&ws.db, ws.version_manager.as_ref())),
+                )
+                .map_err(to_status)?,
+        );
+        match &self.addon_host {
+            Some(host) => {
+                let mut context = crate::addon::services::ServiceContext {
+                    config: self.global_config.read().await.mcp.clone(),
+                    global_db: self.global_db.clone(),
+                    metrics: self.metrics.clone(),
+                    ..Default::default()
+                };
+                context.base_registry = Some(base);
+                if let Some(root) = root {
+                    let ws = self
+                        .workspaces
+                        .get(root)
+                        .await
+                        .ok_or_else(|| Status::not_found("workspace not open"))?;
+                    context.workspace_db = Some(ws.db.clone());
+                    context.lsp_config = ws.config.read().await.lsp.clone();
+                    let global_layer = crate::config::load_config_layer(
+                        &self.workspaces.global_config_path().map_err(to_status)?,
+                    )
+                    .map_err(to_status)?;
+                    let workspace_layer =
+                        crate::config::load_config_layer(&ws.root().join(".metteur/config.toml"))
+                            .map_err(to_status)?;
+                    let flag = |layer: &metteur_shared::config::ConfigLayer| {
+                        layer
+                            .fields
+                            .get("lsp")
+                            .and_then(|v| v.get("enabled"))
+                            .and_then(serde_json::Value::as_bool)
+                    };
+                    let workspace_flag = flag(&workspace_layer)
+                        .filter(|value| workspace_layer.config_version.is_some() || *value);
+                    context.lsp_disabled =
+                        workspace_flag.or_else(|| flag(&global_layer)) == Some(false);
+                    context.config = crate::integration::mcp::merge_servers(
+                        &context.config,
+                        &[crate::config::load_workspace_config(ws.root())
+                            .map_err(to_status)?
+                            .mcp],
+                    );
+                }
+                host.registry_for_context(root, execution, &context)
+                    .await
+                    .map_err(to_status)
+            }
+            None => Ok(base),
+        }
+    }
     /// Creates a new application state sharing the given registry.
     pub fn new(
         workspaces: WorkspaceManager,
@@ -184,26 +257,25 @@ impl AppState {
     /// incremental (unchanged servers keep their connection, vanished ones are
     /// shut down), so this stays cheap when nothing relevant changed.
     pub async fn resync_mcp(&self) -> crate::error::DaemonResult<()> {
-        let _guard = self.mcp_sync_gate.lock().await;
-        let config = self.merged_mcp_config().await?;
-        let Some(host) = &self.mcp_host else {
-            if config.servers.values().any(|s| s.enabled) {
-                return Err(DaemonError::Mcp("MCP host is unavailable; restart the daemon".into()));
-            }
-            return Ok(());
-        };
-        host.sync(&config).await;
-        let failures: Vec<_> = host
-            .statuses()
-            .into_iter()
-            .filter(|s| s.state == crate::integration::mcp::StatusKind::Failed)
-            .map(|s| format!("{}: {}", s.alias, s.error))
-            .collect();
-        if failures.is_empty() {
-            Ok(())
-        } else {
-            Err(DaemonError::Mcp(failures.join("; ")))
+        let _guard=self.mcp_sync_gate.lock().await;
+        let config=self.merged_mcp_config().await?;
+        let mut failures=vec![];
+        if let Some(host)=&self.mcp_host {
+            host.sync(&config).await;
+            failures.extend(host.statuses().into_iter().filter(|s|s.state==crate::integration::mcp::StatusKind::Failed).map(|s|format!("{}: {}",s.alias,s.error)));
+        } else if config.servers.values().any(|s|s.enabled) {
+            failures.push("MCP host is unavailable; restart the daemon".into());
         }
+        self.registry_for(None,false).await.map_err(|_|DaemonError::Mcp("Addon MCP reconciliation failed".into()))?;
+        let roots:Vec<_>=self.workspaces.list().await.into_iter().map(|ws|ws.root().to_path_buf()).collect();
+        for root in &roots {self.registry_for(Some(root),false).await.map_err(|_|DaemonError::Mcp("Workspace addon MCP reconciliation failed".into()))?;}
+        if let Some(host)=&self.addon_host {
+            failures.extend(host.list(&roots).await.into_iter().filter(|addon|addon.status=="Failed").map(|addon|format!("Addon {}: {}",addon.id,addon.error)));
+            for root in std::iter::once(None).chain(roots.iter().map(|root|Some(root.as_path()))) {
+                failures.extend(host.mcp_statuses(root).await.into_iter().filter(|s|s.status=="Failed").map(|s|format!("{}: {}",s.name,s.error)));
+            }
+        }
+        if failures.is_empty() {Ok(())} else {Err(DaemonError::Mcp(failures.join("; ")))}
     }
 
     /// Attaches the addon host and loads the global addon directory.
@@ -233,6 +305,7 @@ fn spawn_config_reloader(
 fn proto_event(event: crate::execution::ExecutionEvent) -> ExecutionEvent {
     use crate::execution::ExecutionEvent as E;
     match event {
+        E::Oversight {review_id,detail} => ExecutionEvent {node_id:String::new(),kind:"oversight_review".into(),message:review_id,detail_json:detail},
         E::NodeStarted {
             node_id,
         } => ExecutionEvent {
@@ -370,6 +443,7 @@ pub(crate) async fn spawn_execution(
             ws_key.clone(),
             RunningExecution {
                 blueprint_id: blueprint.id,
+                run_id: sink.run_id(),
                 interrupt_bus: Some(interrupt_bus.clone()),
                 pause_requested: pause_flag.clone(),
                 cancel_requested: cancel_flag.clone(),
@@ -453,6 +527,8 @@ pub(crate) async fn spawn_execution(
     let (out_tx, out_rx) = tokio::sync::mpsc::channel(64);
     let state = state.clone();
     tokio::spawn(async move {
+        let stream_id = uuid::Uuid::new_v4().to_string();
+        let mut sequence = 0_u64;
         loop {
             let event = tokio::select! {
                 biased;
@@ -466,7 +542,18 @@ pub(crate) async fn spawn_execution(
                     None => break,
                 },
             };
-            if out_tx.send(Ok(proto_event(event))).await.is_err() {
+            let mut event = proto_event(event);
+            sequence += 1;
+            let mut detail: serde_json::Value =
+                serde_json::from_str(&event.detail_json).unwrap_or_else(|_| serde_json::json!({}));
+            if !detail.is_object() {
+                detail = serde_json::json!({ "payload": detail });
+            }
+            detail["run_id"] = serde_json::json!(run_id);
+            detail["stream_id"] = serde_json::json!(stream_id);
+            detail["sequence"] = serde_json::json!(sequence);
+            event.detail_json = detail.to_string();
+            if out_tx.send(Ok(event)).await.is_err() {
                 stream_cancel.store(true, std::sync::atomic::Ordering::SeqCst);
                 stream_broker.close();
                 break;
@@ -641,10 +728,14 @@ pub(crate) fn addon_info_to_proto(info: crate::addon::AddonInfoData) -> AddonInf
         description: info.description,
         enabled: info.enabled,
         scope: info.scope,
+        scope_root: info.scope_root, fingerprint: info.fingerprint, status: info.status, error: info.error,
         required_permissions: info.required_permissions,
         granted_permissions: info.granted_permissions,
         tool_count: info.tool_count,
         fragment_count: info.fragment_count,
+        hooks: info.hooks.into_iter().map(|hook| super::super::proto::AddonHookStatus {
+            name:hook.name,event:hook.event,scope_root:hook.scope_root,event_id:hook.event_id,status:hook.status,completed:hook.completed,failed:hook.failed,error:hook.error,
+        }).collect(),
     }
 }
 

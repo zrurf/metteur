@@ -32,6 +32,15 @@ pub struct LspManager {
     config: LspConfig,
     /// Per-document sync cooldown merging rapid re-syncs.
     cooldown: tokio::sync::Mutex<crate::integration::lsp::debounce::SyncCooldown>,
+    delegates: Vec<Arc<LspManager>>,
+    owned: Option<OwnedOptions>,
+    closed: std::sync::atomic::AtomicBool,
+}
+
+pub(crate) struct OwnedOptions {
+    pub env: HashMap<String, HashMap<String, String>>,
+    pub secrets: Vec<String>,
+    pub timeout_ms: u64,
 }
 
 /// Returns whether a live manager no longer matches `config`.
@@ -48,7 +57,7 @@ pub fn config_changed(config: &LspConfig, current: Option<&LspManager>) -> bool 
 
 struct ClientHandle {
     client: Arc<LspClient>,
-    child: tokio::process::Child,
+    child: Arc<Mutex<Option<crate::integration::mcp::connection::OwnedChild>>>,
 }
 
 impl LspManager {
@@ -63,12 +72,55 @@ impl LspManager {
             languages: config.languages.clone(),
             clients: Mutex::new(HashMap::new()),
             config: config.clone(),
+            delegates: vec![],
+            owned: None,
+            closed: Default::default(),
             cooldown: tokio::sync::Mutex::new(
                 crate::integration::lsp::debounce::SyncCooldown::new(
                     std::time::Duration::from_millis(config.debounce_ms),
                 ),
             ),
         }))
+    }
+
+    pub(crate) fn owned(
+        config: &LspConfig,
+        root: &Path,
+        options: OwnedOptions,
+    ) -> Option<Arc<Self>> {
+        let mut manager = Self::new(config, root)?;
+        Arc::get_mut(&mut manager).expect("new manager").owned = Some(options);
+        Some(manager)
+    }
+
+    /// User definitions are excluded from addon routes at admission. Keep those
+    /// admitted routes pinned while other user languages retain live reloads.
+    pub(crate) fn combine(user: Option<Arc<Self>>, addons: &[Arc<Self>]) -> Option<Arc<Self>> {
+        if addons.is_empty() {
+            return user;
+        }
+        let mut delegates = addons.to_vec();
+        delegates.extend(user);
+        let first = &delegates[0];
+        let mut manager = Self::new(&first.config, &first.workspace_root)?;
+        let inner = Arc::get_mut(&mut manager).expect("new router");
+        inner.languages.clear();
+        inner.delegates = delegates;
+        Some(manager)
+    }
+
+    pub(crate) async fn healthy(&self) -> bool {
+        !self.closed.load(std::sync::atomic::Ordering::SeqCst)
+            && self.clients.lock().await.values().all(|h| !h.client.is_closed())
+    }
+
+    pub(crate) async fn initialize_all(&self) -> DaemonResult<()> {
+        for language in &self.languages {
+            if let Some(ext) = language.extensions.first() {
+                self.client_for_extension(ext).await?;
+            }
+        }
+        Ok(())
     }
 
     /// Returns the language id mapped to the given file extension.
@@ -82,6 +134,7 @@ impl LspManager {
                     .any(|candidate| candidate.eq_ignore_ascii_case(extension))
             })
             .map(|language| language.id.clone())
+            .or_else(|| self.delegates.iter().find_map(|m| m.language_for_extension(extension)))
     }
 
     /// Returns the workspace root this manager is bound to.
@@ -111,13 +164,26 @@ impl LspManager {
         explicit: bool,
     ) -> crate::integration::lsp::debounce::SyncDecision {
         let now = std::time::Instant::now();
-        let mut cooldown = self.cooldown.lock().await;
+        let mut cooldown = self.document_manager(uri).cooldown.lock().await;
         cooldown.decide(uri, now, explicit)
     }
 
     /// Forgets the cooldown state of a document (its file disappeared).
     pub async fn forget_document(&self, uri: &str) {
-        self.cooldown.lock().await.forget(uri);
+        self.document_manager(uri).cooldown.lock().await.forget(uri);
+    }
+
+    fn document_manager(&self, uri: &str) -> &Self {
+        let extension = metteur_shared::Uri::parse(uri)
+            .and_then(|u| u.to_path())
+            .ok()
+            .and_then(|p| p.extension().map(|e| e.to_string_lossy().into_owned()))
+            .unwrap_or_default();
+        self.delegates
+            .iter()
+            .find(|m| m.language_for_extension(&extension).is_some())
+            .map(Arc::as_ref)
+            .unwrap_or(self)
     }
 
     /// Returns (starting it if needed) the client for a file extension.
@@ -125,11 +191,30 @@ impl LspManager {
         &self,
         extension: &str,
     ) -> DaemonResult<Option<Arc<LspClient>>> {
+        let manager = self
+            .delegates
+            .iter()
+            .find(|m| m.language_for_extension(extension).is_some())
+            .map(Arc::as_ref)
+            .unwrap_or(self);
+        manager.local_client(extension).await
+    }
+
+    async fn local_client(&self, extension: &str) -> DaemonResult<Option<Arc<LspClient>>> {
+        if self.closed.load(std::sync::atomic::Ordering::SeqCst) {
+            return Err(DaemonError::Lsp("language server has been retired".into()));
+        }
         let Some(language_id) = self.language_for_extension(extension) else {
             return Ok(None);
         };
         let mut clients = self.clients.lock().await;
+        if self.closed.load(std::sync::atomic::Ordering::SeqCst) {
+            return Err(DaemonError::Lsp("language server has been retired".into()));
+        }
         if let Some(handle) = clients.get(&language_id) {
+            if handle.client.is_closed() {
+                return Err(DaemonError::Lsp("language server connection failed".into()));
+            }
             return Ok(Some(handle.client.clone()));
         }
         let definition = self
@@ -141,31 +226,72 @@ impl LspManager {
             DaemonError::Lsp(format!("language {language_id} has an empty command"))
         })?;
 
-        let mut child = tokio::process::Command::new(program)
+        let mut command = tokio::process::Command::new(program);
+        command
             .args(args)
             .current_dir(&self.workspace_root)
             .stdin(std::process::Stdio::piped())
             .stdout(std::process::Stdio::piped())
             .stderr(std::process::Stdio::null())
-            .spawn()
-            .map_err(|err| {
-                DaemonError::Lsp(format!("failed to start {language_id} server: {err}"))
-            })?;
-        let stdin = child
+            .kill_on_drop(true);
+        if let Some(options) = &self.owned {
+            command.env_clear();
+            if let Some(env) = options.env.get(&language_id) {
+                command.envs(env);
+            }
+        }
+        #[cfg(unix)]
+        command.process_group(0);
+        #[cfg(windows)]
+        command.creation_flags(0x08000000);
+        let mut child = crate::integration::mcp::connection::OwnedChild(Some(
+            command.spawn().map_err(|err| {
+                DaemonError::Lsp(if self.owned.is_some() {
+                    "failed to start addon language server".into()
+                } else {
+                    format!("failed to start {language_id} server: {err}")
+                })
+            })?,
+        ));
+        let process = child.0.as_mut().expect("owned child");
+        let stdin = process
             .stdin
             .take()
             .ok_or_else(|| DaemonError::Lsp("server stdin unavailable".to_string()))?;
-        let stdout = child
+        let stdout = process
             .stdout
             .take()
             .ok_or_else(|| DaemonError::Lsp("server stdout unavailable".to_string()))?;
 
-        let client = LspClient::over_streams(Box::new(stdout), Box::new(stdin));
+        let client = match &self.owned {
+            Some(options) => LspClient::guarded(
+                Box::new(stdout),
+                Box::new(stdin),
+                options.timeout_ms,
+                options.secrets.clone(),
+            ),
+            None => LspClient::over_streams(Box::new(stdout), Box::new(stdin)),
+        };
         if let Err(err) = client.initialize(&self.workspace_root).await {
             // Never leak the spawned server process on a failed handshake.
-            let _ = child.kill().await;
+            client.shutdown().await;
+            child.shutdown().await;
             return Err(err);
         }
+        let child = Arc::new(Mutex::new(Some(child)));
+        let watched_child = child.clone();
+        let watched_client = Arc::downgrade(&client);
+        tokio::spawn(async move {
+            loop {
+                if watched_client.upgrade().is_none_or(|client| client.is_closed()) {
+                    if let Some(child) = watched_child.lock().await.take() {
+                        child.shutdown().await;
+                    }
+                    break;
+                }
+                tokio::time::sleep(std::time::Duration::from_millis(25)).await;
+            }
+        });
         clients.insert(
             language_id,
             ClientHandle {
@@ -178,11 +304,13 @@ impl LspManager {
 
     /// Shuts down every running language server.
     pub async fn shutdown(&self) {
+        self.closed.store(true, std::sync::atomic::Ordering::SeqCst);
         let mut clients = self.clients.lock().await;
         for (_, handle) in clients.drain() {
             handle.client.shutdown().await;
-            let mut child = handle.child;
-            let _ = child.kill().await;
+            if let Some(child) = handle.child.lock().await.take() {
+                child.shutdown().await;
+            }
         }
     }
 

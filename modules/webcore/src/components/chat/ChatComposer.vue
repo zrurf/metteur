@@ -31,6 +31,7 @@ import type {
  * words is never an option.
  */
 const props = defineProps<{
+  concierge?: { placeholder: string; sendDisabled: boolean }
   files: FileTreeNode[]
   pendingFiles: FileTreeNode[]
   addons: AddonInfo[]
@@ -82,8 +83,8 @@ const mentionQuery = computed(() =>
 const commandQuery = computed(() =>
   token.value.startsWith('/') ? token.value.slice(1).toLowerCase() : '',
 )
-const mentionOpen = computed(() => mentionQuery.value !== '')
-const commandOpen = computed(() => commandQuery.value !== '')
+const mentionOpen = computed(() => !props.concierge && mentionQuery.value !== '')
+const commandOpen = computed(() => !props.concierge && commandQuery.value !== '')
 
 /** Flat, searchable file list for `@`. */
 const flatFiles = computed(() => {
@@ -194,9 +195,14 @@ function onKeydown(event: KeyboardEvent): void {
 /** Delivers the draft according to the delivery mode. */
 function submit(mode: 'auto' | 'queue' | 'steer'): void {
   const text = draft.value.trim()
-  if (!text || !props.ready) return
+  if (!text || !props.ready || (props.concierge?.sendDisabled && mode !== 'steer')) return
   draft.value = ''
   void nextTick(autosize)
+  if (props.concierge) {
+    if (mode === 'steer') props.onSteer(text)
+    else props.onSend(text)
+    return
+  }
   if (!props.running) {
     props.onSend(text)
     return
@@ -239,7 +245,7 @@ function stopAndClose(): void {
 }
 
 const placeholder = computed(() =>
-  !props.ready
+  props.concierge ? props.concierge.placeholder : !props.ready
     ? 'Configure a model to start chatting'
     : props.running
       ? 'Queue a message for this turn — Tab to queue, ⌘/Ctrl+Enter to send it now'
@@ -325,7 +331,7 @@ defineExpose({
     </div>
 
     <div class="chat-composer-controls">
-      <div class="chat-composer-options flex min-w-0 items-center gap-1">
+      <div v-if="!concierge" class="chat-composer-options flex min-w-0 items-center gap-1">
         <ContextMenu
           :files="files"
           :addons="addons"
@@ -358,8 +364,9 @@ defineExpose({
         />
       </div>
 
+      <span v-else class="text-[12px] text-muted-foreground">Concierge</span>
       <div class="flex shrink-0 items-center gap-1.5">
-        <ContextMeter :stats="contextStats" :usage="usage" />
+        <ContextMeter v-if="!concierge" :stats="contextStats" :usage="usage" />
 
         <div class="relative flex items-center">
           <!-- One control: the action on the left, its alternatives behind the
@@ -381,7 +388,7 @@ defineExpose({
               v-else
               class="chat-send"
               type="button"
-              :disabled="!ready || !hasDraft"
+              :disabled="!ready || !hasDraft || concierge?.sendDisabled"
               title="Send (Enter)"
               aria-label="Send"
               @click="submit('auto')"
@@ -401,15 +408,15 @@ defineExpose({
 
           <div v-if="menu === 'delivery'" class="chat-menu chat-menu-up chat-delivery-menu w-64">
             <p class="chat-menu-head">Delivery</p>
-            <button class="chat-menu-item" type="button" @click="deliver('queue')">
+            <button v-if="!concierge" class="chat-menu-item" type="button" @click="deliver('queue')">
               <span class="font-medium">Queue</span>
               <span class="text-[12px] text-subtle">after the current step</span>
             </button>
             <button class="chat-menu-item" type="button" @click="deliver('steer')">
-              <span class="font-medium">Send now</span>
+              <span class="font-medium">{{ concierge ? 'Urgent message' : 'Send now' }}</span>
               <span class="text-[12px] text-subtle">before the next model call</span>
             </button>
-            <button class="chat-menu-item" type="button" @click="stopAndClose">
+            <button class="chat-menu-item" type="button" :disabled="!!concierge && !ready" @click="stopAndClose">
               <Square class="h-4 w-4 shrink-0 text-status-error" />
               <span class="font-medium">Stop and take over</span>
             </button>
@@ -428,12 +435,6 @@ defineExpose({
         </button>
       </div>
     </div>
-
-    <!-- Full access keeps a standing notice: a mode that skips confirmations
-         must not become invisible once its menu closes. -->
-    <p v-if="permissionMode === 'full'" class="chat-composer-notice">
-      Full access — edits and commands run without asking; risky ones are reviewed by the model.
-    </p>
 
     <div v-if="menu" class="fixed inset-0 z-30" @mousedown="menu = null" />
   </div>

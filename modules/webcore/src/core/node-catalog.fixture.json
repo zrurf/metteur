@@ -2785,6 +2785,80 @@
       ]
     },
     {
+      "description": "node.data.async defaults to false. Async returns pending; synchronous gates preserve the actual review verdict and require disposition on failure or unhandled concern.",
+      "dynamicPins": false,
+      "kind": "OversightCheckpoint",
+      "nodeType": "Control",
+      "pins": [
+        {
+          "choices": [],
+          "dataType": "void",
+          "defaultJson": "",
+          "description": "",
+          "id": "",
+          "key": "",
+          "name": "x-in",
+          "optional": false,
+          "pinType": "ExecInput"
+        },
+        {
+          "choices": [],
+          "dataType": "void",
+          "defaultJson": "",
+          "description": "",
+          "id": "",
+          "key": "",
+          "name": "x-out",
+          "optional": false,
+          "pinType": "ExecOutput"
+        },
+        {
+          "choices": [],
+          "dataType": "string",
+          "defaultJson": "",
+          "description": "",
+          "id": "",
+          "key": "reviewid",
+          "name": "ReviewId",
+          "optional": false,
+          "pinType": "DataOutput"
+        },
+        {
+          "choices": [],
+          "dataType": "string",
+          "defaultJson": "",
+          "description": "",
+          "id": "",
+          "key": "status",
+          "name": "Status",
+          "optional": false,
+          "pinType": "DataOutput"
+        },
+        {
+          "choices": [],
+          "dataType": "string",
+          "defaultJson": "",
+          "description": "",
+          "id": "",
+          "key": "verdict",
+          "name": "Verdict",
+          "optional": false,
+          "pinType": "DataOutput"
+        },
+        {
+          "choices": [],
+          "dataType": "string",
+          "defaultJson": "",
+          "description": "",
+          "id": "",
+          "key": "notes",
+          "name": "Notes",
+          "optional": false,
+          "pinType": "DataOutput"
+        }
+      ]
+    },
+    {
       "description": "Connected data inputs override inline node.data values, then pin defaults.",
       "dynamicPins": false,
       "kind": "ParseJson",
@@ -4033,6 +4107,7 @@
     "Not",
     "NotEqual",
     "Or",
+    "OversightCheckpoint",
     "ParseJson",
     "Power",
     "Replace",

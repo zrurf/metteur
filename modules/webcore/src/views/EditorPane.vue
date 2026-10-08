@@ -323,7 +323,7 @@ function openVersionPanel() {
 async function compileToBlueprint() {
   const ws = workspace.active
   if (!ws || !filePath.value) return
-  const r = await gateway.compileDsl(content.value)
+  const r = await gateway.compileDsl(content.value, ws.path)
   if (!r.ok) {
     feedback.toast('error', 'DSL compile failed', r.error)
     return

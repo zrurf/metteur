@@ -38,7 +38,7 @@ impl ConfigLayer {
                 "unsupported config_version; expected 2",
             ));
         }
-        serde_json::from_value(Value::Object(self.fields.clone()))
+        validate(serde_json::from_value(Value::Object(self.fields.clone()))?)
     }
 
     /// Collections keep their established merge policy, including the global-only
@@ -69,13 +69,13 @@ impl ConfigLayer {
                 }
             }
         }
-        // Oversight is an extension section until its runtime is introduced.
+        // Preserve nested presence semantics and compatibility with existing files.
         if let Some(values) = self.fields.get("oversight").and_then(Value::as_object) {
             let mut section = inherited.get("oversight").cloned().unwrap_or(Value::Object(Map::new()));
             merge_presence(&mut section, &Value::Object(values.clone()));
             merged["oversight"] = section;
         }
-        serde_json::from_value(merged)
+        validate(serde_json::from_value(merged)?)
     }
 
     /// A proposed v2 layer with the same legacy semantics. Reading never writes
@@ -145,4 +145,12 @@ fn merge_presence(base: &mut Value, overrides: &Value) {
     } else {
         *base = overrides.clone();
     }
+}
+
+fn validate(config: Config) -> Result<Config, serde_json::Error> {
+    super::oversight::OversightConfig::from_config(&config)?;
+    for model in config.llm.models.values() {
+        model.pricing.validate().map_err(<serde_json::Error as serde::de::Error>::custom)?;
+    }
+    Ok(config)
 }

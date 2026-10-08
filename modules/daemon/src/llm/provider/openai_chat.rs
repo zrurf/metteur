@@ -401,6 +401,9 @@ fn parse_usage(u: &Json) -> Usage {
         .and_then(|v| v.as_u64())
         .unwrap_or(0);
     Usage {
+        tokens_reported: u.get("prompt_tokens").and_then(|v| v.as_u64()).is_some()
+            && u.get("completion_tokens").and_then(|v| v.as_u64()).is_some(),
+        cache_read_reported: u.pointer("/prompt_tokens_details/cached_tokens").and_then(|v| v.as_u64()).is_some(),
         input_tokens: input,
         output_tokens: output,
         reasoning_tokens: reasoning,
@@ -605,4 +608,13 @@ mod tests {
         assert_eq!(body["max_completion_tokens"], 100);
         assert_eq!(body["reasoning_effort"], "high");
     }
+    #[test]
+    fn usage_distinguishes_missing_cache_from_zero() {
+        let mut raw = json!({"prompt_tokens": 100, "completion_tokens": 10});
+        assert_eq!(parse_usage(&raw).cache_hit_rate(), None);
+        raw["prompt_tokens_details"] = json!({"cached_tokens": 0});
+        assert_eq!(parse_usage(&raw).cache_hit_rate(), Some(0.0));
+        assert_eq!(parse_usage(&json!({})).cache_hit_rate(), None);
+    }
+
 }

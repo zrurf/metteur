@@ -1,5 +1,6 @@
 //! Blueprint execution engine.
 
+pub mod blackboard;
 pub mod checkpoint;
 pub mod context;
 pub mod control;
@@ -12,6 +13,7 @@ pub mod nodes;
 pub mod react;
 pub mod transaction;
 pub mod tree;
+pub mod view;
 
 pub use checkpoint::{CheckpointSink, DbCheckpointSink, ExecutionCheckpoint, RunStatus};
 pub use context::{ExecutionContext, ExecutionState, Frame, FunctionBody, Scheduler};

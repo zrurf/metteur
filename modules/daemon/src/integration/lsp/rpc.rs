@@ -58,7 +58,12 @@ pub fn parse_frame(buf: &[u8]) -> Frame<'_> {
         };
     };
     let body_start = skip_to;
-    if buf.len() < body_start + length {
+    let Some(body_end) = body_start.checked_add(length) else {
+        return Frame::Malformed {
+            consumed: skip_to,
+        };
+    };
+    if buf.len() < body_end {
         return Frame::Incomplete;
     }
     Frame::Complete {

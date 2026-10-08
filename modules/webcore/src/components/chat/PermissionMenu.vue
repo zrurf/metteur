@@ -5,9 +5,7 @@ import { Check, ChevronUp, ShieldAlert, ShieldCheck, ShieldHalf } from '@lucide/
 /**
  * Who answers authorization questions.
  *
- * The three modes are shown as a dot plus a label, never as a colour alone, and
- * `full` additionally keeps a standing notice in the composer: a state that
- * skips confirmations must stay visible after the menu closes.
+ * The selected mode remains visible as an icon, dot and label in the composer.
  */
 export type PermissionMode = 'ask' | 'sandbox' | 'full'
 
@@ -71,6 +69,7 @@ const current = computed(() => MODES.find((m) => m.key === props.mode) ?? MODES[
         v-for="mode in MODES"
         :key="mode.key"
         class="chat-menu-item items-start!"
+        :class="{ 'chat-menu-item-danger': mode.key === 'full' }"
         type="button"
         @click="onSelect(mode.key)"
       >

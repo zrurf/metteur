@@ -61,6 +61,7 @@ impl Interpreter {
         let entry = self.registry.function(name).ok_or_else(|| {
             DaemonError::Execution(format!("function '{name}' is not registered"))
         })?;
+        self.registry.validate_addon_nodes(&entry.body)?;
         if self.function_depth() >= MAX_FUNCTION_DEPTH {
             return Err(DaemonError::Execution(
                 "function nesting depth limit exceeded".to_string(),
@@ -71,15 +72,10 @@ impl Interpreter {
                 "function '{name}' contains an execution cycle"
             )));
         }
-        let entry_node = entry
-            .body
-            .nodes
-            .iter()
-            .find(|n| n.kind == FUNCTION_ENTRY_KIND)
-            .cloned()
-            .ok_or_else(|| {
-                DaemonError::Execution(format!("function '{name}' has no entry node"))
-            })?;
+        let entry_node =
+            entry.body.nodes.iter().find(|n| n.kind == FUNCTION_ENTRY_KIND).cloned().ok_or_else(
+                || DaemonError::Execution(format!("function '{name}' has no entry node")),
+            )?;
         // Bind each signature input to the caller's matching data pin.
         for fp in &entry.signature.inputs {
             let caller_pin = caller_node
@@ -98,6 +94,12 @@ impl Interpreter {
                     fp.name
                 ))
             })?;
+            if entry.source == metteur_shared::FunctionSource::Addon
+                && !(fp.optional && matches!(value, Value::Null))
+                && !crate::addon::functions::value_matches(&value, &fp.data_type)
+            {
+                return Err(DaemonError::Execution("Addon function input type mismatch".into()));
+            }
             let entry_pin = entry_node
                 .pins
                 .iter()
@@ -132,6 +134,9 @@ impl Interpreter {
             now_millis(),
         );
         self.frame_trees.push(func_tree);
+        if let Some(record) = self.view.invocations.last_mut() {
+            record.owned_frame = Some(self.frame_trees.clone());
+        }
         ctx.audit(
             "function.enter",
             serde_json::json!({
@@ -155,12 +160,10 @@ impl Interpreter {
         ctx: &mut ExecutionContext,
     ) -> DaemonResult<()> {
         let caller_id = frame.node_id;
-        let exit_node = body
-            .nodes
-            .iter()
-            .find(|n| n.kind == FUNCTION_EXIT_KIND)
-            .cloned()
-            .ok_or_else(|| DaemonError::Execution("function body has no exit node".to_string()))?;
+        let exit_node =
+            body.nodes.iter().find(|n| n.kind == FUNCTION_EXIT_KIND).cloned().ok_or_else(|| {
+                DaemonError::Execution("function body has no exit node".to_string())
+            })?;
         let exit_inputs = self.gather_inputs(body, exit_node.id)?;
 
         // Resolve the caller node in the outer blueprint.
@@ -195,6 +198,12 @@ impl Interpreter {
             let value = exit_inputs.get(&pin.id).cloned().ok_or_else(|| {
                 DaemonError::Execution(format!("missing function output '{}'", pin.name))
             })?;
+            if caller.data.get(metteur_shared::node_catalog::addon::FUNCTION_BINDING_KEY).is_some()
+                && !(pin.optional && matches!(value, Value::Null))
+                && !crate::addon::functions::value_matches(&value, &pin.data_type)
+            {
+                return Err(DaemonError::Execution("Addon function output type mismatch".into()));
+            }
             let out_pin = caller
                 .pins
                 .iter()

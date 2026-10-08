@@ -83,6 +83,16 @@ impl Interpreter {
 
         let rollback_enabled =
             retry.and_then(|r| r.get("rollback")).and_then(|v| v.as_bool()).unwrap_or(true);
+        let segment = self.active_scheduler().order_from(mark.order_mark);
+        self.view.invalidate(
+            &segment,
+            &self.frame_trees,
+            if rollback_enabled {
+                crate::execution::blackboard::ChangeKind::Rollback
+            } else {
+                crate::execution::blackboard::ChangeKind::Retry
+            },
+        );
         if rollback_enabled {
             let undone = ctx.transaction_log.rollback_after(mark.log_mark)?;
             ctx.audit(
@@ -108,7 +118,6 @@ impl Interpreter {
 
         // Re-queue the executed segment (completion order) plus this
         // validator so the whole attempt re-runs on the restored files.
-        let segment = self.active_scheduler().order_from(mark.order_mark);
         // A validator that passed inside the rolled-back segment loses that
         // pass; clamp its mark to this segment so a later failure of it
         // re-runs the full (superset) segment instead of a stale suffix.
@@ -158,12 +167,7 @@ impl Interpreter {
         if threshold == 0 || self.circuit_failures < threshold {
             return Ok(false);
         }
-        crate::replan::trip_and_replan(ctx, node_id, self.circuit_failures).await?;
-        self.circuit_failures = 0;
-        let sched = self.active_scheduler_mut();
-        sched.unmark_executed(node_id);
-        sched.dequeue_all(&[node_id]);
-        sched.enqueue(node_id);
+        self.supervised_circuit(node_id, ctx).await?;
         Ok(true)
     }
 }

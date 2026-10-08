@@ -11,6 +11,7 @@ import { Copy, FileCode, History, Pencil } from '@lucide/vue'
  * marker until the engine injects it.
  */
 const props = defineProps<{
+  readOnly?: boolean
   content: string
   createdAt: number
   queued: boolean
@@ -52,7 +53,7 @@ const time = computed(() =>
     <div class="chat-user-turn max-w-[85%] text-[15px] leading-[26px]">
       <template v-for="(part, i) in parts" :key="i">
         <button
-          v-if="part.kind === 'file'"
+          v-if="part.kind === 'file' && !readOnly"
           class="mr-1 inline-flex items-center gap-1 rounded-md border border-divider bg-background px-1.5 py-0.5 font-mono text-[12.5px] text-foreground/80 transition-colors duration-100 hover:bg-hover"
           type="button"
           :title="part.path"
@@ -60,7 +61,7 @@ const time = computed(() =>
         >
           <FileCode class="h-3 w-3 shrink-0" /> {{ part.path }}
         </button>
-        <template v-else>{{ part.text }}</template>
+        <template v-else>{{ part.kind === 'file' ? part.path : part.text }}</template>
       </template>
       <span v-if="queued" class="chat-queued-mark">queued</span>
     </div>
@@ -78,6 +79,7 @@ const time = computed(() =>
       <button
         class="chat-action !h-5 !px-1"
         type="button"
+        v-if="!readOnly"
         title="Edit and send again"
         aria-label="Edit message"
         @click="onEdit(content)"
@@ -85,7 +87,7 @@ const time = computed(() =>
         <Pencil class="h-3 w-3" />
       </button>
       <button
-        v-if="checkpoint"
+        v-if="checkpoint && !readOnly"
         class="chat-action !h-5 !px-1"
         type="button"
         title="Restore files and conversation to this turn's start"

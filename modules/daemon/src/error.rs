@@ -34,6 +34,13 @@ pub enum DaemonError {
     #[error("execution error: {0}")]
     Execution(String),
 
+    /// A classified supervisor failure without provider or user content.
+    #[error("oversight failure: {category:?} at {stage:?}")]
+    Oversight {
+        category: crate::oversight::diagnostic::Category,
+        stage: crate::oversight::diagnostic::Stage,
+    },
+
     /// Durable execution state could not be committed; new effects must stop.
     #[error("persistence failure: {0}")]
     Persistence(String),
@@ -110,7 +117,7 @@ impl DaemonError {
             DaemonError::AlreadyExists(_) => tonic::Code::AlreadyExists,
             DaemonError::PermissionDenied(_) => tonic::Code::PermissionDenied,
             DaemonError::Locked(_) => tonic::Code::FailedPrecondition,
-            DaemonError::Execution(_) | DaemonError::Llm(_) => tonic::Code::Internal,
+            DaemonError::Execution(_) | DaemonError::Llm(_) | DaemonError::Oversight { .. } => tonic::Code::Internal,
             DaemonError::Persistence(_) => tonic::Code::FailedPrecondition,
             DaemonError::LlmStatus {
                 status,

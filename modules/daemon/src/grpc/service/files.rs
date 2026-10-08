@@ -97,7 +97,8 @@ impl DaemonService {
         if bound || path.extension().is_some_and(|ext| ext == "blueprint") {
             let graph = crate::storage::blueprint_files::decode(req.content.as_bytes())
                 .map_err(to_status)?;
-            super::blueprint::ensure_valid(&graph, &self.state.registry)?;
+            let registry=self.state.registry_for(Some(ws.root()),false).await?;
+            super::blueprint::ensure_valid(&graph, &registry)?;
             self.ensure_blueprint_idle(&ws.root, graph.id).await?;
             crate::replan::application::ensure_resolved(&ws.db).map_err(to_status)?;
             crate::storage::blueprint_files::save(

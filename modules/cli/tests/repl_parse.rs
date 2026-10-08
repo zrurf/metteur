@@ -3,6 +3,16 @@
 use metteur_cli::commands::{Command, parse};
 
 #[test]
+fn compile_distinguishes_print_save_and_explicit_identity() {
+    for (suffix, save, id) in [("", false, None), (" save", true, None), (" save as target", true, Some("target"))] {
+        assert_eq!(parse(&format!("bp compile plan.mbp{suffix}")), Ok(Command::BpCompile {
+            file: "plan.mbp".into(), save, save_to: id.map(str::to_owned),
+        }));
+    }
+    assert!(parse("bp compile plan.mbp save as").is_err());
+}
+
+#[test]
 fn parses_workspace_commands() {
     assert_eq!(
         parse("open C:/repo"),

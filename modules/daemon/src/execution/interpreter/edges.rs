@@ -148,7 +148,7 @@ impl Interpreter {
     /// `Denied` from its `Allowed` output. Any other node fans out to all of
     /// its execution output edges.
     fn follow_exec_edges(
-        &self,
+        &mut self,
         blueprint: &Blueprint,
         node_id: NodeId,
     ) -> DaemonResult<Vec<NodeId>> {
@@ -190,6 +190,7 @@ impl Interpreter {
             {
                 continue;
             }
+            self.view.traverse(blueprint, edge.id, self.frame_trees.clone());
             next.push(edge.target_node);
         }
         Ok(next)

@@ -179,6 +179,26 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn blackboard_query_requires_its_rpc_acl() {
+        let acl =
+            Arc::new(std::sync::RwLock::new(cfg("local", &["/metteur.Daemon/ListWorkspaces"])));
+        let layer = AclLayer::new(acl, false);
+        let called = Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let observed = called.clone();
+        let inner = tower::service_fn(move |_: http::Request<Body>| {
+            observed.store(true, std::sync::atomic::Ordering::SeqCst);
+            async { Ok::<_, Infallible>(http::Response::new(Body::empty())) }
+        });
+        let mut svc = layer.layer(inner);
+        for method in ["GetBlackboard", "GetConciergeState", "SendConciergeMessage", "ListOversightReports"] {
+            let req = http::Request::builder().uri(format!("/metteur.Daemon/{method}")).body(Body::empty()).unwrap();
+            let response = svc.ready().await.unwrap().call(req).await.unwrap();
+            assert_eq!(response.headers().get("grpc-status").unwrap(), "7");
+        }
+        assert!(!called.load(std::sync::atomic::Ordering::SeqCst));
+    }
+
+    #[tokio::test]
     async fn layer_strict_rejects_anonymous() {
         // With strict mode, a request without a peer certificate is rejected
         // regardless of the ACL content.

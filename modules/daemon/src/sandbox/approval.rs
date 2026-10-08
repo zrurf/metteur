@@ -102,6 +102,7 @@ struct PendingRequest {
 /// Owns pending requests and grants for exactly one execution or chat run.
 #[derive(Default)]
 pub struct ApprovalBroker {
+    closed_notify: tokio::sync::Notify,
     state: Arc<Mutex<BrokerState>>,
 }
 
@@ -218,6 +219,7 @@ impl ApprovalBroker {
         let mut state = self.state.lock().unwrap();
         state.closed = true;
         state.run_grants.clear();
+        self.closed_notify.notify_waiters();
         for (_, pending) in state.pending.drain() {
             let _ = pending.tx.send(Err(ApprovalFailure::Closed));
         }
@@ -228,6 +230,11 @@ impl ApprovalBroker {
         ApprovalRunGuard(self.clone())
     }
 
+    /// Event-driven run closure, including closure before the waiter is registered.
+    pub async fn closed(&self) {
+        let notified=self.closed_notify.notified();tokio::pin!(notified);notified.as_mut().enable();
+        if !self.is_closed() {notified.await;}
+    }
     /// Returns unanswered request ids for diagnostics and tests.
     pub fn pending_ids(&self) -> Vec<String> {
         self.state.lock().unwrap().pending.keys().cloned().collect()

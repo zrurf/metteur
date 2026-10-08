@@ -457,10 +457,11 @@ impl ExecutionContext {
 
     /// Resolves the current workspace manager for each LSP operation.
     pub fn lsp_manager(&self) -> Option<Arc<crate::integration::lsp::LspManager>> {
-        match &self.lsp_source {
+        let user = match &self.lsp_source {
             Some(source) => source.read().clone(),
             None => self.lsp.clone(),
-        }
+        };
+        crate::integration::lsp::LspManager::combine(user, &self.registry.addon_lsp)
     }
 
     /// Attaches a standalone manager when there is no live workspace slot.

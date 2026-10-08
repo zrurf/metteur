@@ -12,7 +12,7 @@ const workspace = useWorkspaceStore()
 const version = useVersionStore()
 const panel = usePanelStore()
 const feedback = useFeedbackStore()
-const fileInput = ref('src/api.ts')
+const fileInput = ref(version.selectedFile ?? 'src/api.ts')
 const snapDesc = ref('')
 
 /** Newest snapshot first, used for the `HEAD-n` chip on the detail card. */
@@ -93,6 +93,13 @@ function opTone(op: string): string {
     <!-- Detail + file history -->
     <div class="min-h-0 flex-1 overflow-y-auto">
       <div class="mx-auto max-w-2xl space-y-5 p-5">
+        <p v-if="version.error" role="alert">{{ version.error }}</p>
+        <section v-if="version.reference" class="panel p-4 break-all" aria-label="Referenced blueprint version">
+          <strong>{{ version.reference.label }}</strong>
+          <p>Run: {{ version.reference.runId }}</p><p v-if="version.reference.proposalId">Proposal: {{ version.reference.proposalId }}</p>
+          <p>{{ version.reference.version.blueprint_uri }}</p><code>{{ version.reference.version.blob_hash }}</code>
+          <p v-if="!selected">Referenced snapshot unavailable: {{ version.reference.version.snapshot_id }}</p>
+        </section>
         <!-- Selected snapshot detail -->
         <section v-if="selected" class="panel p-4">
           <div class="flex items-start gap-3">

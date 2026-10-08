@@ -24,7 +24,7 @@ pub struct LlmResponse {
 /// A reasoning block returned by a thinking-capable model.
 ///
 /// Providers differ in how reasoning may be fed back: Anthropic verifies a
-/// signature over the text and requires verbatim replay, DeepSeek rejects a
+/// signature over the text and requires verbatim replay, DeepSeek can require
 /// replayed `reasoning_content`, OpenAI's Responses API summarizes instead of
 /// returning raw reasoning. The daemon stores the block either way so the UI
 /// and audit trail can show it; each provider decides what to send back.
@@ -158,6 +158,20 @@ impl LlmProviderConfig {
     pub fn with_reasoning_replay(mut self, enabled: bool) -> Self {
         self.replay_reasoning = enabled;
         self
+    }
+
+    /// Applies provider settings shared by main execution and bounded oversight.
+    /// This does not copy tools, retry policies, fallback models or authority.
+    pub fn with_model_settings(
+        self,
+        defaults: &metteur_shared::config::LlmConfig,
+        model: Option<&metteur_shared::config::LlmModelConfig>,
+    ) -> Self {
+        let replay = model.and_then(|cfg| cfg.replay_reasoning)
+            .unwrap_or_else(|| Self::is_deepseek_model(&self.model));
+        self.with_thinking_budget(defaults.thinking_budget_tokens)
+            .with_prompt_cache(defaults.prompt_cache)
+            .with_reasoning_replay(replay)
     }
 
     /// Whether a model id names a DeepSeek-family model.

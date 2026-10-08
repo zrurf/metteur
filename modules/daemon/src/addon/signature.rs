@@ -6,7 +6,6 @@
 //! with after a trusted developer published it.
 
 use std::collections::BTreeMap;
-use std::io::Read;
 use std::path::Path;
 
 use base64::Engine;
@@ -60,49 +59,88 @@ pub fn verify(
     trusted_keys: &[String],
     require_signature: bool,
 ) -> DaemonResult<()> {
-    let text = match std::fs::read_to_string(package_dir.join("signature.toml")) {
-        Ok(text) => text,
-        Err(_) if !require_signature => return Ok(()),
-        Err(err) => {
+    Snapshot::read(package_dir)?.verify(trusted_keys, require_signature)
+}
+
+/// Immutable bytes used for both verification and execution. No verified path
+/// is reopened later to load a different implementation.
+pub(crate) struct Snapshot {
+    pub files: BTreeMap<String, Vec<u8>>,
+}
+impl Snapshot {
+    pub fn read(root: &Path) -> DaemonResult<Self> {
+        let mut files = BTreeMap::new();
+        collect_files(root, root, &mut files, &mut 0)?;
+        Ok(Self {
+            files,
+        })
+    }
+    pub fn fingerprint(&self) -> String {
+        let mut hash = Sha256::new();
+        hash.update(self.payload());
+        hash.update(b"\0signature\0");
+        if let Some(signature) = self.files.get("signature.toml") {
+            hash.update(signature);
+        }
+        hex(&hash.finalize())
+    }
+    fn payload(&self) -> Vec<u8> {
+        let mut out = Vec::new();
+        for (path, bytes) in &self.files {
+            if path == "signature.toml" {
+                continue;
+            }
+            out.extend_from_slice(path.as_bytes());
+            out.push(0);
+            out.extend_from_slice(hex(&Sha256::digest(bytes)).as_bytes());
+            out.push(b'\n');
+        }
+        out
+    }
+    pub fn verify(&self, trusted_keys: &[String], require_signature: bool) -> DaemonResult<()> {
+        let Some(bytes) = self.files.get("signature.toml") else {
+            return if require_signature {
+                Err(DaemonError::Addon("missing signature.toml".into()))
+            } else {
+                Ok(())
+            };
+        };
+        let text = std::str::from_utf8(bytes)
+            .map_err(|_| DaemonError::Addon("signature.toml is not UTF-8".into()))?;
+        let file: SignatureFile = toml::from_str(text)
+            .map_err(|err| DaemonError::Addon(format!("invalid signature.toml: {err}")))?;
+        if file.algorithm != ALGORITHM_ED25519 {
             return Err(DaemonError::Addon(format!(
-                "missing signature.toml ({}); set addon.require_signature=false to allow unsigned packages",
-                err
+                "unsupported signature algorithm '{}'",
+                file.algorithm
             )));
         }
-    };
-    let file: SignatureFile = toml::from_str(&text)
-        .map_err(|err| DaemonError::Addon(format!("invalid signature.toml: {err}")))?;
-    if file.algorithm != ALGORITHM_ED25519 {
-        return Err(DaemonError::Addon(format!(
-            "unsupported signature algorithm '{}'",
-            file.algorithm
-        )));
-    }
 
-    let public_key = decode_key(&file.public_key)?;
-    let signature_bytes = B64
-        .decode(&file.value)
-        .map_err(|_| DaemonError::Addon("signature value is not valid base64".to_string()))?;
-    let signature = Signature::from_slice(&signature_bytes).map_err(|_| {
-        DaemonError::Addon("signature is not a valid Ed25519 signature".to_string())
-    })?;
+        let public_key = decode_key(&file.public_key)?;
+        let signature_bytes = B64
+            .decode(&file.value)
+            .map_err(|_| DaemonError::Addon("signature value is not valid base64".to_string()))?;
+        let signature = Signature::from_slice(&signature_bytes).map_err(|_| {
+            DaemonError::Addon("signature is not a valid Ed25519 signature".to_string())
+        })?;
 
-    let digest = canonical_digest(package_dir)?;
-    let key = VerifyingKey::from_bytes(&public_key)
-        .map_err(|_| DaemonError::Addon("public key is not a valid Ed25519 key".to_string()))?;
-    if key.verify_strict(&digest, &signature).is_err() {
-        return Err(DaemonError::Addon(
-            "signature does not match the package contents".to_string(),
-        ));
-    }
+        let digest = self.payload();
+        let key = VerifyingKey::from_bytes(&public_key)
+            .map_err(|_| DaemonError::Addon("public key is not a valid Ed25519 key".to_string()))?;
+        if key.verify_strict(&digest, &signature).is_err() {
+            return Err(DaemonError::Addon(
+                "signature does not match the package contents".to_string(),
+            ));
+        }
 
-    // When a trusted key set exists the embedded public_key must be one of them.
-    if !trusted_keys.is_empty() && !trusted_keys.iter().any(|k| matches_key(k, &public_key)) {
-        return Err(DaemonError::Addon(
-            "package public key is not in the trusted key set".to_string(),
-        ));
+        // When a trusted key set exists the embedded public_key must be one of them.
+        if !trusted_keys.is_empty() && !trusted_keys.iter().any(|k| matches_key(k, &public_key)) {
+            return Err(DaemonError::Addon(
+                "package public key is not in the trusted key set".to_string(),
+            ));
+        }
+        Ok(())
     }
-    Ok(())
 }
 
 /// Signs `package_dir`, returning the content of its `signature.toml`.
@@ -140,48 +178,59 @@ fn matches_key(encoded: &str, expected: &[u8; 32]) -> bool {
 /// `{relative_path}\0{sha256_hex}\n`, so any file added, removed or modified
 /// changes the result.
 fn canonical_digest(package_dir: &Path) -> DaemonResult<Vec<u8>> {
-    let mut entries = BTreeMap::new();
-    collect_files(package_dir, package_dir, &mut entries)?;
-    let mut out = Vec::new();
-    for (path, hash) in entries {
-        if path == "signature.toml" {
-            continue;
-        }
-        out.extend_from_slice(path.as_bytes());
-        out.push(0);
-        out.extend_from_slice(hash.as_bytes());
-        out.push(b'\n');
-    }
-    Ok(out)
+    Ok(Snapshot::read(package_dir)?.payload())
 }
 
 fn collect_files(
     root: &Path,
     dir: &Path,
-    entries: &mut BTreeMap<String, String>,
+    entries: &mut BTreeMap<String, Vec<u8>>,
+    total: &mut usize,
 ) -> DaemonResult<()> {
+    if std::fs::symlink_metadata(dir)?.file_type().is_symlink() {
+        return Err(DaemonError::Addon("package symlinks are not supported".into()));
+    }
     for entry in std::fs::read_dir(dir).map_err(DaemonError::Io)? {
         let entry = entry.map_err(DaemonError::Io)?;
         let path = entry.path();
         let relative = match path.strip_prefix(root) {
-            Ok(relative) => relative.to_string_lossy().replace('\\', "/"),
+            Ok(relative) => relative
+                .components()
+                .map(|c| {
+                    c.as_os_str()
+                        .to_str()
+                        .ok_or_else(|| DaemonError::Addon("Package paths must be UTF-8".into()))
+                })
+                .collect::<DaemonResult<Vec<_>>>()?
+                .join("/"),
             Err(_) => continue,
         };
+        super::manifest::validate_package_path(&relative)?;
         let file_type = entry.file_type().map_err(DaemonError::Io)?;
-        if file_type.is_dir() {
-            collect_files(root, &path, entries)?;
+        if file_type.is_symlink() {
+            return Err(DaemonError::Addon("package symlinks are not supported".into()));
+        } else if file_type.is_dir() {
+            collect_files(root, &path, entries, total)?;
         } else if file_type.is_file() {
-            let mut file = std::fs::File::open(&path).map_err(DaemonError::Io)?;
-            let mut hasher = Sha256::new();
-            let mut buffer = [0u8; 8192];
-            loop {
-                let read = file.read(&mut buffer).map_err(DaemonError::Io)?;
-                if read == 0 {
-                    break;
-                }
-                hasher.update(&buffer[..read]);
+            let size = entry.metadata()?.len();
+            if size > 64 * 1024 * 1024
+                || (*total as u64).saturating_add(size) > 64 * 1024 * 1024
+                || entries.len() >= 1024
+            {
+                return Err(DaemonError::Addon("package exceeds 64 MiB or 1024 files".into()));
             }
-            entries.insert(relative, hex(&hasher.finalize()));
+            use std::io::Read;
+            let mut bytes = Vec::new();
+            std::fs::File::open(&path)?
+                .take((64 * 1024 * 1024 - *total + 1) as u64)
+                .read_to_end(&mut bytes)?;
+            *total = total.saturating_add(bytes.len());
+            if *total > 64 * 1024 * 1024 {
+                return Err(DaemonError::Addon("package exceeds 64 MiB".into()));
+            }
+            entries.insert(relative, bytes);
+        } else {
+            return Err(DaemonError::Addon("package contains a non-regular file".into()));
         }
     }
     Ok(())

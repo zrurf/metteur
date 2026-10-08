@@ -20,7 +20,7 @@ import { wurl } from '@/lib/workspace-url'
  * reuses the returned `openSurface`.
  */
 
-type SurfaceKey = 'chat' | 'version' | 'settings'
+type SurfaceKey = 'chat' | 'version' | 'settings' | 'execution' | 'execution-preview'
 type PanelSurface = Exclude<SurfaceKey, 'chat'>
 
 interface SurfacePanel {
@@ -44,9 +44,11 @@ export function useSurfaceNavigation() {
   /** Open (or focus) a surface tab, navigate to it, and assert its sidebar. */
   function openSurface(key: SurfaceKey) {
     tabs.openSurface(key)
-    const target = key === 'settings' ? '/settings' : wurl(`/${key}`)
+    const target = key === 'execution-preview' ? '/preview/execution'
+      : key === 'settings' ? '/settings' : wurl(`/${key}`)
     router.push(target)
     const p = surfacePanel(key as PanelSurface)
+    if (key === 'execution-preview' || key === 'execution') panel.clear()
     if (p) panel.show(p.owner, p.comp, p.title)
     // chat is a full-page surface: it owns no sidebar, so the current panel
     // (e.g. the Explorer) stays open instead of being cleared.

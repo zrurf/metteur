@@ -72,3 +72,15 @@ test('nested oversight overlays retain inherited siblings', async ({ page }) => 
   })
   expect(result.oversight.triggers).toEqual({ interval_ms: 0, on_validation_failed: true })
 })
+
+
+test('empty delegation and false controls explicitly revoke inherited authority', async ({ page }) => {
+  await page.goto('/')
+  const result = await page.evaluate(async () => {
+    const path = '/src/stores/config.ts'
+    const { mergeConfig } = await import(path)
+    return mergeConfig({ oversight: { mode: 'autonomous', delegation: { pause_run: true, blueprint_edits: [{ node_id: 'node', fields: ['prompt'] }] } } },
+      { oversight: { delegation: { pause_run: false, blueprint_edits: [] } } })
+  })
+  expect(result.oversight.delegation).toEqual({ pause_run: false, blueprint_edits: [] })
+})

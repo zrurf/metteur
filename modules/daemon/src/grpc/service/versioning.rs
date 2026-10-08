@@ -118,10 +118,19 @@ impl DaemonService {
             .ok_or_else(|| Status::not_found("workspace not open"))?;
         let checkpoints = DbCheckpointSink::list(&ws.db).map_err(to_status)?;
         let running = self.state.running.read().await;
-        let active = running.contains_key(&ws.root);
+        let live = running.get(&ws.root);
         let executions = checkpoints
             .into_iter()
             .map(|cp| {
+                let current = live.filter(|r| r.run_id == cp.run_id);
+                let active = current.is_some();
+                let mut data = serde_json::to_value(&cp).unwrap_or_default();
+                data["runtime"] = serde_json::json!({
+                    "active": active,
+                    "pause_requested": current.is_some_and(|r| r.pause_requested.load(std::sync::atomic::Ordering::SeqCst)),
+                    "cancel_requested": current.is_some_and(|r| r.cancel_requested.load(std::sync::atomic::Ordering::SeqCst)),
+                    "pending_approval_ids": current.and_then(|r| r.approvals.as_ref()).map(|b| b.pending_ids()).unwrap_or_default(),
+                });
                 let status = if cp.in_flight.is_some() && !active && cp.status.resumable() {
                     "RecoveryRequired".to_string()
                 } else if cp.status == RunStatus::Running && !active {
@@ -136,7 +145,7 @@ impl DaemonService {
                     started_at: cp.started_at as i64,
                     updated_at: cp.updated_at as i64,
                     executed_nodes: cp.executed.len() as i32,
-                    data_json: serde_json::to_string(&cp).unwrap_or_default(),
+                    data_json: data.to_string(),
                 }
             })
             .collect();
@@ -249,10 +258,9 @@ impl DaemonService {
         let interrupt_bus = InterruptBus::new();
         let pause_flag = Arc::new(std::sync::atomic::AtomicBool::new(false));
         let cancel_flag = Arc::new(std::sync::atomic::AtomicBool::new(false));
-        let addon_fragments = match &self.state.addon_host {
-            Some(host) => host.fragments_for(ws.root()).await,
-            None => Vec::new(),
-        };
+        let registry=self.state.registry_for(Some(ws.root()),true).await?;
+        checkpoint.ensure_addons(&registry).map_err(to_status)?;
+        let addon_fragments = registry.addon_fragments.values().flatten().cloned().collect();
 
         let stream = spawn_execution(
             &self.state,
@@ -260,7 +268,7 @@ impl DaemonService {
             ws.db.clone(),
             ws.config.clone(),
             ws.root().to_path_buf(),
-            self.state.registry.clone(),
+            registry,
             self.state.llm_factory.clone(),
             AuditWriter::new(ws.db.clone()),
             subject,
@@ -375,8 +383,18 @@ impl DaemonService {
         let config = ws.config.read().await;
         let summary = crate::llm::billing::run_usage(&ws.db, &config.billing, &req.run_id)
             .map_err(to_status)?;
+        let oversight_json = match uuid::Uuid::parse_str(&req.run_id) {
+            Ok(run) if crate::execution::DbCheckpointSink::load(&ws.db, run).map_err(to_status)?.is_some() => {
+                let settings = metteur_shared::config::oversight::OversightConfig::from_config(&config)
+                    .map_err(|e| Status::invalid_argument(e.to_string()))?;
+                serde_json::to_string(&crate::oversight::budget::summary(&ws.db, run, &settings).map_err(to_status)?)
+                    .map_err(|e| Status::internal(e.to_string()))?
+            }
+            _ => String::new(),
+        };
         drop(config);
         Ok(Response::new(UsageSummary {
+            oversight_json,
             currency: summary.currency,
             total_cost_micros: summary.total_cost_micros as u64,
             models: summary
@@ -384,6 +402,9 @@ impl DaemonService {
                 .into_iter()
                 .map(|m| proto::ModelUsage {
                     model: m.model,
+                    tokens_complete: m.tokens_complete,
+                    cache_complete: m.cache_complete,
+                    cost_complete: m.cost_complete,
                     calls: m.calls,
                     input_tokens: m.input_tokens,
                     output_tokens: m.output_tokens,

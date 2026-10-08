@@ -164,7 +164,8 @@ const KIND_ALIASES: Record<string, string> = { Arithmetic: 'Add' }
  */
 function canonicalizePinNames(n: BlueprintNode, signatures: NodeKindInfo[]): BlueprintNode {
   const kind = KIND_ALIASES[n.type] ?? n.type
-  const signature = signatures.find((s) => s.kind === kind)
+  // Package instances retain the authored contract; the daemon rejects stale bindings.
+  const signature = n.data?.['_addon_binding'] || n.data?.['_addon_function_binding'] ? undefined : signatures.find((s) => s.kind === kind)
   const values = { ...n.values }
   for (const p of n.inputs ?? []) {
     const raw = inlineValue(n.data ?? {}, p)
@@ -258,8 +259,8 @@ export const useBlueprintStore = defineStore('blueprint', () => {
 
   const byId = computed(() => new Map(nodes.value.map((n) => [n.id, n])))
 
-  async function listKinds() {
-    const r = await gateway.listNodeKinds()
+  async function listKinds(path = '') {
+    const r = await gateway.listNodeKinds(path)
     nodeKinds.value = r.ok ? r.data.kinds : []
     signatures.value = r.ok && r.data.ready ? r.data.nodes : []
     catalogMessage.value = r.ok && r.data.ready ? '' : r.ok
@@ -280,7 +281,7 @@ export const useBlueprintStore = defineStore('blueprint', () => {
 
   async function load(path: string, filePath: string) {
     currentFile.value = filePath
-    await listKinds()
+    await listKinds(path)
     const cached = graphs.value[filePath]
     if (cached) {
       const graph = migrateIds(cached, signatures.value)

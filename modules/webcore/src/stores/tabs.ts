@@ -25,10 +25,9 @@ export interface TabItem {
   icon: Component
 }
 
-/** App surfaces exposed as closable tabs, reopened from the activity bar.
- *  Execution is not a surface: it runs inside the blueprint editor. */
+/** App surfaces exposed as closable tabs, reopened from the activity bar. */
 export interface SurfaceDef {
-  key: 'chat' | 'version' | 'settings'
+  key: 'chat' | 'version' | 'settings' | 'execution' | 'execution-preview'
   label: string
   /** Surface route fragment, e.g. `/chat`. */
   path: string
@@ -38,6 +37,9 @@ export interface SurfaceDef {
 }
 
 export const SURFACES: SurfaceDef[] = [
+  { key: 'execution', label: 'Execution', path: '/execution', workspace: true, icon: Workflow },
+  ...(import.meta.env.DEV && import.meta.env.VITE_MOCK === '1'
+    ? [{ key: 'execution-preview' as const, label: 'Execution preview', path: '/preview/execution', workspace: false, icon: Workflow }] : []),
   { key: 'chat', label: 'Chat', path: '/chat', workspace: true, icon: MessageSquare },
   { key: 'version', label: 'Version Flow', path: '/version', workspace: true, icon: History },
   { key: 'settings', label: 'Settings', path: '/settings', workspace: false, icon: Settings },

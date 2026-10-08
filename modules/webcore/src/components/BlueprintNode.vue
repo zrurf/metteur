@@ -35,6 +35,7 @@ const props = defineProps<{
     /** Execution status driven by the live audit trail. */
     status?: 'running' | 'done'
   }
+  readonly?: boolean
   selected?: boolean
 }>()
 
@@ -107,7 +108,7 @@ function execConnected(pin: BlueprintPin): boolean {
 
 /** Whether a data input pin shows its inline value editor instead of a label. */
 function editsValue(pin: BlueprintPin): boolean {
-  return pin.kind === 'data-in' && !connectedIn.value.has(pin.id)
+  return !props.readonly && pin.kind === 'data-in' && !connectedIn.value.has(pin.id)
 }
 
 function setValue(pin: BlueprintPin, value: string) {

@@ -12,6 +12,8 @@ import {
   X,
 } from '@lucide/vue'
 import { useExecutionStore } from '@/stores/execution'
+import { gateway } from '@/core'
+import ExecutionBlackboard from './execution/ExecutionBlackboard.vue'
 import ExecTreeRow from './ExecTreeRow.vue'
 import type { EventLine } from '@/stores/execution'
 
@@ -35,7 +37,9 @@ const props = defineProps<{
 const emit = defineEmits<{ (e: 'update:open', open: boolean): void }>()
 
 const execution = useExecutionStore()
-const tab = ref<'log' | 'context' | 'node' | 'tree' | 'todo'>('log')
+const tab = ref<'log' | 'context' | 'node' | 'tree' | 'todo' | 'blackboard'>('log')
+
+async function openBlackboard() { await execution.reconcile(); tab.value = 'blackboard' }
 
 const close = () => emit('update:open', false)
 
@@ -114,10 +118,12 @@ const auditLabel = computed(() => inspectedId.value ?? '—')
     class="glass absolute bottom-2 right-2 z-20 flex w-105 max-w-[92%] flex-col overflow-hidden rounded-xl border border-divider shadow-card"
     style="height: min(58%, 520px)"
   >
+    <ExecutionBlackboard v-if="tab === 'blackboard'" class="order-last overflow-auto" :run-id="execution.runId" :connected="execution.connected && gateway.connected.value" :revision="execution.current?.updatedAt" />
     <!-- Header -->
     <div class="flex h-8 shrink-0 items-center gap-2 border-b border-divider px-2.5">
       <Activity class="h-3.5 w-3.5 text-muted-foreground" />
       <span class="text-[11px] font-semibold uppercase tracking-wider text-subtle">Audit</span>
+      <button class="text-[11px]" :class="{ 'text-primary': tab === 'blackboard' }" @click="openBlackboard">Blackboard</button>
       <span
         class="chip ml-1"
         :class="{
@@ -313,7 +319,7 @@ const auditLabel = computed(() => inspectedId.value ?? '—')
     </div>
 
     <!-- Execution-tree tab -->
-    <div v-else class="min-h-0 flex-1 overflow-y-auto p-3">
+    <div v-else-if="tab === 'tree'" class="min-h-0 flex-1 overflow-y-auto p-3">
       <p
         v-if="!execution.tree || execution.tree.nodes.length === 0"
         class="text-[11.5px] text-muted-foreground"

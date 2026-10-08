@@ -55,6 +55,7 @@ x509-parser.workspace = true
 zip.workspace = true
 
 [dev-dependencies]
+metteur-cli = { path = "../cli" }
 parking_lot.workspace = true
 proptest.workspace = true
 uuid.workspace = true

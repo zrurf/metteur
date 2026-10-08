@@ -45,13 +45,18 @@ pub struct Workspace {
 impl Workspace {
     /// Admission holds activity_gate and verifies that no run is active first.
     pub fn reconcile_files(&self) -> DaemonResult<()> {
-        crate::replan::application::ensure_resolved(&self.db)?;
+        crate::oversight::recovery::recover(&self.db)?;
         crate::execution::file_journal::FileJournal::new(
             self.root.clone(),
             Arc::new(crate::execution::file_journal::DbFileJournal(self.db.clone())),
         )
         .reconcile()?
         .ensure_safe()?;
+        let conflicts = crate::replan::application::reconcile(&self.db, &self.version_manager)?;
+        if !conflicts.is_empty() {
+            return Err(DaemonError::Persistence(conflicts.join("; ")));
+        }
+        crate::replan::application::ensure_resolved(&self.db)?;
         Ok(())
     }
     /// Returns the workspace root path.
@@ -151,15 +156,29 @@ impl WorkspaceManager {
         let metadata_dir = root.join(METADATA_DIR);
         let lock = SessionLock::acquire(&metadata_dir)?;
         let db = Db::open(&metadata_dir.join("db"))?;
-        crate::execution::file_journal::FileJournal::new(
+        crate::oversight::recovery::recover(&db)?;
+        let file_recovery = crate::execution::file_journal::FileJournal::new(
             root.clone(),
             Arc::new(crate::execution::file_journal::DbFileJournal(db.clone())),
         )
-        .reconcile()?
-        .ensure_safe()?;
+        .reconcile()?;
+        if !file_recovery.conflicts.is_empty() {
+            tracing::warn!(conflicts=?file_recovery.conflicts,"Workspace opened for inspection; file conflicts block execution admission");
+        }
         let global_config_path = self.global_config_path()?;
         let config = config::load_merged_config(&global_config_path, &root)?;
         let version_manager = Arc::new(VersionManager::new(db.clone(), root.clone()));
+        match crate::replan::application::reconcile(&db, &version_manager) {
+            Ok(conflicts) => {
+                for conflict in conflicts {
+                    tracing::warn!(%conflict,"Blueprint application requires recovery before execution");
+                }
+            }
+            Err(error) => {
+                tracing::warn!(%error,"Blueprint recovery unavailable; execution admission will remain blocked")
+            }
+        }
+        crate::oversight::conversation::recover(&db)?;
         let lsp_manager = crate::integration::lsp::LspManager::new(&config.lsp, &root);
         let watcher = match WorkspaceWatcher::start(
             root.clone(),
@@ -249,6 +268,44 @@ fn normalize_path(path: &Path) -> PathBuf {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn recovery_conflict_allows_inspection_but_blocks_execution() {
+        use crate::execution::file_journal::{
+            DbFileJournal, FileJournalStore, FileOperation, FileOrigin, FilePhase,
+        };
+        let dir =
+            std::env::temp_dir().join(format!("metteur-ws-recovery-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(dir.join(METADATA_DIR)).unwrap();
+        let path = dir.join("result.txt");
+        std::fs::write(&path, "external edit").unwrap();
+        {
+            let store = DbFileJournal(Db::open(&dir.join(METADATA_DIR).join("db")).unwrap());
+            store
+                .save(&FileOperation {
+                    operation_id: uuid::Uuid::new_v4(),
+                    origin: FileOrigin {
+                        run_id: uuid::Uuid::new_v4(),
+                        node_id: uuid::Uuid::new_v4(),
+                        attempt: 1,
+                        wal_position: 0,
+                    },
+                    path: path.clone(),
+                    before: Some(store.put_blob(b"before").unwrap()),
+                    after: Some(store.put_blob(b"after").unwrap()),
+                    phase: FilePhase::Prepared,
+                })
+                .unwrap();
+        }
+        let manager = WorkspaceManager::new();
+        let ws = manager.open(&dir).await.unwrap();
+        assert!(manager.get(&dir).await.is_some());
+        assert!(ws.reconcile_files().is_err());
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), "external edit");
+        let operations = DbFileJournal(ws.db.clone()).operations().unwrap();
+        assert_eq!(operations[0].phase, FilePhase::Conflict);
+        manager.close(&dir).await.unwrap();
+    }
 
     #[tokio::test]
     async fn opens_and_closes_workspace() {

@@ -302,6 +302,7 @@ fn forward_event(event: ExecutionEvent, label: &str) -> ExecutionEvent {
             node_id,
             message: format!("{label}: message node {node_id}: {message}"),
         },
+        review @ ExecutionEvent::Oversight { .. } => review,
         approval @ ExecutionEvent::ApprovalRequested {
             ..
         } => approval,

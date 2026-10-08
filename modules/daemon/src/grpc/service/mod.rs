@@ -6,9 +6,12 @@
 //! methods win Rust's method resolution over the trait ones, so the delegates
 //! always reach the real handler (never recurse).
 
+mod reports;
+mod blackboard;
 mod blueprint;
 mod chat;
 mod config;
+mod concierge;
 mod files;
 mod jobs;
 mod registry;
@@ -76,6 +79,15 @@ impl DaemonService {
 
 #[tonic::async_trait]
 impl Daemon for DaemonService {
+    async fn list_oversight_reports(&self, request: Request<super::proto::OversightReportsRequest>) -> Result<Response<super::proto::OversightReports>, Status> { self.list_oversight_reports(request).await }
+
+    type SendConciergeMessageStream = tokio_stream::wrappers::ReceiverStream<Result<super::proto::ConciergeEvent, Status>>;
+    async fn get_concierge_state(&self, request: Request<super::proto::ConciergeStateRequest>) -> Result<Response<super::proto::ConciergeState>, Status> {
+        self.get_concierge_state(request).await
+    }
+    async fn send_concierge_message(&self, request: Request<super::proto::SendConciergeMessageRequest>) -> Result<Response<Self::SendConciergeMessageStream>, Status> {
+        self.send_concierge_message(request).await
+    }
     async fn rewind_chat(
         &self,
         request: Request<super::proto::RewindChatRequest>,
@@ -161,7 +173,7 @@ impl Daemon for DaemonService {
         self.send_interrupt(request).await
     }
 
-    async fn list_tools(&self, request: Request<Empty>) -> Result<Response<ToolList>, Status> {
+    async fn list_tools(&self, request: Request<metteur_proto::proto::RegistryRequest>) -> Result<Response<ToolList>, Status> {
         self.list_tools(request).await
     }
 
@@ -241,7 +253,7 @@ impl Daemon for DaemonService {
 
     async fn list_node_kinds(
         &self,
-        request: Request<Empty>,
+        request: Request<metteur_proto::proto::RegistryRequest>,
     ) -> Result<Response<NodeKindList>, Status> {
         self.list_node_kinds(request).await
     }
@@ -288,6 +300,13 @@ impl Daemon for DaemonService {
         self.decompile_blueprint(request).await
     }
 
+    async fn get_blackboard(
+        &self,
+        request: Request<super::proto::GetBlackboardRequest>,
+    ) -> Result<Response<super::proto::BlackboardProjection>, Status> {
+        self.get_blackboard(request).await
+    }
+
     async fn get_execution_usage(
         &self,
         request: Request<GetExecutionUsageRequest>,
@@ -297,7 +316,7 @@ impl Daemon for DaemonService {
 
     async fn list_mcp_servers(
         &self,
-        request: Request<Empty>,
+        request: Request<metteur_proto::proto::RegistryRequest>,
     ) -> Result<Response<McpServerList>, Status> {
         self.list_mcp_servers(request).await
     }

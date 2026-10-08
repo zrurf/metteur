@@ -48,6 +48,10 @@ fn normalized(checkpoint: &ExecutionCheckpoint) -> serde_json::Value {
         node.as_object_mut().unwrap().remove("started_at_ms");
         node.as_object_mut().unwrap().remove("finished_at_ms");
     }
+    for invocation in obj["view"]["invocations"].as_array_mut().unwrap() {
+        invocation.as_object_mut().unwrap().remove("started_at");
+        invocation.as_object_mut().unwrap().remove("finished_at");
+    }
     value
 }
 

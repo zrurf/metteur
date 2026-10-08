@@ -11,6 +11,7 @@ use crate::execution::checkpoint::{
     CheckpointSink, DbCheckpointSink, ExecutionCheckpoint, RunStatus,
 };
 use crate::execution::context::ExecutionContext;
+use crate::oversight::diagnostic::{self, Category, Stage};
 use crate::storage::{
     blueprint_files,
     persistence::{Db, cf},
@@ -26,10 +27,19 @@ pub(crate) struct ApplyState {
     blocked: bool,
 }
 
+impl ApplyState {
+    pub(crate) fn has_pending(&self) -> bool {
+        self.pending.is_some()
+    }
+}
+
 /// Chosen by the server entry point, never deserialized from model arguments.
 #[derive(Clone, Copy, Serialize, Deserialize)]
 pub(crate) enum Source {
     ModelTool,
+    Supervisor {
+        review_id: Uuid,
+    },
     Circuit {
         failing_node: NodeId,
     },
@@ -57,6 +67,22 @@ struct ApplyIntent {
     checkpoint: ExecutionCheckpoint,
     after_version: Option<VersionRef>,
     committed: bool,
+    #[serde(default)]
+    abandoned: bool,
+    #[serde(default)]
+    recovery_note: String,
+}
+
+/// A result link is evidence of this exact committed application, never the
+/// current file binding (which may have advanced since the proposal).
+pub(crate) fn result_version(db: &Db, run: Uuid, review: Uuid, id: Uuid) -> DaemonResult<Option<VersionRef>> {
+    let Some(bytes) = db.get(cf::EXECUTION_STATE, format!("blueprint-apply:{id}").as_bytes())? else { return Ok(None) };
+    let intent: ApplyIntent = serde_json::from_slice(&bytes)
+        .map_err(|_| DaemonError::Persistence("Invalid blueprint application record".into()))?;
+    Ok((intent.committed && !intent.abandoned && intent.proposal.id == id
+        && intent.proposal.run_id == run
+        && matches!(intent.proposal.source, Source::Supervisor { review_id } if review_id == review))
+        .then_some(intent.after_version).flatten())
 }
 
 fn encode(value: &impl Serialize) -> DaemonResult<Vec<u8>> {
@@ -143,7 +169,7 @@ pub fn ensure_resolved(db: &Db) -> DaemonResult<()> {
             let intent: ApplyIntent = serde_json::from_slice(&bytes).map_err(|e| {
                 DaemonError::Persistence(format!("invalid blueprint apply intent: {e}"))
             })?;
-            if !intent.committed {
+            if !intent.committed && !intent.abandoned {
                 return Err(DaemonError::Persistence(format!(
                     "blueprint apply {} is incomplete; manual recovery required before execution",
                     intent.proposal.id
@@ -155,6 +181,9 @@ pub fn ensure_resolved(db: &Db) -> DaemonResult<()> {
 }
 
 fn verify(ctx: &ExecutionContext, proposal: &Proposal) -> DaemonResult<()> {
+    if matches!(proposal.source, Source::Supervisor { .. }) {
+        crate::oversight::actions::enabled(ctx)?;
+    }
     if ctx.cancel_requested.load(std::sync::atomic::Ordering::SeqCst)
         || ctx.approvals.as_ref().is_none_or(|b| b.is_closed())
     {
@@ -182,6 +211,13 @@ pub(crate) async fn approve(
     edits: &serde_json::Value,
     source: Source,
 ) -> DaemonResult<String> {
+    let argument_error = |error| if matches!(source, Source::Supervisor { .. }) {
+        diagnostic::error(Category::ToolArguments, Stage::ToolDispatch)
+    } else { error };
+    let version_error = |error| if matches!(source, Source::Supervisor { .. }) {
+        let (category, stage) = diagnostic::classify(&error, Stage::VersionCheck);
+        diagnostic::error(category, stage)
+    } else { error };
     if ctx.blueprint_apply.lock().pending.is_some() {
         return Err(rejected("a replan is already awaiting the next node boundary"));
     }
@@ -192,25 +228,25 @@ pub(crate) async fn approve(
     let base = ctx.blueprint_apply.lock().version.clone().ok_or_else(|| {
         rejected("legacy blueprint must be explicitly saved to a file before modification")
     })?;
-    versions.verify_blueprint(&base)?;
+    versions.verify_blueprint(&base).map_err(version_error)?;
     let file = std::fs::read(versions.blueprint_path(&base.blueprint_uri)?)?;
-    if blueprint_files::decode(&file)? != before {
-        return Err(rejected("executing graph differs from its authoritative file"));
+    if blueprint_files::decode(&file).map_err(version_error)? != before {
+        return Err(version_error(rejected("executing graph differs from its authoritative file")));
     }
     let state = checkpoint(ctx)?;
     if state.blueprint_id != before.id || state.blueprint_version.as_ref() != Some(&base) {
-        return Err(rejected(
+        return Err(version_error(rejected(
             "run has no matching blueprint version; start a new run after saving",
-        ));
+        )));
     }
     let mut after = before.clone();
-    let changed = super::apply_edits(&mut after, edits).map_err(DaemonError::Execution)?;
+    let changed = super::apply_edits(&mut after, edits).map_err(DaemonError::Execution).map_err(argument_error)?;
     let report = metteur_shared::model::validate::validate_with_catalog(
         &after,
         &ctx.registry.node_signatures(),
     );
     if !report.is_ok() {
-        return Err(rejected(&format!("invalid proposal: {:?}", report.errors)));
+        return Err(argument_error(rejected(&format!("invalid proposal: {:?}", report.errors))));
     }
     let affected: Vec<_> =
         before.nodes.iter().zip(&after.nodes).filter(|(a, b)| a != b).map(|(n, _)| n.id).collect();
@@ -218,8 +254,22 @@ pub(crate) async fn approve(
         return Err(rejected("proposal makes no changes"));
     }
     for id in &affected {
-        let circuit_retry =
-            matches!(source, Source::Circuit { failing_node } if failing_node == *id);
+        let circuit_retry = match source {
+            Source::Supervisor {
+                review_id,
+            } => {
+                crate::oversight::scheduler::load(db(ctx)?, ctx.run_id)?.is_some_and(|s| {
+                    !s.closed
+                        && s.reviews.iter().any(|r| {
+                            r.review_id == review_id
+                                && r.circuit_node == Some(*id)
+                                && r.status == crate::oversight::scheduler::Status::Running
+                        })
+                }) && state.in_flight == Some(*id)
+                    && state.circuit_failures > 0
+            }
+            _ => false,
+        };
         if !circuit_retry && (state.executed.contains(id) || state.in_flight == Some(*id)) {
             return Err(rejected(
                 "proposal changes an active or completed node; structural edits and reruns require a separate workflow",
@@ -241,7 +291,27 @@ pub(crate) async fn approve(
         summary: changed.clone(),
     };
     verify(ctx, &proposal)?;
-    let allowed = super::await_approval(
+    let mut oversight = match source {
+        Source::Supervisor {
+            review_id,
+        } => Some(crate::oversight::actions::register(
+            ctx,
+            review_id,
+            proposal.id,
+            "blueprint_edits",
+            serde_json::json!({
+                "request_type":"replan_proposal","tool":"ProposeBlueprintEdits","source":"supervisor","retry_node": crate::oversight::scheduler::load(db(ctx)?,ctx.run_id)?.and_then(|s|s.reviews.into_iter().find(|r|r.review_id==review_id)).and_then(|r|r.circuit_node),"base":proposal.base,"state_digest":proposal.state_digest,"edits_digest":proposal.edits_digest,"affected_nodes":proposal.affected,"edits":edits,"summary":summary,
+                "scope":proposal.before.id,
+                "before":proposal.before.nodes.iter().filter(|n|proposal.affected.contains(&n.id)).collect::<Vec<_>>(),
+                "after":proposal.after.nodes.iter().filter(|n|proposal.affected.contains(&n.id)).collect::<Vec<_>>()
+            }),
+        )?),
+        _ => None,
+    };
+    let allowed = if let Some(guard) = &mut oversight {
+        guard.confirm(ctx).await?
+    } else {
+        super::await_approval(
         ctx,
         "replan_proposal",
         summary,
@@ -252,16 +322,29 @@ pub(crate) async fn approve(
             "affected_nodes":proposal.affected, "edits":edits, "summary":summary,
         }),
     )
-    .await?;
+    .await?
+    };
     if !allowed {
+        if matches!(source, Source::Supervisor { .. }) {
+            return Err(diagnostic::error(Category::ApprovalRejected, Stage::Approval));
+        }
         return Err(rejected("replan denied by user"));
     }
-    verify(ctx, &proposal)?;
+    if let Err(error) = verify(ctx, &proposal) {
+        if let Some(guard) = &mut oversight { guard.failed(&error, Stage::VersionCheck)?; }
+        return Err(error);
+    }
     let mut state = ctx.blueprint_apply.lock();
     if state.pending.is_some() || state.blocked {
+        if let Some(guard) = &mut oversight {
+            guard.failed(&diagnostic::error(Category::Application, Stage::Application), Stage::Application)?;
+        }
         return Err(rejected("another proposal is pending or recovery is required"));
     }
     state.pending = Some(proposal);
+    if let Some(guard) = &mut oversight {
+        guard.staged();
+    }
     Ok(format!("{changed}; approved, pending the next safe node boundary"))
 }
 
@@ -282,7 +365,17 @@ pub(crate) fn commit_boundary(
         if checkpoint.status != RunStatus::Running {
             state.pending = None;
         }
-        if checkpoint.in_flight.is_some() {
+        // The interpreter owns a synchronous oversight gate boundary. No node
+        // effects are in flight there; the gate itself cannot be edited.
+        let oversight_gate = checkpoint.in_flight.is_some_and(|id| {
+            checkpoint
+                .view
+                .root
+                .as_ref()
+                .and_then(|bp| bp.node(id))
+                .is_some_and(|node| node.kind == "OversightCheckpoint")
+        });
+        if checkpoint.in_flight.is_some() && !oversight_gate {
             None
         } else {
             state.pending.take()
@@ -293,15 +386,40 @@ pub(crate) fn commit_boundary(
     };
     // The completed node's successor queue is already constructed. Only future
     // parameter changes are permitted; a circuit retry has already been queued.
-    verify(ctx, &proposal)?;
+    let verification = verify(ctx, &proposal).and_then(|()| {
+        if matches!(proposal.source, Source::Supervisor { .. }) {
+            crate::oversight::actions::authorize_application(ctx, proposal.id)
+        } else {
+            Ok(())
+        }
+    });
+    if matches!(proposal.source, Source::Supervisor { .. })
+        && (verification.is_err()
+            || proposal.affected.iter().any(|id| checkpoint.executed.contains(id)))
+    {
+        let error = verification.err().unwrap_or_else(|| diagnostic::error(Category::VersionStale, Stage::VersionCheck));
+        crate::oversight::actions::fail(
+            db(ctx)?,
+            ctx.run_id,
+            proposal.id,
+            &error,
+            Stage::VersionCheck,
+        )?;
+        return sink.write(checkpoint);
+    }
+    verification?;
     if checkpoint.run_id != proposal.run_id
         || proposal.affected.iter().any(|id| checkpoint.executed.contains(id))
     {
         return Err(rejected("affected node completed before the safe apply boundary"));
     }
+    let oversight_id = matches!(proposal.source, Source::Supervisor { .. }).then_some(proposal.id);
     let result = commit(ctx, checkpoint, sink, proposal);
-    if result.is_err() {
+    if let Err(error) = &result {
         ctx.blueprint_apply.lock().blocked = true;
+        if let Some(id) = oversight_id {
+            crate::oversight::actions::fail(db(ctx)?, ctx.run_id, id, error, Stage::Application)?;
+        }
     }
     result
 }
@@ -320,9 +438,11 @@ fn commit(
         checkpoint: checkpoint.clone(),
         after_version: None,
         committed: false,
+        abandoned: false,
+        recovery_note: String::new(),
     };
     let key = format!("blueprint-apply:{}", intent.proposal.id);
-    db.put(cf::EXECUTION_STATE, key.as_bytes(), &encode(&intent)?)?;
+    db.put_durable(cf::EXECUTION_STATE, key.as_bytes(), &encode(&intent)?)?;
     let p = &intent.proposal;
     let (after, operation_id) = blueprint_files::save_with_origin(
         db,
@@ -345,13 +465,38 @@ fn commit(
     }
     checkpoint.transaction_log = ctx.transaction_log.entries();
     checkpoint.blueprint_version = Some(after.clone());
+    checkpoint.view.root = Some(p.after.clone());
+    checkpoint.view.invalidate(
+        &p.affected,
+        &[],
+        crate::execution::blackboard::ChangeKind::BlueprintChanged,
+    );
+    checkpoint.view.record_change(
+        crate::execution::blackboard::ChangeKind::BlueprintApplied,
+        Vec::new(),
+        Some(after.clone()),
+        Some(p.id.to_string()),
+    );
     intent.after_version = Some(after.clone());
     intent.checkpoint = checkpoint.clone();
-    db.put(cf::EXECUTION_STATE, key.as_bytes(), &encode(&intent)?)?;
+    db.put_durable(cf::EXECUTION_STATE, key.as_bytes(), &encode(&intent)?)?;
     sink.write(checkpoint)?;
     intent.committed = true;
-    db.put(cf::EXECUTION_STATE, key.as_bytes(), &encode(&intent)?)?;
+    db.put_durable(cf::EXECUTION_STATE, key.as_bytes(), &encode(&intent)?)?;
     ctx.blueprint_apply.lock().version = Some(after.clone());
+    if matches!(intent.proposal.source, Source::Supervisor { .. }) {
+        crate::oversight::actions::transition(
+            db,
+            ctx.run_id,
+            intent.proposal.id,
+            crate::oversight::requests::State::Applied,
+            vec![
+                format!("version:{}", after.snapshot_id),
+                format!("blueprint-apply:{}", intent.proposal.id),
+            ],
+            "Blueprint changes committed at a safe execution boundary",
+        )?;
+    }
     let detail = serde_json::json!({"proposal_id":intent.proposal.id,"run_id":ctx.run_id,
         "source":intent.proposal.source,"before":intent.proposal.base,"after":after,"summary":intent.proposal.summary});
     ctx.audit("replan.applied", detail.clone());
@@ -366,3 +511,150 @@ fn commit(
 
 #[cfg(test)]
 mod tests;
+
+pub(crate) fn has_pending(ctx: &ExecutionContext) -> bool {
+    ctx.blueprint_apply.lock().pending.is_some()
+}
+
+pub(crate) fn pending_review(ctx: &ExecutionContext) -> Option<Uuid> {
+    match ctx.blueprint_apply.lock().pending.as_ref().map(|p| p.source) {
+        Some(Source::Supervisor {
+            review_id,
+        }) => Some(review_id),
+        _ => None,
+    }
+}
+
+pub fn reconcile(
+    db: &Db,
+    versions: &crate::storage::versioning::VersionManager,
+) -> DaemonResult<Vec<String>> {
+    use crate::execution::file_journal::{DbFileJournal, FileJournalStore, FilePhase};
+    use crate::execution::transaction::TransactionEntry;
+    let operations = DbFileJournal(db.clone()).operations()?;
+    let mut conflicts = Vec::new();
+    for (key, bytes) in db.scan(cf::EXECUTION_STATE)? {
+        if !key.starts_with(INTENT_PREFIX) {
+            continue;
+        }
+        let mut intent: ApplyIntent = serde_json::from_slice(&bytes)
+            .map_err(|e| rejected(&format!("Invalid apply intent: {e}")))?;
+        let original = encode(&intent)?;
+        let id = intent.proposal.id;
+        let run = intent.proposal.run_id;
+        let acknowledged = match intent.proposal.source {
+            Source::Supervisor {
+                review_id,
+            } => crate::oversight::scheduler::load(db, run)?.is_some_and(|s| {
+                s.reviews.iter().any(|r| {
+                    r.review_id == review_id
+                        && r.proposals.iter().any(|p| {
+                            p.proposal_id == id
+                                && p.state == crate::oversight::requests::State::Applied
+                        })
+                })
+            }),
+            _ => true,
+        };
+        // Settled history is not revalidated against later file changes or
+        // snapshot retention. Only an unfinished acknowledgement needs repair.
+        if intent.committed && acknowledged {
+            continue;
+        }
+        let latest = DbCheckpointSink::load(db, run)?;
+        let proof = if let Some(after) = &intent.after_version {
+            let snapshot = versions.file_at_snapshot(after.snapshot_id, &after.blueprint_uri)?;
+            let image_matches = snapshot.is_some_and(|(_, text)| {
+                crate::storage::versioning::hash_content(text.as_bytes()) == after.blob_hash
+            }) && crate::storage::versioning::hash_content(
+                &intent.proposal.file,
+            ) == after.blob_hash;
+            let recorded = |cp: &ExecutionCheckpoint| {
+                cp.run_id == run
+                    && cp.view.changes.iter().any(|change| {
+                        matches!(
+                            change.kind,
+                            crate::execution::blackboard::ChangeKind::BlueprintApplied
+                        ) && change.evidence.as_deref() == Some(id.to_string().as_str())
+                            && change.version.as_ref() == Some(after)
+                    })
+            };
+            image_matches
+                && intent.checkpoint.run_id == run
+                && intent.checkpoint.blueprint_version.as_ref() == Some(after)
+                && (intent.committed
+                    || (intent.checkpoint.view.root.as_ref() == Some(&intent.proposal.after)
+                        && recorded(&intent.checkpoint)
+                        && latest.as_ref().is_some_and(recorded)))
+        } else {
+            false
+        };
+        if proof {
+            intent.committed = true;
+            intent.recovery_note="Committed version and checkpoint verified; acknowledgement reconciled without replay".into();
+            if original != encode(&intent)? {
+                db.put_durable(cf::EXECUTION_STATE, &key, &encode(&intent)?)?;
+            }
+            if matches!(intent.proposal.source, Source::Supervisor { .. }) {
+                let after = intent.after_version.as_ref().expect("verified version");
+                crate::oversight::actions::reconcile_applied(
+                    db,
+                    run,
+                    id,
+                    vec![format!("version:{}", after.snapshot_id), format!("blueprint-apply:{id}")],
+                )?;
+            }
+            continue;
+        }
+        if intent.committed {
+            return Err(rejected(&format!(
+                "Committed apply {id} has inconsistent recovery evidence"
+            )));
+        }
+        if !intent.abandoned {
+            let recorded_operations: Vec<_> = latest
+                .iter()
+                .flat_map(|cp| &cp.transaction_log)
+                .filter_map(|entry| match entry {
+                    TransactionEntry::FileOperation {
+                        operation_id,
+                        ..
+                    }
+                    | TransactionEntry::BlueprintApplication {
+                        operation_id,
+                    } => Some(*operation_id),
+                    _ => None,
+                })
+                .collect();
+            let no_unknown_operations = operations.iter().all(|op| {
+                op.origin.run_id != run
+                    || recorded_operations.contains(&op.operation_id)
+                    || op.phase == FilePhase::Reverted
+            });
+            let unchanged_checkpoint = latest.as_ref().map(digest).transpose()?.as_deref()
+                == Some(&intent.proposal.state_digest);
+            let unchanged_file = versions.verify_blueprint(&intent.proposal.base).is_ok()
+                && blueprint_files::binding(db, intent.proposal.before.id)?.as_ref()
+                    == Some(&intent.proposal.base);
+            intent.abandoned = intent.after_version.is_none()
+                && unchanged_checkpoint
+                && unchanged_file
+                && no_unknown_operations;
+        }
+        intent.recovery_note = if intent.abandoned {
+            "Recovery found the base file, version and checkpoint; no committed application was recorded. A new proposal and decision are required.".into()
+        } else {
+            "File, version and checkpoint do not prove a committed application. Manual recovery is required; no write or approval was replayed.".into()
+        };
+        if !intent.abandoned {
+            conflicts.push(format!("Apply {id}: {}", intent.recovery_note));
+        }
+        if original != encode(&intent)? {
+            db.put_durable(cf::EXECUTION_STATE, &key, &encode(&intent)?)?;
+        }
+        if matches!(intent.proposal.source, Source::Supervisor { .. }) {
+            crate::oversight::actions::reconcile_unfinished(db, run, id, &intent.recovery_note)?;
+        }
+    }
+    Ok(conflicts)
+}

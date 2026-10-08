@@ -57,6 +57,16 @@ pub struct ExecutionCheckpoint {
     /// safely be resumed automatically.
     #[serde(default)]
     pub transition_version: u32,
+    /// Legacy records have no evidence about their admitted package set. They
+    /// remain readable, but cannot prove that resuming will keep the same code.
+    #[serde(default)]
+    pub addon_identity_version: u32,
+    #[serde(default)]
+    pub addon_packages: std::collections::BTreeMap<String, crate::addon::package::Identity>,
+    #[serde(default)]
+    pub function_identities: Option<std::collections::BTreeMap<String,String>>,
+    #[serde(default)]
+    pub view: super::view::ExecutionView,
     /// An executor may have started, but its outcome is not committed. Never
     /// replay it automatically: external effects may already have happened.
     #[serde(default)]
@@ -127,10 +137,28 @@ pub struct ExecutionCheckpoint {
 }
 
 impl ExecutionCheckpoint {
+    pub(crate) fn ensure_addons(&self, registry: &crate::registry::Registry) -> DaemonResult<()> {
+        if self.addon_identity_version != 1 {
+            return Err(DaemonError::Addon("Checkpoint has no verifiable addon identity record; start a new run explicitly".into()));
+        }
+        if self.addon_packages != registry.addon_packages {
+            return Err(DaemonError::Addon("Addon identity, version, scope or content differs from checkpoint; start a new run explicitly".into()));
+        }
+        let functions=registry.function_identities();
+        if self.function_identities.as_ref().is_some_and(|saved|saved!=&functions) || (self.function_identities.is_none() && !functions.is_empty()) {
+            return Err(DaemonError::Addon("Function identity or body differs from checkpoint, or legacy evidence is missing; start a new run explicitly".into()));
+        }
+        Ok(())
+    }
+
     /// Builds an initial resumable checkpoint for a fresh run.
     pub fn running(run_id: uuid::Uuid, blueprint_id: uuid::Uuid, started_at: u64) -> Self {
         Self {
             transition_version: CHECKPOINT_TRANSITION_VERSION,
+            addon_identity_version: 1,
+            addon_packages: Default::default(),
+            function_identities: None,
+            view: Default::default(),
             in_flight: None,
             run_id,
             blueprint_id,
@@ -199,7 +227,11 @@ impl DbCheckpointSink {
     pub fn list(db: &Db) -> DaemonResult<Vec<ExecutionCheckpoint>> {
         let mut out = Vec::new();
         for (key, value) in db.scan(cf::EXECUTION_STATE)? {
-            if key.starts_with(crate::replan::application::INTENT_PREFIX) { continue; }
+            if key.starts_with(crate::replan::application::INTENT_PREFIX)
+                || key.starts_with(b"oversight:")
+            {
+                continue;
+            }
             let checkpoint: ExecutionCheckpoint = serde_json::from_slice(&value)
                 .map_err(|e| DaemonError::Serialization(e.to_string()))?;
             out.push(checkpoint);
@@ -215,8 +247,20 @@ impl CheckpointSink for DbCheckpointSink {
     }
 
     fn write(&self, checkpoint: &ExecutionCheckpoint) -> DaemonResult<()> {
+        let _guard = self
+            .db
+            .oversight_gate
+            .lock()
+            .map_err(|_| DaemonError::Persistence("oversight lock poisoned".into()))?;
+        if !checkpoint.status.resumable() {
+            crate::oversight::requests::close_locked(&self.db, self.run_id)?;
+        }
         let data = serde_json::to_vec(checkpoint)
             .map_err(|e| DaemonError::Serialization(e.to_string()))?;
-        self.db.put(cf::EXECUTION_STATE, self.run_id.as_bytes(), &data)
+        self.db.put_durable(cf::EXECUTION_STATE, self.run_id.as_bytes(), &data)?;
+        if let Err(error) = crate::oversight::scheduler::checkpoint_locked(&self.db, checkpoint) {
+            tracing::warn!(%error, "review trigger could not be recorded");
+        }
+        Ok(())
     }
 }

@@ -29,7 +29,7 @@ pub use context_nodes::{
     ContextReleaseExecutor, ContextToTextExecutor, ContextTrimExecutor,
 };
 pub use control::{BranchExecutor, SwitchExecutor};
-pub use flow_nodes::{DelayExecutor, RequestApprovalExecutor};
+pub use flow_nodes::{DelayExecutor, OversightCheckpointExecutor, RequestApprovalExecutor};
 pub use foreach::ForEachExecutor;
 pub use function::{CallFunctionExecutor, FunctionEntryExecutor, FunctionExitExecutor};
 pub use judge::JudgeExecutor;

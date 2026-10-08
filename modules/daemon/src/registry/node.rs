@@ -43,9 +43,11 @@ pub trait NodeExecutor: Send + Sync {
 }
 
 /// A registry of node executors keyed by node kind.
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct NodeRegistry {
-    executors: HashMap<String, Box<dyn NodeExecutor>>,
+    executors: HashMap<String, std::sync::Arc<dyn NodeExecutor>>,
+    owners: HashMap<String, String>,
+    bindings: std::collections::BTreeMap<String, serde_json::Value>,
 }
 
 impl NodeRegistry {
@@ -123,6 +125,7 @@ impl NodeRegistry {
         // Flow support.
         registry.register(Box::new(n::DelayExecutor));
         registry.register(Box::new(n::RequestApprovalExecutor));
+        registry.register(Box::new(n::OversightCheckpointExecutor));
         // Frame-scoped variables.
         registry.register(Box::new(n::VariableSetExecutor));
         registry.register(Box::new(n::VariableGetExecutor));
@@ -131,7 +134,42 @@ impl NodeRegistry {
 
     /// Registers an executor, replacing any existing one with the same kind.
     pub fn register(&mut self, executor: Box<dyn NodeExecutor>) {
-        self.executors.insert(executor.kind().to_string(), executor);
+        self.executors.insert(executor.kind().to_string(), executor.into());
+    }
+
+    pub(crate) fn replace_owned(
+        &mut self,
+        owner: &str,
+        additions: Vec<std::sync::Arc<dyn NodeExecutor>>,
+        binding: serde_json::Value,
+    ) -> DaemonResult<()> {
+        let mut names = std::collections::HashSet::new();
+        for node in &additions {
+            if !names.insert(node.kind().to_string())
+                || (self.executors.contains_key(node.kind())
+                    && self.owners.get(node.kind()).map(String::as_str) != Some(owner))
+            {
+                return Err(crate::DaemonError::Addon("Addon node registration conflicts".into()));
+            }
+        }
+        for name in self
+            .owners
+            .iter()
+            .filter(|(_, o)| o.as_str() == owner)
+            .map(|(n, _)| n.clone())
+            .collect::<Vec<_>>()
+        {
+            self.executors.remove(&name);
+            self.owners.remove(&name);
+            self.bindings.remove(&name);
+        }
+        for node in additions {
+            let name = node.kind().to_string();
+            self.owners.insert(name.clone(), owner.into());
+            self.bindings.insert(name.clone(), binding.clone());
+            self.executors.insert(name, node);
+        }
+        Ok(())
     }
 
     /// Returns the executor for the given node kind, if registered.
@@ -148,7 +186,13 @@ impl NodeRegistry {
 
     /// Owned, sorted snapshot; readers never retain a mutable registry borrow.
     pub fn signatures(&self) -> metteur_shared::node_catalog::NodeCatalog {
-        self.executors.iter().map(|(kind, executor)| (kind.clone(), executor.signature())).collect()
+        let mut catalog: metteur_shared::node_catalog::NodeCatalog = self
+            .executors
+            .iter()
+            .map(|(kind, executor)| (kind.clone(), executor.signature()))
+            .collect();
+        catalog.addon_bindings = self.bindings.clone();
+        catalog
     }
 }
 

@@ -63,3 +63,22 @@ impl NodeExecutor for RequestApprovalExecutor {
         super::bool_output(node, "Allowed", allow)
     }
 }
+
+/// The interpreter owns this gate so approved edits commit before it releases.
+pub struct OversightCheckpointExecutor;
+#[async_trait]
+impl NodeExecutor for OversightCheckpointExecutor {
+    fn kind(&self) -> &str {
+        "OversightCheckpoint"
+    }
+    async fn execute(
+        &self,
+        _node: &Node,
+        _inputs: &HashMap<PinId, Value>,
+        _ctx: &mut ExecutionContext,
+    ) -> DaemonResult<HashMap<PinId, Value>> {
+        Err(crate::DaemonError::Execution(
+            "OversightCheckpoint requires an interpreter boundary".into(),
+        ))
+    }
+}

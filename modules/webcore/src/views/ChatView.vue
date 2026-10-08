@@ -2,6 +2,9 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { Bug, Compass, ListChecks } from '@lucide/vue'
+import ConciergePanel from '@/components/execution/ConciergePanel.vue'
+import { gateway } from '@/core'
+import { useExecutionStore } from '@/stores/execution'
 import { useChatStore } from '@/stores/chat'
 import { useWorkspaceStore } from '@/stores/workspace'
 import { useConfigStore } from '@/stores/config'
@@ -26,6 +29,14 @@ import type { ChatOptions, FileTreeNode, LlmModelConfig } from '@/core'
  * parameter dialog.
  */
 const chat = useChatStore()
+const execution = useExecutionStore()
+let runtimeTimer: ReturnType<typeof setTimeout> | undefined, runtimeDisposed = false
+async function pollRuntime() {
+  await execution.reconcile()
+  if (!runtimeDisposed) runtimeTimer = setTimeout(pollRuntime, 1000)
+}
+onMounted(() => { void pollRuntime() })
+onBeforeUnmount(() => { runtimeDisposed = true; clearTimeout(runtimeTimer) })
 const workspace = useWorkspaceStore()
 const config = useConfigStore()
 const tabs = useTabsStore()
@@ -179,6 +190,7 @@ ${lines.join('\n')}
  * back in, and `Ctrl+K` focuses the composer from anywhere in the page.
  */
 function onKeydown(event: KeyboardEvent): void {
+  if (execution.active) return
   const mod = event.ctrlKey || event.metaKey
   if (event.key === 'Escape' && running.value) {
     // The draft is otherwise lost on interrupt, which is the opposite of what
@@ -225,7 +237,8 @@ const starterPrompts = [
 </script>
 
 <template>
-  <div class="chat-surface flex h-full min-w-0 flex-col bg-background">
+  <div v-if="execution.active" class="chat-surface flex h-full min-w-0 flex-col bg-background"><ConciergePanel :run-id="execution.runId" :connected="execution.connected && gateway.connected.value" /></div>
+  <div v-else class="chat-surface flex h-full min-w-0 flex-col bg-background">
     <ChatHeader
       :threads="chat.threads"
       :session-id="chat.sessionId"

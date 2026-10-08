@@ -343,6 +343,18 @@ async fn execute_command(
             app.set_run_status(&start.label, "running");
             spawn_stream_forwarder(start.stream, start.label.clone(), tx.clone());
         }
+        Ok(crate::commands::Outcome::StartedConcierge(stream)) => {
+            let mut stream=*stream; let tx=tx.clone();
+            tokio::spawn(async move {
+                while let Some(event)=stream.message().await.transpose() {
+                    let (kind,line)=match event {
+                        Ok(event)=>(Kind::Info,crate::commands::concierge::line(&event)),
+                        Err(error)=>(Kind::Error,format!("concierge failed: {error}")),
+                    };
+                    if tx.send(UiEvent::Log(kind,line)).is_err(){break;}
+                }
+            });
+        }
         Ok(crate::commands::Outcome::StartedChat(start)) => {
             app.set_run_status(&start.label, "chatting");
             spawn_chat_forwarder(start.stream, start.label.clone(), tx.clone());

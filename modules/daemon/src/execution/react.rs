@@ -830,6 +830,7 @@ async fn request_with_retry(
         tried.push(key);
     }
     loop {
+        ctx.audit("llm.request", serde_json::json!({"run_id": ctx.run_id.to_string(), "model": client.model()}));
         let mut emitted = false;
         let result = match delta.as_deref_mut() {
             Some(cb) => {
@@ -850,8 +851,12 @@ async fn request_with_retry(
             None => race_call(client.as_ref(), context, params, tools, &ctx.interrupts, None).await,
         };
         match result {
-            Ok(race) => return Ok(race),
+            Ok(race) => {
+                if matches!(race, LlmRace::Emergency(_)) { record_unavailable_usage(ctx, client.as_ref()); }
+                return Ok(race);
+            }
             Err(err) => {
+                record_unavailable_usage(ctx, client.as_ref());
                 if !crate::llm::RetryPolicy::retryable(&err) || emitted {
                     return Err(err);
                 }
@@ -1112,7 +1117,12 @@ fn build_client(
         .clone()
         .filter(|m| !m.is_empty())
         .or_else(|| defaults.default_model.clone())
-        .filter(|m| !m.is_empty());
+        .filter(|m| !m.is_empty())
+        .or_else(|| {
+            (defaults.models.len() == 1)
+                .then(|| defaults.models.keys().next().cloned())
+                .flatten()
+        });
     let model_cfg = model_key.as_ref().and_then(|key| defaults.models.get(key));
 
     // A configured `api_type` selects the provider; the option value is the
@@ -1129,16 +1139,6 @@ fn build_client(
         other => return Err(DaemonError::Execution(format!("unknown llm provider '{other}'"))),
     };
 
-    let model_key = model_key.or_else(|| {
-        // A request that names no model (an older client, a stale selection)
-        // still has an unambiguous answer when exactly one is configured.
-        let mut keys: Vec<&String> = defaults.models.keys().collect();
-        keys.sort();
-        match keys.as_slice() {
-            [only] => Some((*only).clone()),
-            _ => None,
-        }
-    });
     let model_key = model_key.ok_or_else(|| {
         let mut available: Vec<&String> = defaults.models.keys().collect();
         available.sort();
@@ -1167,13 +1167,8 @@ fn build_client(
         .or_else(|| model_cfg.map(|cfg| cfg.api_key.clone()).filter(|key| !key.is_empty()))
         .unwrap_or_default();
 
-    let replay_reasoning = model_cfg
-        .and_then(|cfg| cfg.replay_reasoning)
-        .unwrap_or_else(|| LlmProviderConfig::is_deepseek_model(&model));
     let config = LlmProviderConfig::new(kind, base_url, api_key, model)
-        .with_thinking_budget(defaults.thinking_budget_tokens)
-        .with_prompt_cache(defaults.prompt_cache)
-        .with_reasoning_replay(replay_reasoning);
+        .with_model_settings(defaults, model_cfg);
     ctx.llm_factory.create(&config).map_err(|e| DaemonError::Llm(e.to_string()))
 }
 
@@ -1520,7 +1515,15 @@ fn arguments_to_values(args: &serde_json::Value) -> Vec<metteur_shared::Value> {
     }
 }
 
-/// Audits one completion's usage, extended with run id and computed cost.
+/// Retains an unmetered outcome so later successes cannot hide a coverage gap.
+fn record_unavailable_usage(ctx: &ExecutionContext, client: &dyn LlmClient) {
+    ctx.audit("llm.usage", serde_json::json!({
+        "run_id": ctx.run_id.to_string(), "provider": client.provider(), "model": client.model(),
+        "tokens_reported": false, "cache_read_reported": false,
+    }));
+}
+
+/// Audits one completion's usage, extended with run id and estimated cost.
 async fn record_usage(
     ctx: &ExecutionContext,
     client: &dyn LlmClient,
@@ -1529,6 +1532,9 @@ async fn record_usage(
 ) {
     let model = client.model().to_string();
     let mut detail = serde_json::json!({
+        "accounting_version": 1,
+        "tokens_reported": usage.tokens_reported,
+        "cache_read_reported": usage.cache_read_reported,
         "provider": client.provider(),
         "model": model,
         "run_id": ctx.run_id.to_string(),
@@ -1547,7 +1553,7 @@ async fn record_usage(
     if let Some((currency, timezone, models)) = billing.as_ref()
         && let Some(model_cfg) = models.get(client.model())
         && let Some(cost) = crate::llm::billing::cost(
-            crate::llm::billing::effective_pricing_at(model_cfg, timezone, chrono::Utc::now())
+            crate::llm::billing::effective_pricing_at(model_cfg, usage.input_tokens, timezone, chrono::Utc::now())
                 .as_ref(),
             currency,
             usage,
@@ -1563,7 +1569,7 @@ async fn record_usage(
         metrics.llm_input_tokens_total.fetch_add(usage.input_tokens, Ordering::Relaxed);
         metrics
             .llm_output_tokens_total
-            .fetch_add(usage.output_tokens + usage.reasoning_tokens, Ordering::Relaxed);
+            .fetch_add(usage.output_tokens, Ordering::Relaxed);
     }
 }
 
@@ -1760,10 +1766,11 @@ async fn summarize_and_compress(
     // A configured summarizer model keeps the expensive model out of routine
     // housekeeping; failing to build it falls back to the active client.
     let summarizer = summarizer_client(ctx, opts).await.unwrap_or_else(|| Arc::clone(client));
+    ctx.audit("llm.request", serde_json::json!({"run_id": ctx.run_id.to_string(), "model": summarizer.model()}));
     let response = summarizer
         .complete(&summarizer_context, params, &[])
         .await
-        .map_err(|e| DaemonError::Llm(e.to_string()))?;
+        .map_err(|e| { record_unavailable_usage(ctx, summarizer.as_ref()); DaemonError::Llm(e.to_string()) })?;
     record_usage(ctx, summarizer.as_ref(), &response.usage, billing).await;
     usage.add(&response.usage);
     if response.text.trim().is_empty() {

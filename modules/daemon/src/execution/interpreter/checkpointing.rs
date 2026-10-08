@@ -61,8 +61,13 @@ impl Interpreter {
         status: RunStatus,
         error: Option<String>,
     ) -> DaemonResult<()> {
+        self.view.root = self.shared_blueprint.as_ref().map(|bp| bp.read().clone());
         let mut checkpoint = ExecutionCheckpoint {
+            view: self.view.clone(),
             transition_version: CHECKPOINT_TRANSITION_VERSION,
+            addon_identity_version: 1,
+            addon_packages: ctx.registry.addon_packages.clone(),
+            function_identities: Some(ctx.registry.function_identities()),
             in_flight: self.in_flight,
             run_id: sink.run_id(),
             blueprint_id: self.blueprint_id,
@@ -95,7 +100,11 @@ impl Interpreter {
             );
             self.emit(super::ExecutionEvent::Message { node_id: ctx.current_node, message: message.clone() });
             DaemonError::Persistence(message)
-        })
+        })?;
+        // A successful apply may add validity changes at the same boundary.
+        self.view = checkpoint.view;
+        self.hook_cursor.committed(&ctx.registry.addon_hooks, &self.view, &ctx.workspace_root, sink.run_id(), checkpoint.status);
+        Ok(())
     }
 }
 

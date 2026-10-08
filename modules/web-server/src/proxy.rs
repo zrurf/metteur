@@ -60,6 +60,14 @@ fn pump_stream<T: Send + 'static>(
 
 #[tonic::async_trait]
 impl Daemon for ForwardService {
+    type SendConciergeMessageStream = ReceiverStream<Result<metteur_proto::proto::ConciergeEvent, Status>>;
+    async fn list_oversight_reports(&self, request: Request<metteur_proto::proto::OversightReportsRequest>) -> Result<Response<metteur_proto::proto::OversightReports>, Status> { self.client.clone().list_oversight_reports(request).await }
+    async fn get_concierge_state(&self, request: Request<metteur_proto::proto::ConciergeStateRequest>) -> Result<Response<metteur_proto::proto::ConciergeState>, Status> {
+        self.client.clone().get_concierge_state(request).await
+    }
+    async fn send_concierge_message(&self, request: Request<metteur_proto::proto::SendConciergeMessageRequest>) -> Result<Response<Self::SendConciergeMessageStream>, Status> {
+        Ok(Response::new(pump_stream(self.client.clone().send_concierge_message(request).await?)))
+    }
     async fn rewind_chat(
         &self,
         request: Request<metteur_proto::proto::RewindChatRequest>,
@@ -143,7 +151,7 @@ impl Daemon for ForwardService {
     }
 
     // Registry.
-    async fn list_tools(&self, request: Request<Empty>) -> Result<Response<ToolList>, Status> {
+    async fn list_tools(&self, request: Request<metteur_proto::proto::RegistryRequest>) -> Result<Response<ToolList>, Status> {
         self.client.clone().list_tools(request).await
     }
 
@@ -230,6 +238,13 @@ impl Daemon for ForwardService {
     }
 
     // Usage.
+    async fn get_blackboard(
+        &self,
+        request: Request<metteur_proto::proto::GetBlackboardRequest>,
+    ) -> Result<Response<metteur_proto::proto::BlackboardProjection>, Status> {
+        self.client.clone().get_blackboard(request).await
+    }
+
     async fn get_execution_usage(
         &self,
         request: Request<GetExecutionUsageRequest>,
@@ -240,7 +255,7 @@ impl Daemon for ForwardService {
     // Registry.
     async fn list_node_kinds(
         &self,
-        request: Request<Empty>,
+        request: Request<metteur_proto::proto::RegistryRequest>,
     ) -> Result<Response<NodeKindList>, Status> {
         self.client.clone().list_node_kinds(request).await
     }
@@ -248,7 +263,7 @@ impl Daemon for ForwardService {
     // MCP.
     async fn list_mcp_servers(
         &self,
-        request: Request<Empty>,
+        request: Request<metteur_proto::proto::RegistryRequest>,
     ) -> Result<Response<McpServerList>, Status> {
         self.client.clone().list_mcp_servers(request).await
     }
@@ -482,6 +497,21 @@ mod tests {
 
     #[tonic::async_trait]
     impl Daemon for TestBackend {
+        async fn list_oversight_reports(&self, request: Request<metteur_proto::proto::OversightReportsRequest>) -> Result<Response<metteur_proto::proto::OversightReports>, Status> { let r=request.into_inner(); if r.workspace_path=="denied" {return Err(Status::permission_denied("denied"));} Ok(Response::new(metteur_proto::proto::OversightReports{reports_json:r.run_id})) }
+
+        type SendConciergeMessageStream = ReceiverStream<Result<metteur_proto::proto::ConciergeEvent, Status>>;
+        async fn get_concierge_state(&self, request: Request<metteur_proto::proto::ConciergeStateRequest>) -> Result<Response<metteur_proto::proto::ConciergeState>, Status> {
+            let r=request.into_inner();
+            if r.workspace_path=="denied" {return Err(Status::permission_denied("denied"));}
+            Ok(Response::new(metteur_proto::proto::ConciergeState{state_json:r.run_id}))
+        }
+        async fn send_concierge_message(&self, request: Request<metteur_proto::proto::SendConciergeMessageRequest>) -> Result<Response<Self::SendConciergeMessageStream>, Status> {
+            let r=request.into_inner();
+            if r.workspace_path=="denied" {return Err(Status::permission_denied("denied"));}
+            let (tx,rx)=tokio::sync::mpsc::channel(2);
+            tx.send(Ok(metteur_proto::proto::ConciergeEvent{run_id:r.run_id,message_id:r.message_id,kind:"received".into(),detail_json:r.message})).await.unwrap();
+            Ok(Response::new(ReceiverStream::new(rx)))
+        }
         async fn rewind_chat(
             &self,
             request: Request<metteur_proto::proto::RewindChatRequest>,
@@ -591,7 +621,7 @@ mod tests {
         ) -> Result<Response<Empty>, Status> {
             Err(Status::unimplemented("send_interrupt"))
         }
-        async fn list_tools(&self, _: Request<Empty>) -> Result<Response<ToolList>, Status> {
+        async fn list_tools(&self, _: Request<metteur_proto::proto::RegistryRequest>) -> Result<Response<ToolList>, Status> {
             Err(Status::unimplemented("list_tools"))
         }
         async fn get_config(
@@ -657,6 +687,19 @@ mod tests {
         ) -> Result<Response<Empty>, Status> {
             Err(Status::unimplemented("respond_approval"))
         }
+        async fn get_blackboard(
+            &self,
+            request: Request<metteur_proto::proto::GetBlackboardRequest>,
+        ) -> Result<Response<metteur_proto::proto::BlackboardProjection>, Status> {
+            let req = request.into_inner();
+            if req.workspace_path != "allowed" {
+                return Err(Status::permission_denied("query denied"));
+            }
+            Ok(Response::new(metteur_proto::proto::BlackboardProjection {
+                projection_json: req.query_json,
+            }))
+        }
+
         async fn get_execution_usage(
             &self,
             _: Request<GetExecutionUsageRequest>,
@@ -665,13 +708,13 @@ mod tests {
         }
         async fn list_node_kinds(
             &self,
-            _: Request<Empty>,
+            _: Request<metteur_proto::proto::RegistryRequest>,
         ) -> Result<Response<NodeKindList>, Status> {
             Err(Status::unimplemented("list_node_kinds"))
         }
         async fn list_mcp_servers(
             &self,
-            _: Request<Empty>,
+            _: Request<metteur_proto::proto::RegistryRequest>,
         ) -> Result<Response<McpServerList>, Status> {
             Err(Status::unimplemented("list_mcp_servers"))
         }
@@ -903,6 +946,42 @@ mod tests {
             kinds.push(event.kind);
         }
         assert_eq!(kinds, vec!["started".to_string(), "finished".to_string()]);
+    }
+
+    #[tokio::test]
+    async fn proxy_forwards_concierge_state_stream_and_denials() {
+        let backend=serve_client(DaemonServer::new(TestBackend)).await;
+        let mut proxy=serve_client(DaemonServer::new(ForwardService::new(backend))).await;
+        let state=proxy.get_concierge_state(metteur_proto::proto::ConciergeStateRequest{workspace_path:"allowed".into(),run_id:"run".into(),conversation_id:"conversation".into()}).await.unwrap().into_inner();
+        assert_eq!(state.state_json,"run");
+        let mut stream=proxy.send_concierge_message(metteur_proto::proto::SendConciergeMessageRequest{workspace_path:"allowed".into(),run_id:"run".into(),message_id:"message".into(),message:"request".into(),..Default::default()}).await.unwrap().into_inner();
+        let event=stream.message().await.unwrap().unwrap();assert_eq!(event.message_id,"message");assert_eq!(event.detail_json,"request");
+        assert!(stream.message().await.unwrap().is_none());
+        let denied=proxy.send_concierge_message(metteur_proto::proto::SendConciergeMessageRequest{workspace_path:"denied".into(),..Default::default()}).await.err().unwrap();
+        assert_eq!(denied.code(),tonic::Code::PermissionDenied);
+        let denied=proxy.get_concierge_state(metteur_proto::proto::ConciergeStateRequest{workspace_path:"denied".into(),..Default::default()}).await.err().unwrap();
+        assert_eq!(denied.code(),tonic::Code::PermissionDenied);
+    }
+
+    #[tokio::test]
+    async fn proxy_forwards_blackboard_query_and_denial() {
+        let backend = serve_client(DaemonServer::new(TestBackend)).await;
+        let mut proxy = serve_client(DaemonServer::new(ForwardService::new(backend))).await;
+        let request = metteur_proto::proto::GetBlackboardRequest {
+            workspace_path: "allowed".into(),
+            run_id: "run".into(),
+            query_json: "{\"entry_id\":\"attempt:1:check\"}".into(),
+        };
+        let result = proxy.get_blackboard(request.clone()).await.unwrap().into_inner();
+        assert_eq!(result.projection_json, request.query_json);
+        let denied = proxy
+            .get_blackboard(metteur_proto::proto::GetBlackboardRequest {
+                workspace_path: "denied".into(),
+                ..request
+            })
+            .await
+            .unwrap_err();
+        assert_eq!(denied.code(), tonic::Code::PermissionDenied);
     }
 
     #[tokio::test]

@@ -202,6 +202,18 @@ pub fn compile_with_catalog(source: &str, catalog: &NodeCatalog) -> SharedResult
         if kind == "Validator" {
             fold_validator_retry(&mut data);
         }
+        if let Some(binding) = catalog.addon_bindings.get(kind) {
+            let key = crate::node_catalog::addon::BINDING_KEY;
+            if data.get(key).is_some_and(|old| old != binding) {
+                return Err(SharedError::Invalid("Addon package changed; recreate the node explicitly".into()));
+            }
+            data.insert(key.into(), binding.clone());
+        }
+        if kind == "CallFunction" && let Some(binding)=data.get("function").and_then(|v|v.as_str()).and_then(|name|catalog.addon_function_bindings.get(name)) {
+            let key=crate::node_catalog::addon::FUNCTION_BINDING_KEY;
+            if data.get(key).is_some_and(|old|old!=binding) {return Err(SharedError::Invalid("Addon function or dependency changed; recreate the call explicitly".into()));}
+            data.insert(key.into(),binding.clone());
+        }
         // The three Round 13 search/edit tools are ordinary registry tools, so
         // the DSL spells them by name and the compiler emits a `Tool` node with
         // the matching `tool_name`; everything else about the node is generic.
