@@ -4,16 +4,87 @@ A Visualization-First Agent Based on the Plan-and-Execute Paradigm.
 
 ## Running the tests
 
-```powershell
-powershell -File scripts/test.ps1          # cargo test -j 1 --workspace
-powershell -File scripts/test.ps1 -p metteur-daemon
+Use Rust **1.99.0** (see `rust-toolchain.toml`), Node **24.13.1**, Python **3.11 or 3.12** (CI: 3.12),
+and the package's **pnpm 11.24.0** through Corepack. Cargo and pnpm lockfiles are
+required. Linux needs `protobuf-compiler libclang-dev clang cmake pkg-config`.
+On Windows, use an x64 MSVC developer terminal with the Windows SDK, CMake,
+Protobuf `protoc` and LLVM `libclang.dll`; set `LIBCLANG_PATH` to LLVM's `bin`.
+Check that `where.exe link` resolves to MSVC, not Git for Windows' GNU linker.
+Pull-request CI runs static web checks and three live-identity guards only.
+Run tests needed for the changed behavior; do not repeat unaffected suites.
+The full Ubuntu 24.04 / Windows 2025 matrix is a manual workflow option (`full`).
+
+The default command runs frozen install, typecheck, lint and three identity guards:
+
+```sh
+python scripts/verify.py
 ```
 
-`cargo test` needs the MSVC environment on `PATH` (otherwise the linker resolves to
-Git for Windows' GNU `link.exe` and linking fails) and the daemon's test binary is
-large enough that parallel linking is unsafe, so the script always passes `-j 1`.
-The web client has its own suites: `pnpm typecheck`, `pnpm lint`, `pnpm test:e2e`,
-`pnpm test:monkey` in `modules/webcore`.
+Only when a full browser gate is explicitly needed, prepare the browser once
+(the explicit install also supplies the headless shell):
+
+```sh
+cd modules/webcore
+corepack pnpm install --frozen-lockfile
+corepack pnpm exec playwright install --with-deps chromium
+cd ../..
+python scripts/verify.py --scope all
+```
+
+On Windows, `py -3.12 scripts/verify.py` also works. The opt-in full gate runs locked
+workspace build/test/clippy, frozen web install, typecheck, lint, a production
+build, the complete fixture E2E suite, and the real local-provider browser flow.
+Every browser run uses one worker and zero retries. `-j 1` limits Cargo build
+jobs; Rust tests keep their default concurrency. Do not set `RUST_TEST_THREADS`
+for an acceptance run.
+
+Each invocation creates a unique evidence directory with the source/lock hashes,
+commit, tool versions, commands, exit codes and logs. The first failed command
+stops the gate and returns its exit code. Never overwrite a failed first run:
+use `--diagnostic` to label an investigation. After a fix, rerun the affected
+checks only unless a full gate is explicitly required. A partial or diagnostic
+pass must not be reported as a full-platform pass.
+
+```sh
+python scripts/verify.py --scope all --evidence-dir /path/to/evidence --temp-dir /path/to/tmp --target-dir /path/to/target
+python scripts/verify.py --scope rust
+python scripts/verify.py --scope web
+python scripts/verify.py --scope live
+```
+
+Directory arguments work on both platforms; `CARGO_TARGET_DIR` is also honored.
+`--scope live` requires the built binaries and production assets; set
+`METTEUR_DAEMON_BIN`, `METTEUR_WEB_BIN`, and `METTEUR_WEB_DIST` for a nondefault
+build location. The full gate builds these inputs itself. Component scopes are
+useful for diagnosis and do not substitute for the full gate.
+
+`corepack pnpm test:e2e` uses the deterministic mock gateway and an owned Vite
+server. It fails on an occupied port instead of reusing another application;
+`E2E_PORT` selects a different port. `E2E_BROWSER_CHANNEL=chromium` opts into the
+full Chromium build; the default uses its separately installed headless shell.
+`corepack pnpm test:monkey` remains an optional interaction sweep.
+
+`corepack pnpm test:live` starts an independent workspace, daemon, production
+web server and loopback HTTP provider. It verifies the production gateway
+identity, a real file-tool round trip, and stored conversation restoration.
+It never loads a user's model configuration or calls a paid API. Random ports
+are the default; `METTEUR_PROVIDER_PORT`, `METTEUR_DAEMON_PORT` and
+`METTEUR_WEB_PORT` can select ports explicitly. `METTEUR_VALIDATION_DIR` selects
+the evidence/workspace parent. Only owned child processes are stopped. Logs,
+synthetic data and provider receipts remain available for inspection.
+
+To drive that owned fixture from a browser on another host, start
+`node scripts/run-live.mjs --serve-only` in `modules/webcore`, explicitly bind
+the intended interface with `METTEUR_BIND_HOST`, and use the generated
+`ready.json` values for `LIVE_BASE_URL`, `LIVE_WORKSPACE`, `LIVE_FIXTURE_URL` and
+`LIVE_NONCE` with `playwright.live.config.ts`. Publish container ports only on
+loopback. This is a test fixture, not a deployment or a real-model preview.
+
+The live test waits for initial deep-link navigation to settle. That wait does
+not fix the existing initial navigation race. The workspace PID lock's generic
+PID-reuse and abrupt-termination risks also remain separate recovery work;
+never remove locks or reuse existing preview data to make a test pass.
+
 
 ## Oversight and scoped delegation
 

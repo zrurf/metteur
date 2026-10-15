@@ -1,39 +1,28 @@
 import { defineConfig, devices } from '@playwright/test'
 
-/**
- * Playwright configuration for Metteur Web Core.
- *
- * Three projects share the same Vite dev server:
- * - `e2e`    : deterministic end-to-end flows located in `e2e/` (demo gateway).
- * - `monkey` : randomized interaction sweep located in `e2e/monkey/`.
- * - `live`   : flows against a real daemon (`e2e/live/`), run explicitly with
- *              `pnpm test:live` — they need the daemon, the web server and a
- *              configured model.
- */
-
-/**
- * Dev-server port.
- *
- * `reuseExistingServer` trusts whatever answers on the port, so a foreign
- * server there would silently run every test against the wrong app. The
- * default stays off Vite's own 5173 for exactly that reason — another project
- * on this machine legitimately holds it — and `E2E_PORT` moves the run without
- * touching anyone else's process.
- */
+// Deterministic fixture suites. The production daemon flow has its own config
+// and owned local provider: use `corepack pnpm test:live`.
 const port = Number(process.env.E2E_PORT ?? 5317)
+if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error('Invalid E2E_PORT')
 const baseURL = `http://localhost:${port}`
 const production = process.env.E2E_PRODUCTION === '1'
+const browser = {
+  ...devices['Desktop Chrome'],
+  channel: process.env.E2E_BROWSER_CHANNEL === 'chromium' ? 'chromium' : undefined,
+}
 
 export default defineConfig({
   testDir: './e2e',
-  // Fresh state per test; no cross-test pollution.
   fullyParallel: true,
+  workers: 1,
   forbidOnly: !!process.env.CI,
-  retries: process.env.CI ? 2 : 0,
+  retries: 0,
+  maxFailures: 1,
+  outputDir: process.env.E2E_OUTPUT_DIR || 'test-results',
   reporter: [['list']],
   use: {
     baseURL,
-    trace: 'on-first-retry',
+    trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
   },
   projects: [
@@ -41,37 +30,22 @@ export default defineConfig({
       name: 'e2e',
       testMatch: '**/*.spec.ts',
       testIgnore: ['**/monkey/**', '**/live/**'],
-      // The full Chromium build is what @playwright/browser-chromium installs;
-      // headless runs use it too instead of the separate headless shell.
-      use: { ...devices['Desktop Chrome'], channel: 'chromium' },
-    },
-    {
-      name: 'live',
-      testMatch: '**/live/**',
-      timeout: 300_000,
-      // The daemon is already running for these; reuse it instead of starting
-      // a mock dev server.
-      use: { ...devices['Desktop Chrome'], channel: 'chromium', baseURL },
+      use: browser,
     },
     {
       name: 'monkey',
       testMatch: '**/monkey/**',
       timeout: 180_000,
-      // The full Chromium build is what @playwright/browser-chromium installs;
-      // headless runs use it too instead of the separate headless shell.
-      use: { ...devices['Desktop Chrome'], channel: 'chromium' },
+      use: browser,
     },
   ],
   webServer: {
     command: production
-      ? `pnpm exec vite build --outDir .e2e-dist && pnpm exec vite preview --outDir .e2e-dist --port ${port} --strictPort`
-      : `pnpm dev --port ${port}`,
+      ? `corepack pnpm exec vite build --outDir .e2e-dist && corepack pnpm exec vite preview --outDir .e2e-dist --port ${port} --strictPort`
+      : `corepack pnpm dev --port ${port} --strictPort`,
     url: baseURL,
-    reuseExistingServer: !production && !process.env.CI,
+    reuseExistingServer: false,
     timeout: 60_000,
-    // Every suite runs against the deterministic demo gateway: the daemon is
-    // not assumed to be running, and the demo workspace is what makes editor,
-    // chat and explorer flows reachable at all.
-    env: { VITE_MOCK: '1' },
+    env: { VITE_MOCK: '1', VITE_GW_URL: '' },
   },
 })

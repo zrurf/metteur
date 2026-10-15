@@ -11,6 +11,7 @@ pub mod fs;
 pub mod llm;
 pub mod model;
 pub mod uri;
+pub mod resources;
 
 pub use error::{SharedError, SharedResult};
 pub use fs::{FileSystem, Metadata, NativeFileSystem};

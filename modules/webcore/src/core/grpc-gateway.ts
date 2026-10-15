@@ -353,6 +353,13 @@ function fromProtoEvent(ev: {
  * never depend on generated code.
  */
 export class GrpcGateway implements DaemonGateway {
+  async resourceRequest(method: import('./resources').ResourceMethod, workspacePath: string, payload: unknown, expectedRevision = 0, requestId = crypto.randomUUID()): Promise<Result<unknown>> {
+    try {
+      const response = await this.client[method]({ schemaVersion: 1, requestId, workspacePath, expectedRevision: BigInt(expectedRevision), payloadJson: JSON.stringify(payload) })
+      if (response.errorJson) return err(response.errorJson)
+      return ok(JSON.parse(response.payloadJson))
+    } catch (error) { return err(String(error)) }
+  }
   /** Live connection state, driven by a heartbeat ping; reactive so the UI
    *  flips to offline when the daemon (or the proxy) goes away. */
   readonly connected: Ref<boolean> = ref(true)

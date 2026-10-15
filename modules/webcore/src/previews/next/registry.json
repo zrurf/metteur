@@ -1,0 +1,105 @@
+{
+  "fixtureVersion": "nx-m1-fixture-1",
+  "previews": [
+    {
+      "id": "PV-01",
+      "revision": 1,
+      "title": "Project memory",
+      "state": "APPROVED",
+      "coverage": [
+        "classification",
+        "sources",
+        "validity",
+        "convention confirmation",
+        "filters",
+        "conflicts"
+      ]
+    },
+    {
+      "id": "PV-02",
+      "revision": 1,
+      "title": "Prompt resources",
+      "state": "APPROVED",
+      "coverage": [
+        "project and personal",
+        "same name",
+        "versions",
+        "chat selection",
+        "blueprint selection",
+        "copy",
+        "delete impact"
+      ]
+    },
+    {
+      "id": "PV-03",
+      "revision": 0,
+      "title": "Task continuation",
+      "state": "NOT_PRESENTED",
+      "coverage": [
+        "waiting",
+        "paused",
+        "stopped",
+        "source",
+        "budget"
+      ]
+    },
+    {
+      "id": "PV-04",
+      "revision": 0,
+      "title": "Schedules",
+      "state": "NOT_PRESENTED",
+      "coverage": [
+        "timezone",
+        "missed triggers",
+        "consent",
+        "stop"
+      ]
+    },
+    {
+      "id": "PV-05",
+      "revision": 0,
+      "title": "Blueprint handoff",
+      "state": "NOT_PRESENTED",
+      "coverage": [
+        "version manifest",
+        "confirmation",
+        "return"
+      ]
+    },
+    {
+      "id": "PV-06",
+      "revision": 0,
+      "title": "Addon pages",
+      "state": "NOT_PRESENTED",
+      "coverage": [
+        "isolation",
+        "capabilities",
+        "revocation"
+      ]
+    },
+    {
+      "id": "PV-07",
+      "revision": 0,
+      "title": "Preview checks",
+      "state": "NOT_PRESENTED",
+      "coverage": [
+        "target",
+        "deterministic evidence",
+        "model opinion",
+        "acceptance"
+      ]
+    }
+  ],
+  "approval": {
+    "subject": "human user in this conversation",
+    "feedback": "两份 r1 都批准接入",
+    "recordedAt": "2026-10-15T06:00:39.9760595+00:00",
+    "sourceCommit": "38bead4c631bdaf5a08f301c85f2568b520fd839",
+    "entrySha256": "477f4efa020f428c48a198ddbea4271d1d32ac63e67052128c888a4f582e74ce",
+    "fixtureVersion": "nx-m1-fixture-1"
+  },
+  "integrationScope": [
+    "PV-01/r1 displayed memory interactions",
+    "PV-02/r1 displayed dual-scope prompt interactions"
+  ]
+}

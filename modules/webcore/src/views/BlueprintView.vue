@@ -33,6 +33,7 @@ import type { Blueprint, BlueprintEdge, BlueprintNode, BlueprintPin, NodeCategor
 import { gateway } from '@/core'
 import { useFeedbackStore } from '@/stores/feedback'
 import { useWorkspaceStore } from '@/stores/workspace'
+import { usePromptResourcesStore } from '@/stores/prompt-resources'
 import { fileNameOf, useBlueprintStore } from '@/stores/blueprint'
 import { useSurfaceNavigation } from '@/lib/surface'
 import { useExecutionStore } from '@/stores/execution'
@@ -47,6 +48,7 @@ import FilePickerDialog, { type FilePick } from '@/components/FilePickerDialog.v
 import { CATEGORIES, execInOf, isPinCompatible, makeCallFunctionNode, makeFlowNode, makeFileReference, categoryFor, NODE_PRESETS, uuid } from '@/lib/blueprint'
 
 const workspace = useWorkspaceStore()
+const prompts = usePromptResourcesStore()
 const store = useBlueprintStore()
 const execution = useExecutionStore()
 const { openSurface: openExecutionSurface } = useSurfaceNavigation()
@@ -310,6 +312,7 @@ async function loadBlueprint() {
   await store.load(ws.path, fileKey.value)
   flowNodes.value = store.nodes.map(toFlowNode)
   flowEdges.value = store.edges.map(toFlowEdge)
+  consumePromptNodes()
   // The store keeps the on-disk baseline per file, so a partially saved graph
   // that was edited again is still reported dirty after a tab round-trip.
   await nextTick()
@@ -902,6 +905,30 @@ function addReferenceNode(filePath: string) {
   selectedId.value = id
   selectedEdgeId.value = null
   dirty.value = true
+}
+
+function consumePromptNodes() {
+  if(!signatureOf('PromptResource') || !signatureOf('ContextMerge')) return
+  const pending=prompts.pendingBlueprint.filter(item=>item.file===fileKey.value)
+  for(const item of pending){
+    commit()
+    const y=Math.max(120,...flowNodes.value.map(existing=>existing.position.y+220))
+    const node=makeFlowNode(signatureOf('PromptResource')!,{x:120,y},item.nodeId)
+    node.data!.data={snapshot_id:item.snapshot.id};node.data!.title=`${item.snapshot.reference.scope.scope} / ${item.snapshot.name} · r${item.snapshot.reference.revision}`
+    const merge=makeFlowNode(signatureOf('ContextMerge')!,{x:420,y},uuid())
+    const role=merge.data!.inputs.find((pin:BlueprintPin)=>pin.name==='Role')
+    if(role)merge.data!.values={[role.id]:'user'}
+    flowNodes.value.push(node as SelectableFlowNode,merge as SelectableFlowNode)
+    flowEdges.value.push({id:uuid(),source:node.id,sourceHandle:node.data!.outputs.find((pin:BlueprintPin)=>pin.name==='Text')?.id,target:merge.id,targetHandle:merge.data!.inputs.find((pin:BlueprintPin)=>pin.name==='Text')?.id})
+    dirty.value=true
+  }
+  prompts.pendingBlueprint=prompts.pendingBlueprint.filter(item=>item.file!==fileKey.value)
+}
+watch(()=>prompts.pendingBlueprint.length,consumePromptNodes)
+async function dropPrompt(event:DragEvent){
+  const raw=event.dataTransfer?.getData('application/x-metteur-prompt');if(!raw)return
+  event.preventDefault()
+  try{const nodeId=uuid();const graph=store.uuidFor(fileKey.value);if(!graph)throw new Error('Save or load a blueprint first');const snapshot=await prompts.select(JSON.parse(raw),{kind:'blueprint',blueprint_id:graph,node_id:nodeId});prompts.pendingBlueprint.push({file:fileKey.value,snapshot,nodeId});consumePromptNodes()}catch(error){prompts.error=String(error)}
 }
 
 function duplicateNode(id: string, offset = 32) {
@@ -1513,7 +1540,7 @@ function openVersionPanel() {
     </div>
 
     <!-- Canvas -->
-    <div ref="flowWrap" class="relative min-w-0 flex-1">
+    <div ref="flowWrap" class="relative min-w-0 flex-1" @dragover.prevent @drop="dropPrompt">
       <VueFlow
         ref="flowRef"
         v-model:nodes="flowNodes"

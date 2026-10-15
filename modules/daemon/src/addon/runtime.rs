@@ -50,14 +50,21 @@ pub struct InvocationContext {
     pub http: reqwest::blocking::Client,
 }
 
-fn denied(what: &str) -> extism::Error {
-    extism::Error::msg(format!("permission denied: {what}"))
+// Keep host-owned reasons typed across Wasmtime's backtrace wrapper. Only
+// these static reasons may be surfaced from an inner error; arbitrary plugin,
+// HTTP and model error chains are not safe diagnostics.
+#[derive(Debug, thiserror::Error)]
+#[error("permission denied: {0}")]
+struct HostRejection(&'static str);
+
+fn denied(what: &'static str) -> extism::Error {
+    extism::Error::new(HostRejection(what))
 }
 
 fn require(
     perms: &HashSet<Permission>,
     permission: Permission,
-    what: &str,
+    what: &'static str,
 ) -> Result<(), extism::Error> {
     if perms.contains(&permission) {
         Ok(())
@@ -73,13 +80,14 @@ fn host_error(err: impl std::fmt::Display) -> extism::Error {
 fn file_path(
     ctx: &crate::execution::context::ExecutionContext,
     path: &str,
-) -> DaemonResult<std::path::PathBuf> {
+) -> Result<std::path::PathBuf, extism::Error> {
     let fs = crate::workspace::fs::WorkspaceFs::new(ctx.workspace_root.clone());
-    let resolved = fs.resolve(path)?;
+    let resolved = fs.resolve(path).map_err(|error| match error {
+        DaemonError::PermissionDenied(_) => denied("path escapes workspace"),
+        other => host_error(other),
+    })?;
     if resolved.starts_with(fs.root().join(crate::workspace::METADATA_DIR)) {
-        return Err(DaemonError::PermissionDenied(
-            "Addon filesystem access excludes daemon metadata".into(),
-        ));
+        return Err(denied("Addon filesystem access excludes daemon metadata"));
     }
     Ok(resolved)
 }
@@ -122,7 +130,7 @@ extism::host_fn!(hf_call_tool(user_data: Ctx; name: String, args_json: String) -
         _ => serde_json::Map::new(),
     };
     let path=object.get("path").and_then(Value::as_str).ok_or_else(||denied("explicit file path required"))?;
-    file_path(&exec_ctx,path).map_err(host_error)?;
+    file_path(&exec_ctx,path)?;
     let values = vec![metteur_shared::Value::Json(Value::Object(object))];
     let result = ctx.runtime.block_on(tool.call(&values, &mut exec_ctx));
     let result = result.map_err(host_error)?;
@@ -133,7 +141,7 @@ extism::host_fn!(hf_fs_read(user_data: Ctx; path: String) -> Vec<u8> {
     let ctx = shared(user_data)?;
     require(&ctx.permissions, Permission::FsRead, "fs:read")?;
     let mut execution=ctx.execution.lock();
-    let resolved=file_path(&execution,&path).map_err(host_error)?;
+    let resolved=file_path(&execution,&path)?;
     let mut file=std::fs::File::open(&resolved).map_err(host_error)?;
     use std::io::Read;
     let mut bytes=vec![]; (&mut file).take(1024*1024+1).read_to_end(&mut bytes).map_err(host_error)?;
@@ -147,7 +155,7 @@ extism::host_fn!(hf_fs_write(user_data: Ctx; path: String, data: Vec<u8>) -> () 
     require(&ctx.permissions, Permission::FsWrite, "fs:write")?;
     if data.len()>1024*1024 { return Err(denied("file exceeds addon write limit")); }
     let mut execution=ctx.execution.lock();
-    let resolved=file_path(&execution,&path).map_err(host_error)?;
+    let resolved=file_path(&execution,&path)?;
     if !ctx.runtime.block_on(crate::sandbox::authorize_write(&execution,&resolved,&path,"Addon file write")).map_err(host_error)? {
         return Err(denied("file write approval"));
     }
@@ -342,7 +350,12 @@ pub fn invoke(
 
     let output: Vec<u8> = plugin
         .call(function, input_json)
-        .map_err(|err| DaemonError::Addon(format!("addon call '{function}' failed: {err}")))?;
+        .map_err(|err| {
+            let reason = err.downcast_ref::<HostRejection>()
+                .map(ToString::to_string)
+                .unwrap_or_else(|| err.to_string());
+            DaemonError::Addon(format!("addon call '{function}' failed: {reason}"))
+        })?;
     if output.len() > 1024 * 1024 {
         return Err(DaemonError::Addon("Addon output exceeds limit".into()));
     }

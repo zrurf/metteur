@@ -4,6 +4,12 @@ on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch:
+    inputs:
+      full:
+        description: 'Explicitly run the full two-platform gate'
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -13,47 +19,95 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  rust:
+  checks:
+    if: github.event_name != 'workflow_dispatch' || !inputs.full
     runs-on: ubuntu-24.04
-    timeout-minutes: 60
+    timeout-minutes: 10
     env:
-      CARGO_BUILD_JOBS: '1'
-      CARGO_INCREMENTAL: '0'
-      CARGO_PROFILE_DEV_DEBUG: '0'
-      CARGO_PROFILE_TEST_DEBUG: '0'
-    steps:
-      - uses: actions/checkout@v4
-      - name: Install native build dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y protobuf-compiler libclang-dev clang cmake pkg-config
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          components: clippy
-      - run: cargo test --locked --workspace
-      - run: cargo clippy --locked --workspace --all-targets
-
-  web:
-    runs-on: ubuntu-24.04
-    timeout-minutes: 20
-    defaults:
-      run:
-        working-directory: modules/webcore
-    env:
-      CI: 'true'
-      E2E_PORT: '5317'
       PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: '24'
+          node-version: '24.13.1'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
       - uses: pnpm/action-setup@v4
         with:
           package_json_file: modules/webcore/package.json
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm typecheck
-      - run: pnpm lint
-      - run: pnpm build
-      - run: pnpm exec playwright install --with-deps chromium
-      - run: pnpm test:e2e --workers=1
+      - name: Static checks and live identity guards
+        run: python scripts/verify.py --evidence-dir "${{ runner.temp }}/metteur-evidence"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: checks-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/metteur-evidence
+          retention-days: 7
+  validate:
+    if: github.event_name == 'workflow_dispatch' && inputs.full
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, windows-2025]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 90
+    env:
+      CARGO_BUILD_JOBS: '1'
+      CARGO_INCREMENTAL: '0'
+      CARGO_PROFILE_DEV_DEBUG: '0'
+      CARGO_PROFILE_TEST_DEBUG: '0'
+      PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
+      CI: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Linux build tools
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y protobuf-compiler libclang-dev clang cmake pkg-config
+      - name: Configure Windows build tools
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $vswhere = "${env:ProgramFiles(x86)}/Microsoft Visual Studio/Installer/vswhere.exe"
+          $installation = & $vswhere -latest -products '*' -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+          if (-not $installation) { throw 'MSVC x64 build tools are required' }
+          $developerCommand = Join-Path $installation 'Common7/Tools/VsDevCmd.bat'
+          cmd /c "`"$developerCommand`" -arch=x64 -host_arch=x64 >nul && set" | ForEach-Object {
+            if ($_ -match '^(PATH|INCLUDE|LIB|LIBPATH|VCINSTALLDIR|VCToolsInstallDir|WindowsSdkDir|WindowsSDKVersion|UCRTVersion|UniversalCRTSdkDir|VSINSTALLDIR|VisualStudioVersion)=(.*)$') {
+              "$($matches[1])=$($matches[2])" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+            }
+          }
+          choco install protoc --no-progress -y
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if (-not (Test-Path 'C:/Program Files/LLVM/bin/libclang.dll')) { throw 'LLVM libclang is required' }
+          'LIBCLANG_PATH=C:/Program Files/LLVM/bin' | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: '1.99.0'
+          components: clippy
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.13.1'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: pnpm/action-setup@v4
+        with:
+          package_json_file: modules/webcore/package.json
+      - name: Prepare browser
+        working-directory: modules/webcore
+        run: |
+          corepack pnpm install --frozen-lockfile
+          corepack pnpm exec playwright install --with-deps chromium
+      - name: First-run full gate (no retries)
+        run: python scripts/verify.py --scope all --evidence-dir "${{ runner.temp }}/metteur-evidence" --temp-dir "${{ runner.temp }}/metteur-test-tmp" --target-dir "${{ runner.temp }}/metteur-target"
+      - name: Preserve first-run evidence even on failure
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: validation-${{ matrix.os }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/metteur-evidence
+          if-no-files-found: warn
+          retention-days: 7

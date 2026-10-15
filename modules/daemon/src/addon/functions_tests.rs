@@ -216,17 +216,28 @@ async fn function_node_effects_cannot_bypass_run_approval_mode() {
         .replace("[addon]", "[permissions]\nrequired=[\"fs:write\"]\n[addon]");
     std::fs::write(p.join("manifest.toml"), manifest).unwrap();
     sign(&p);
-    assert!(host.install(&p, Some(&base), &[]).await.is_err());
+    let error = host.install(&p, Some(&base), &[]).await.unwrap_err();
+    assert!(
+        matches!(error, crate::DaemonError::PermissionDenied(ref message)
+        if message.contains("requires explicit grants") && message.contains("fs:write")),
+        "{error:?}"
+    );
     host.install(&p, Some(&base), &["fs:write".into()]).await.unwrap();
     let registry = host.registry_for(Some(&base), false).await.unwrap();
     let graph = Arc::new(parking_lot::RwLock::new(caller(&registry, "ComTestNodesLibrary")));
     let mut config = metteur_shared::config::Config::default();
     config.sandbox.mode = "ask".into();
+    let denied_db = crate::storage::persistence::Db::open(&base.join("denied-journal")).unwrap();
+    let started = std::time::Instant::now();
     let result = Interpreter::new(registry.clone(), LlmClientFactory::new(), base.clone())
+        .with_workspace_db(denied_db.clone())
         .with_config(Arc::new(tokio::sync::RwLock::new(config)))
         .run(&graph, None)
         .await;
-    assert!(result.is_err(), "Ask mode must require a real approval through function frames");
+    let error = result.unwrap_err();
+    node_fixture::assert_addon_error(&error, "permission denied: file write approval");
+    eprintln!("function approval denial elapsed={:?}, error={error}", started.elapsed());
+    assert!(denied_db.scan(crate::storage::persistence::cf::FILE_INTENTS).unwrap().is_empty());
     assert!(!base.join("effect.txt").exists());
     let db = crate::storage::persistence::Db::open(&base.join("journal")).unwrap();
     Interpreter::new(registry, LlmClientFactory::new(), base.clone())

@@ -27,7 +27,7 @@ export interface TabItem {
 
 /** App surfaces exposed as closable tabs, reopened from the activity bar. */
 export interface SurfaceDef {
-  key: 'chat' | 'version' | 'settings' | 'execution' | 'execution-preview'
+  key: 'chat' | 'version' | 'settings' | 'execution' | 'execution-preview' | 'memory' | 'prompts'
   label: string
   /** Surface route fragment, e.g. `/chat`. */
   path: string
@@ -37,6 +37,8 @@ export interface SurfaceDef {
 }
 
 export const SURFACES: SurfaceDef[] = [
+  { key: 'prompts', label: 'Prompt resources', path: '/prompts', workspace: true, icon: FileText },
+  { key: 'memory', label: 'Project memory', path: '/memory', workspace: true, icon: FileText },
   { key: 'execution', label: 'Execution', path: '/execution', workspace: true, icon: Workflow },
   ...(import.meta.env.DEV && import.meta.env.VITE_MOCK === '1'
     ? [{ key: 'execution-preview' as const, label: 'Execution preview', path: '/preview/execution', workspace: false, icon: Workflow }] : []),

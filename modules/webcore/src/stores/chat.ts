@@ -13,6 +13,7 @@ import type {
 } from '@/core'
 import type { ChatPhase } from '@/lib/chat/liveness'
 import { useWorkspaceStore } from './workspace'
+import { usePromptResourcesStore } from './prompt-resources'
 
 /** A message typed while a turn was running, waiting to be injected. */
 export interface QueuedTurn {
@@ -210,6 +211,10 @@ export const useChatStore = defineStore('chat', () => {
    * an agent's edits cannot be undone from the conversation.
    */
   async function send(content: string, options?: ChatOptions, mode: 'normal' | 'retry' = 'normal'): Promise<boolean> {
+    const prompts=usePromptResourcesStore()
+    if(mode!=='retry' && !(await prompts.validateChat())) return false
+    const selected=mode==='retry'?[]:prompts.selections.map(item=>item.snapshot.id)
+    options={...options,prompt_snapshots:selected}
     const ws = workspace.active
     const text = content.trim()
     if (!ws || !text || streaming.value || busy.value || rewinding.value || (retrying.value && mode !== 'retry')) return false
@@ -293,6 +298,7 @@ export const useChatStore = defineStore('chat', () => {
           createdAt: Date.now(),
         })
       }
+      if(r.ok && mode!=='retry') prompts.selections=prompts.selections.filter(item=>!selected.includes(item.snapshot.id))
       return r.ok
     } finally {
       streamAbort = null

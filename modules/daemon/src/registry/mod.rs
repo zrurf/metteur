@@ -73,6 +73,9 @@ impl Registry {
             Arc::new(tools::blueprint::DraftBlueprint),
             Arc::new(tools::todo::TodoWrite),
             Arc::new(tools::todo::TodoRead),
+            Arc::new(tools::memory::SearchProjectMemory),
+            Arc::new(tools::memory::ReadProjectMemory),
+            Arc::new(tools::memory::WriteProjectNote),
             Arc::new(tools::context::ReleaseContext),
         ] {
             registry.try_register_tool(tool).expect("built-in tool names are valid");

@@ -257,6 +257,8 @@ pub struct ExecutionContext {
     pub events: Option<tokio::sync::mpsc::UnboundedSender<super::interpreter::ExecutionEvent>>,
     /// The workspace database (persistent sandbox grants).
     pub workspace_db: Option<Db>,
+    /// Host-selected memory role; never deserialized from model arguments.
+    pub memory_role: metteur_shared::resources::ResourceRole,
     /// The global database (global grants).
     pub global_db: Option<Db>,
     /// SubAgent nesting depth of this context.
@@ -387,6 +389,7 @@ impl ExecutionContext {
             approvals: None,
             events: None,
             workspace_db: None,
+            memory_role: metteur_shared::resources::ResourceRole::MainAgent,
             global_db: None,
             depth: 0,
             metrics: None,
@@ -499,6 +502,7 @@ impl ExecutionContext {
         child.transaction_log = self.transaction_log.clone();
         child.file_attempt = self.file_attempt;
         child.workspace_db = self.workspace_db.clone();
+        child.memory_role = metteur_shared::resources::ResourceRole::ReadOnlyAgent;
         child.global_db = self.global_db.clone();
         child.metrics = self.metrics.clone();
         child.lsp = self.lsp.clone();

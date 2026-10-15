@@ -41,6 +41,7 @@ import type {
  * grpc-web through the Web Server Client.
  */
 export interface DaemonGateway {
+  resourceRequest(method: import('./resources').ResourceMethod, workspacePath: string, payload: unknown, expectedRevision?: number, requestId?: string): Promise<Result<unknown>>
   /** Live daemon connection state (reactive; heartbeat-driven). */
   readonly connected: Ref<boolean>
   /** True when the in-memory demo gateway backs the app (never blocks). */

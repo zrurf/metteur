@@ -37,12 +37,15 @@ pub mod cf {
 #[derive(Clone)]
 pub struct Db {
     inner: Arc<DB>,
+    pub(crate) resource_gate: Arc<std::sync::Mutex<()>>,
+    pub(crate) prompt_gate: Arc<std::sync::Mutex<()>>,
     /// Serializes independent oversight records across all clones of this database.
     pub(crate) oversight_gate: Arc<std::sync::Mutex<()>>,
     pub(crate) oversight_notify: Arc<tokio::sync::Notify>,
 }
 
 impl Db {
+    pub fn directory(&self) -> &Path { self.inner.path() }
     /// Publish a derived graph and its file identity together in the existing family.
     pub fn put_pair(&self, family: &str, key: &[u8], value: &[u8], second_key: &[u8], second_value: &[u8]) -> DaemonResult<()> {
         let handle = self.inner.cf_handle(family).ok_or_else(|| DaemonError::Internal("missing column family".into()))?;
@@ -114,9 +117,44 @@ impl Db {
             .map_err(|e| DaemonError::Internal(format!("failed to open db: {e}")))?;
         Ok(Self {
             inner: Arc::new(db),
+            resource_gate: Arc::new(std::sync::Mutex::new(())),
+            prompt_gate: Arc::new(std::sync::Mutex::new(())),
             oversight_gate: Arc::new(std::sync::Mutex::new(())),
             oversight_notify: Arc::new(tokio::sync::Notify::new()),
         })
+    }
+
+    /// Creates a consistent checkpoint without copying a live database directory.
+    pub fn checkpoint(&self, path: &Path) -> DaemonResult<()> {
+        rocksdb::checkpoint::Checkpoint::new(&self.inner)
+            .and_then(|checkpoint| checkpoint.create_checkpoint(path))
+            .map_err(|e| DaemonError::Persistence(e.to_string()))
+    }
+
+    /// Commits a small resource transaction with synchronous WAL durability.
+    pub(crate) fn resource_batch(&self, values: &[(Vec<u8>, Vec<u8>)]) -> DaemonResult<()> {
+        let handle = self.inner.cf_handle(cf::EXECUTION_STATE)
+            .ok_or_else(|| DaemonError::Persistence("missing resource family".into()))?;
+        let mut batch = rocksdb::WriteBatch::default();
+        for (key, value) in values { batch.put_cf(handle, key, value); }
+        let mut options = rocksdb::WriteOptions::default();
+        options.set_sync(true);
+        self.inner.write_opt(batch, &options).map_err(|e| DaemonError::Persistence(e.to_string()))
+    }
+
+    pub(crate) fn resource_scan(&self, prefix: &[u8], after: &[u8], limit: usize) -> DaemonResult<Vec<(Vec<u8>, Vec<u8>)>> {
+        let handle = self.inner.cf_handle(cf::EXECUTION_STATE)
+            .ok_or_else(|| DaemonError::Persistence("missing resource family".into()))?;
+        let start = if after.is_empty() { prefix } else { after };
+        let mut out = Vec::new();
+        for item in self.inner.iterator_cf(handle, rocksdb::IteratorMode::From(start, rocksdb::Direction::Forward)) {
+            let (key, value) = item.map_err(|e| DaemonError::Persistence(e.to_string()))?;
+            if !key.starts_with(prefix) { break; }
+            if !after.is_empty() && key.as_ref() <= after { continue; }
+            out.push((key.to_vec(), value.to_vec()));
+            if out.len() >= limit { break; }
+        }
+        Ok(out)
     }
 
     /// Puts a value into a column family.

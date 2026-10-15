@@ -73,44 +73,52 @@ impl AnthropicClient {
         tools: &[ToolDefinition],
     ) -> Json {
         let merged = merge_params(&self.default_params, params);
-        // Breakpoints are planned up front so the request never exceeds the
-        // API's limit when every segment is present.
-        let budget = if self.prompt_cache { MAX_CACHE_BREAKPOINTS } else { 0 };
-        let mutate_tools = budget >= 1;
-        let mutate_system = budget >= 2;
-        let rolling = budget >= 3;
+        // All sections spend from the same request-wide budget, in protocol
+        // order. Mark the stable prefix before the volatile date separately
+        // from the complete system prompt and the rolling conversation tail.
+        let mut budget = if self.prompt_cache { MAX_CACHE_BREAKPOINTS } else { 0 };
         let mut body = json!({
             "model": self.model,
-            "messages": build_messages(ctx, rolling),
             "max_tokens": merged.max_tokens.unwrap_or(1024),
         });
-        if !ctx.system_fragments.is_empty() {
-            // Anthropic caches explicitly: marking the system block keeps the
-            // (large, stable) prefix cached across the turns of a conversation.
-            // The canonical order is a precondition for that stability.
-            let system = ctx.system_text();
-            body["system"] = if mutate_system {
-                // One block per fragment, not one concatenated block: the
-                // fragments are ordered so that volatile content (today's date)
-                // renders last, and only per-fragment blocks let a change in one
-                // fragment leave the rest of the prefix cached. A single block
-                // would invalidate everything behind it.
-                let blocks: Vec<Json> = ctx
-                    .system_fragments
+        if !tools.is_empty() {
+            let mut definitions = build_tools(tools);
+            if let Some(last) = definitions.as_array_mut().and_then(|items| items.last_mut()) {
+                mark_cache_block(last, &mut budget);
+            }
+            body["tools"] = definitions;
+        }
+        let fragments: Vec<_> = ctx
+            .ordered_fragments()
+            .into_iter()
+            .filter(|fragment| !fragment.content.trim().is_empty())
+            .collect();
+        if !fragments.is_empty() {
+            body["system"] = if self.prompt_cache {
+                let mut blocks: Vec<Json> = fragments
                     .iter()
-                    .map(|fragment| {
-                        json!({
-                            "type": "text",
-                            "text": fragment.content,
-                            "cache_control": cache_control(),
-                        })
-                    })
+                    .map(|fragment| json!({"type": "text", "text": fragment.content}))
                     .collect();
+                if let Some(date) = fragments
+                    .iter()
+                    .position(|fragment| fragment.scope == "harness.env.date")
+                    && date > 0
+                {
+                    mark_cache_block(&mut blocks[date - 1], &mut budget);
+                }
+                if let Some(last) = blocks.last_mut() {
+                    mark_cache_block(last, &mut budget);
+                }
                 json!(blocks)
             } else {
-                json!(system)
+                json!(fragments
+                    .iter()
+                    .map(|fragment| fragment.content.as_str())
+                    .collect::<Vec<_>>()
+                    .join("\n\n"))
             };
         }
+        body["messages"] = json!(build_messages(ctx, &mut budget));
         // Extended thinking forbids a custom temperature (the API requires its
         // default); the parameter is dropped rather than sent and rejected.
         if self.thinking_budget > 0 {
@@ -126,17 +134,6 @@ impl AnthropicClient {
         }
         if !merged.stop.is_empty() {
             body["stop_sequences"] = json!(merged.stop);
-        }
-        if !tools.is_empty() {
-            // A cache breakpoint on the last tool extends the cached prefix to
-            // cover the tool definitions as well as the system prompt.
-            let mut tools_json = build_tools(tools);
-            if mutate_tools
-                && let Some(last) = tools_json.as_array_mut().and_then(|items| items.last_mut())
-            {
-                last["cache_control"] = cache_control();
-            }
-            body["tools"] = tools_json;
         }
         body
     }
@@ -345,15 +342,23 @@ impl LlmClient for AnthropicClient {
     }
 }
 
+/// Spend a breakpoint only when this block does not already carry one.
+fn mark_cache_block(block: &mut Json, remaining: &mut usize) {
+    if *remaining > 0 && block.get("cache_control").is_none() {
+        block["cache_control"] = cache_control();
+        *remaining -= 1;
+    }
+}
+
 /// Converts a context into the Anthropic messages array.
-fn build_messages(ctx: &ContextManager, rolling_breakpoint: bool) -> Vec<Json> {
+fn build_messages(ctx: &ContextManager, budget: &mut usize) -> Vec<Json> {
     let mut messages: Vec<Json> = ctx.messages.iter().map(message_to_json).collect();
-    if rolling_breakpoint && let Some(last) = messages.last_mut() {
+    if *budget > 0 && let Some(last) = messages.last_mut() {
         // The conversation tail is append-only, so caching it costs one write
         // now and turns every later turn's history into a cache read. Providers
         // whose cacheable minimum is not reached silently skip the write, so a
         // short conversation is unaffected.
-        mark_last_block(last);
+        mark_last_block(last, budget);
     }
     messages
 }
@@ -364,10 +369,14 @@ fn build_messages(ctx: &ContextManager, rolling_breakpoint: bool) -> Vec<Json> {
 /// single text block, which is the only form that can carry `cache_control`.
 /// Reasoning blocks are skipped: they carry a signature that must be replayed
 /// verbatim, and providers reject a breakpoint on generated reasoning.
-fn mark_last_block(message: &mut Json) {
+fn mark_last_block(message: &mut Json, remaining: &mut usize) {
+    if *remaining == 0 {
+        return;
+    }
     let ephemeral = cache_control();
     match message.get_mut("content") {
-        Some(Json::String(text)) => {
+        Some(Json::String(text)) if !text.trim().is_empty() => {
+            *remaining -= 1;
             let text = text.clone();
             message["content"] = json!([{
                 "type": "text",
@@ -376,14 +385,14 @@ fn mark_last_block(message: &mut Json) {
             }]);
         }
         Some(Json::Array(blocks)) => {
-            let markable = blocks.iter_mut().rev().find(|block| {
-                !matches!(
-                    block.get("type").and_then(Json::as_str),
-                    Some("thinking" | "redacted_thinking")
-                )
+            let markable = blocks.iter_mut().rev().find(|block| match block.get("type").and_then(Json::as_str) {
+                Some("text") => block.get("text").and_then(Json::as_str)
+                    .is_some_and(|text| !text.trim().is_empty()),
+                Some("tool_use" | "tool_result") => true,
+                _ => false,
             });
             if let Some(block) = markable {
-                block["cache_control"] = ephemeral;
+                mark_cache_block(block, remaining);
             }
         }
         _ => {}
@@ -584,6 +593,8 @@ fn parse_usage(u: &Json) -> Usage {
 
 /// Builds the tools array for a request.
 pub(crate) fn build_tools(definitions: &[ToolDefinition]) -> Json {
+    let mut definitions: Vec<_> = definitions.iter().collect();
+    definitions.sort_by(|a, b| a.name.cmp(&b.name));
     Json::Array(
         definitions
             .iter()
@@ -613,7 +624,7 @@ mod tests {
             lifetime: metteur_shared::llm::ToolResultLifetime::OneShot,
             paths: Vec::new(),
         });
-        let messages = build_messages(&ctx, false);
+        let messages = build_messages(&ctx, &mut 0);
         assert_eq!(messages.len(), 2);
         assert_eq!(messages[1]["role"], "user");
         assert_eq!(messages[1]["content"][0]["type"], "tool_result");
@@ -741,7 +752,7 @@ mod tests {
                 { "type": "text", "text": "answer" }
             ]
         });
-        mark_last_block(&mut message);
+        mark_last_block(&mut message, &mut 1);
         assert!(message["content"][0].get("cache_control").is_none());
         assert_eq!(message["content"][1]["cache_control"]["type"], "ephemeral");
 
@@ -750,7 +761,7 @@ mod tests {
             "role": "assistant",
             "content": [{ "type": "thinking", "thinking": "hmm", "signature": "sig" }]
         });
-        mark_last_block(&mut thinking_only);
+        mark_last_block(&mut thinking_only, &mut 1);
         assert!(thinking_only["content"][0].get("cache_control").is_none());
     }
 

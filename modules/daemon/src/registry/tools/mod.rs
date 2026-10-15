@@ -13,6 +13,7 @@ pub mod search;
 pub mod snapshot;
 pub mod subagent;
 pub mod todo;
+pub mod memory;
 
 use metteur_shared::Value;
 

@@ -429,6 +429,7 @@ const msgId = () => `m-${Date.now()}-${msgSeq++}`
  * built and validated before the real Connect transport lands.
  */
 export class MockGateway implements DaemonGateway {
+  async resourceRequest(): Promise<Result<unknown>> { return err('Project resources require a daemon connection. Use the isolated NX preview for fixture interactions.') }
   readonly connected = ref(false)
   readonly demo = true
   private runs = new Map<string, RunState>()

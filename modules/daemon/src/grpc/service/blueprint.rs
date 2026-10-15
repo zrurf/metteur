@@ -166,6 +166,14 @@ impl DaemonService {
         // would fail halfway through.
         ensure_valid(&blueprint, &registry)?;
         let run_id = uuid::Uuid::new_v4();
+        let mut prompt_manifest = std::collections::BTreeMap::new();
+        for node in blueprint.nodes.iter().filter(|node| node.kind == "PromptResource") {
+            let selection = node.data.get("snapshot_id").and_then(|value| value.as_str()).and_then(|value| uuid::Uuid::parse_str(value).ok()).ok_or_else(|| Status::failed_precondition("Prompt resource requires an explicit user selection"))?;
+            let snapshot = self.selected_prompt(&req.workspace_path, &subject, selection).await.map_err(|error| Status::failed_precondition(error.to_string()))?;
+            if snapshot.purpose != (metteur_shared::resources::PromptPurpose::Blueprint { blueprint_id: blueprint.id, node_id: node.id }) { return Err(Status::permission_denied("prompt selection is bound to another graph or node")); }
+            prompt_manifest.insert(node.id, snapshot);
+        }
+        crate::prompt_snapshots::SelectionStore::new(ws.db.clone(), ws.root()).and_then(|store| store.freeze_run(run_id, &prompt_manifest)).map_err(|error| Status::failed_precondition(error.to_string()))?;
         let ws_key = ws.root().to_path_buf();
 
         let interrupt_bus = InterruptBus::new();
