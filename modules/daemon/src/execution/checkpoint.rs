@@ -229,6 +229,7 @@ impl DbCheckpointSink {
         for (key, value) in db.scan(cf::EXECUTION_STATE)? {
             if key.starts_with(crate::replan::application::INTENT_PREFIX)
                 || key.starts_with(b"oversight:")
+                || key.starts_with(b"nx/")
             {
                 continue;
             }

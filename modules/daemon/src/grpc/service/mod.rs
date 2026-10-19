@@ -7,6 +7,8 @@
 //! always reach the real handler (never recurse).
 
 mod reports;
+mod resources;
+mod prompts;
 mod blackboard;
 mod blueprint;
 mod chat;
@@ -79,6 +81,15 @@ impl DaemonService {
 
 #[tonic::async_trait]
 impl Daemon for DaemonService {
+    async fn select_prompt_resource(&self, request: Request<super::proto::ResourceRequest>) -> Result<Response<super::proto::ResourceResponse>, Status> { self.select_prompt_resource(request).await }
+    async fn query_prompt_resources(&self, request: Request<super::proto::ResourceRequest>) -> Result<Response<super::proto::ResourceResponse>, Status> { self.query_prompt_resources(request).await }
+    async fn write_prompt_resource(&self, request: Request<super::proto::ResourceRequest>) -> Result<Response<super::proto::ResourceResponse>, Status> { self.write_prompt_resource(request).await }
+    async fn delete_prompt_resource(&self, request: Request<super::proto::ResourceRequest>) -> Result<Response<super::proto::ResourceResponse>, Status> { self.delete_prompt_resource(request).await }
+    async fn copy_prompt_to_project(&self, request: Request<super::proto::ResourceRequest>) -> Result<Response<super::proto::ResourceResponse>, Status> { self.copy_prompt_to_project(request).await }
+    async fn query_project_memory(&self, request: Request<super::proto::ResourceRequest>) -> Result<Response<super::proto::ResourceResponse>, Status> { self.query_project_memory(request).await }
+    async fn write_project_note(&self, request: Request<super::proto::ResourceRequest>) -> Result<Response<super::proto::ResourceResponse>, Status> { self.write_project_note(request).await }
+    async fn promote_project_convention(&self, request: Request<super::proto::ResourceRequest>) -> Result<Response<super::proto::ResourceResponse>, Status> { self.promote_project_convention(request).await }
+    async fn update_project_memory_status(&self, request: Request<super::proto::ResourceRequest>) -> Result<Response<super::proto::ResourceResponse>, Status> { self.update_project_memory_status(request).await }
     async fn list_oversight_reports(&self, request: Request<super::proto::OversightReportsRequest>) -> Result<Response<super::proto::OversightReports>, Status> { self.list_oversight_reports(request).await }
 
     type SendConciergeMessageStream = tokio_stream::wrappers::ReceiverStream<Result<super::proto::ConciergeEvent, Status>>;

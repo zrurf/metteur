@@ -146,6 +146,7 @@ export interface ChatUsage {
 
 /** Sampling parameters for a ReAct chat turn, adjustable from the chat panel. */
 export interface ChatOptions {
+  prompt_snapshots?: string[]
   model?: string
   system?: string
   temperature?: number

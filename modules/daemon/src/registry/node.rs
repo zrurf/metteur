@@ -118,6 +118,7 @@ impl NodeRegistry {
         registry.register(Box::new(n::ContextCreateExecutor));
         registry.register(Box::new(n::ContextCloneExecutor));
         registry.register(Box::new(n::ContextMergeExecutor));
+        registry.register(Box::new(n::PromptResourceExecutor));
         registry.register(Box::new(n::ContextFilterExecutor));
         registry.register(Box::new(n::ContextTrimExecutor));
         registry.register(Box::new(n::ContextReleaseExecutor));

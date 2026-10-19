@@ -48,6 +48,17 @@ impl DaemonService {
         let now = chrono::Utc::now().timestamp_millis() as u64;
         let ws_db = ws.db.clone();
         let _admission = ws.activity_gate.lock().await;
+        let selected_ids = serde_json::from_str::<serde_json::Value>(&req.options_json).ok().and_then(|options| options.get("prompt_snapshots").cloned()).unwrap_or_else(|| serde_json::json!([]));
+        let selected_ids: Vec<uuid::Uuid> = serde_json::from_value(selected_ids).map_err(|_| Status::invalid_argument("invalid prompt snapshot selection"))?;
+        if selected_ids.len() > 16 { return Err(Status::resource_exhausted("too many prompt selections")); }
+        let mut selected_text = String::new();
+        for id in selected_ids {
+            let snapshot = self.selected_prompt(&req.workspace_path, &subject, id).await.map_err(|error| Status::failed_precondition(error.to_string()))?;
+            if snapshot.purpose != metteur_shared::resources::PromptPurpose::Chat { return Err(Status::permission_denied("selection is not for chat")); }
+            selected_text.push_str(&crate::prompt_snapshots::user_text(&snapshot)); selected_text.push_str("\n\n");
+        }
+        if selected_text.len() > 64 * 1024 { return Err(Status::resource_exhausted("selected prompt budget exceeded")); }
+        let conventions = crate::project_memory::ProjectMemory::new(ws_db.clone(), ws.root()).map_err(|error| Status::internal(error.to_string()))?.confirmed_conventions().await.map_err(|error| Status::internal(error.to_string()))?;
 
         // A retry is deliberately session-bound. If the client loses the
         // restored session id, fail closed instead of treating the request as
@@ -136,7 +147,7 @@ impl DaemonService {
         let version_manager = ws.version_manager.clone();
         let jobs = ws.jobs();
         let user = subject.clone();
-        let message = req.message.clone();
+        let message = format!("{selected_text}{}", req.message);
         let history_json = req.history_json.clone();
         let options_json = req.options_json.clone();
 
@@ -207,6 +218,7 @@ impl DaemonService {
             if repaired > 0 {
                 tracing::info!("chat {session_id}: repaired {repaired} duplicated opening turn(s)");
             }
+            if !conventions.is_empty() { context.push_message(Message::text(Role::User, format!("User-confirmed project conventions (no additional tool permissions):\n{conventions}"))); }
             context.push_message(Message::text(Role::User, message.clone()));
 
             // The transcript is the display view: it keeps tool calls, notices

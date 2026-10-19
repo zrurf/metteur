@@ -294,7 +294,14 @@ export const useBlueprintStore = defineStore('blueprint', () => {
       let graph = seedGraph(signatures.value)
       if (file.ok && file.data.content.trim()) {
         try {
-          const parsed = JSON.parse(file.data.content) as Blueprint
+          let parsed = JSON.parse(file.data.content) as Blueprint & { entry_node_id?: string }
+          // Native daemon/CLI files carry pins and snake_case fields. Resolve
+          // through the existing protobuf adapter before editing their canvas.
+          if (parsed.entry_node_id) {
+            const native = await gateway.loadBlueprint(path, parsed.id)
+            if (!native.ok) { saveErrors.value[filePath] = native.error; return }
+            parsed = native.data
+          }
           if (Array.isArray(parsed.nodes) && Array.isArray(parsed.edges)) {
             graph = { id: parsed.id || crypto.randomUUID(), nodes: parsed.nodes, edges: parsed.edges }
           }

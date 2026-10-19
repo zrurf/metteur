@@ -1,9 +1,32 @@
 syntax = "proto3";
 
+// Additive NX resource envelope; authenticated ownership is resolved by the host.
+message ResourceRequest {
+  uint32 schema_version = 1;
+  string request_id = 2;
+  string workspace_path = 3;
+  uint64 expected_revision = 4;
+  string payload_json = 5;
+}
+message ResourceResponse {
+  uint32 schema_version = 1;
+  string payload_json = 2;
+  string error_json = 3;
+}
+
 package metteur;
 
 // The Metteur daemon service.
 service Daemon {
+  rpc SelectPromptResource(ResourceRequest) returns (ResourceResponse);
+  rpc QueryPromptResources(ResourceRequest) returns (ResourceResponse);
+  rpc WritePromptResource(ResourceRequest) returns (ResourceResponse);
+  rpc DeletePromptResource(ResourceRequest) returns (ResourceResponse);
+  rpc CopyPromptToProject(ResourceRequest) returns (ResourceResponse);
+  rpc QueryProjectMemory(ResourceRequest) returns (ResourceResponse);
+  rpc WriteProjectNote(ResourceRequest) returns (ResourceResponse);
+  rpc PromoteProjectConvention(ResourceRequest) returns (ResourceResponse);
+  rpc UpdateProjectMemoryStatus(ResourceRequest) returns (ResourceResponse);
   rpc ListOversightReports(OversightReportsRequest) returns (OversightReports);
   rpc GetConciergeState(ConciergeStateRequest) returns (ConciergeState);
   rpc SendConciergeMessage(SendConciergeMessageRequest) returns (stream ConciergeEvent);

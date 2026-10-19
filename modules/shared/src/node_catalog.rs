@@ -401,6 +401,7 @@ pub fn known_kinds() -> Vec<&'static str> {
         "ContextCreate",
         "ContextClone",
         "ContextMerge",
+        "PromptResource",
         "ContextFilter",
         "ContextTrim",
         "ContextRelease",
@@ -596,6 +597,7 @@ fn template(kind: &str) -> Option<Vec<PinSignature>> {
             pins.push(do_("Result", DataType::Context));
             pins
         }
+        "PromptResource" => vec![do_("Text", DataType::String)],
         "ContextFilter" => {
             let mut pins = exec(true);
             pins.push(di("Context", DataType::Context));
@@ -923,7 +925,7 @@ pub fn node_type_of(kind: &str) -> NodeType {
         | "Contains" | "Replace" | "Substring" | "ToString" | "ToInt" | "ToFloat" | "ToBool"
         | "ToJson" | "ParseJson" | "ListCreate" | "ListAppend" | "ListGet" | "ListLength"
         | "ListContains" | "JsonGet" | "JsonSet" | "ContextCreate" | "ContextClone"
-        | "ContextMerge" | "ContextFilter" | "ContextTrim" | "ContextRelease" | "ContextToText"
+        | "ContextMerge" | "PromptResource" | "ContextFilter" | "ContextTrim" | "ContextRelease" | "ContextToText"
         | "Delay" | "VariableGet" => NodeType::Pure,
         _ => NodeType::Function,
     }

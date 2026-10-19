@@ -109,11 +109,21 @@ impl NodeExecutor for ContextMergeExecutor {
         &self,
         node: &Node,
         inputs: &HashMap<PinId, Value>,
-        _ctx: &mut ExecutionContext,
+        ctx: &mut ExecutionContext,
     ) -> DaemonResult<HashMap<PinId, Value>> {
         let mut context = context_input(node, inputs, "Context")?;
         let text = string_input(node, inputs, "Text")?;
-        let role = role_from_choice(&string_input(node, inputs, "Role")?);
+        let mut role = role_from_choice(&string_input(node, inputs, "Role")?);
+        if let (Some(graph),Some(db),Some(pin))=(&ctx.blueprint,&ctx.workspace_db,node.pins.iter().find(|pin|pin.name=="Text")) {
+            let parents=crate::prompt_snapshots::prompt_ancestors(&graph.read(),node.id,pin.id);
+            if !parents.is_empty() {
+                let store=crate::prompt_snapshots::SelectionStore::new(db.clone(),&ctx.workspace_root).map_err(|error|crate::DaemonError::Execution(error.to_string()))?;
+                let mut refs=Vec::new();let mut equal=false;
+                for (id,_) in &parents {let snapshot=store.run_snapshot(ctx.run_id,*id).map_err(|error|crate::DaemonError::Execution(error.to_string()))?;equal=snapshot.body==text;refs.push(snapshot.reference);}
+                store.record_origin(ctx.run_id,node.id,&text,refs,parents.len()==1 && parents[0].1,equal).map_err(|error|crate::DaemonError::Execution(error.to_string()))?;
+                role=metteur_shared::llm::Role::User;
+            }
+        }
         context.push_message(Message::text(role, text));
         context_output(node, context)
     }

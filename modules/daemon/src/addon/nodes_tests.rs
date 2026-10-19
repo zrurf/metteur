@@ -15,6 +15,10 @@ fn temp() -> PathBuf {
 }
 
 pub(in crate::addon) fn write_wasm(path: &str) -> Vec<u8> {
+    write_then_wasm(path, false)
+}
+
+fn write_then_wasm(path: &str, spin: bool) -> Vec<u8> {
     fn alloc(text: &str, local: &str) -> String {
         let stores = text
             .bytes()
@@ -34,11 +38,16 @@ pub(in crate::addon) fn write_wasm(path: &str) -> Vec<u8> {
       (import "extism:host/env" "output_set" (func $output (param i64 i64)))
       (import "extism:host/user" "fs_write" (func $write (param i64 i64)))
       (func (export "run") (result i32) (local $path i64) (local $data i64) (local $result i64)
-        {} {} {} local.get $path local.get $data call $write
+        {} {} {} local.get $path local.get $data call $write {}
         local.get $result i64.const {} call $output i32.const 0))"#,
         alloc(path, "path"),
         alloc("node journal", "data"),
         alloc(result, "result"),
+        if spin {
+            "(loop $l br $l)"
+        } else {
+            ""
+        },
         result.len()
     ))
     .unwrap()
@@ -49,12 +58,17 @@ async fn node_file_effects_keep_grants_original_approval_journal_and_path_bounda
     use crate::sandbox::PermissionMode;
     let base = temp();
     let host = host(&base);
-    for (i, (path, grant, mode, allowed)) in [
-        ("denied.txt", false, PermissionMode::Sandbox, false),
-        ("ask.txt", true, PermissionMode::Ask, false),
-        ("allowed.txt", true, PermissionMode::Sandbox, true),
-        (".metteur/config.toml", true, PermissionMode::Sandbox, false),
-        ("../outside-r11.txt", true, PermissionMode::Sandbox, false),
+    for (i, (path, grant, mode, expected_error)) in [
+        ("denied.txt", false, PermissionMode::Sandbox, Some("permission denied: fs:write")),
+        ("ask.txt", true, PermissionMode::Ask, Some("permission denied: file write approval")),
+        ("allowed.txt", true, PermissionMode::Sandbox, None),
+        (
+            ".metteur/config.toml",
+            true,
+            PermissionMode::Sandbox,
+            Some("Addon filesystem access excludes daemon metadata"),
+        ),
+        ("../outside-r11.txt", true, PermissionMode::Sandbox, Some("escapes workspace")),
     ]
     .iter()
     .enumerate()
@@ -71,7 +85,12 @@ async fn node_file_effects_keep_grants_original_approval_journal_and_path_bounda
                 crate::addon::signature::sign_package(&p, &key).unwrap(),
             )
             .unwrap();
-            assert!(host.install(&p, Some(&base), &[]).await.is_err());
+            let error = host.install(&p, Some(&base), &[]).await.unwrap_err();
+            assert!(
+                matches!(error, DaemonError::PermissionDenied(ref message)
+                if message.contains("requires explicit grants") && message.contains("fs:write")),
+                "{error:?}"
+            );
         }
         host.install(
             &p,
@@ -94,8 +113,21 @@ async fn node_file_effects_keep_grants_original_approval_journal_and_path_bounda
         );
         let result =
             reg.node_executor(&node.kind).unwrap().execute(node, &HashMap::new(), &mut ctx).await;
-        assert_eq!(result.is_ok(), *allowed, "{path}: {result:?}");
-        if *allowed {
+        if let Some(expected) = expected_error {
+            let error = result.unwrap_err();
+            assert_addon_error(&error, expected);
+            assert!(!base.join(path).exists());
+            assert!(ctx.mutated_paths.is_empty());
+            assert!(
+                ctx.workspace_db
+                    .as_ref()
+                    .unwrap()
+                    .scan(crate::storage::persistence::cf::FILE_INTENTS)
+                    .unwrap()
+                    .is_empty()
+            );
+        } else {
+            result.unwrap();
             assert_eq!(std::fs::read_to_string(base.join(path)).unwrap(), "node journal");
             assert!(ctx.mutated_paths.contains(&PathBuf::from(path)));
             assert!(
@@ -108,11 +140,23 @@ async fn node_file_effects_keep_grants_original_approval_journal_and_path_bounda
             );
             ctx.transaction_log.rollback().unwrap();
             assert!(!base.join(path).exists());
-        } else {
-            assert!(!base.join(path).exists());
         }
     }
 }
+
+pub(in crate::addon) fn assert_addon_error(error: &DaemonError, expected: &str) {
+    assert!(
+        matches!(error, DaemonError::Addon(message) if message.contains(expected)),
+        "expected addon error containing {expected:?}, got {error:?}"
+    );
+    if expected != "timeout" {
+        assert!(
+            !error.to_string().contains("timeout"),
+            "a timeout cannot prove {expected}: {error}"
+        );
+    }
+}
+
 pub(in crate::addon) fn signature() -> NodeSignature {
     NodeSignature {
         kind: "Calculate".into(),
@@ -185,11 +229,26 @@ pub(in crate::addon) fn wasm(output: &str) -> Vec<u8> {
     ))
     .unwrap()
 }
-pub(in crate::addon) fn package(base: &Path, version: &str, sig: &NodeSignature, bytes: &[u8]) -> PathBuf {
+pub(in crate::addon) fn package(
+    base: &Path,
+    version: &str,
+    sig: &NodeSignature,
+    bytes: &[u8],
+) -> PathBuf {
+    package_with_timeout(base, version, sig, bytes, 5_000)
+}
+
+fn package_with_timeout(
+    base: &Path,
+    version: &str,
+    sig: &NodeSignature,
+    bytes: &[u8],
+    timeout_ms: u64,
+) -> PathBuf {
     let p = base.join(uuid::Uuid::new_v4().to_string());
     std::fs::create_dir(&p).unwrap();
     std::fs::write(p.join("main.wasm"), bytes).unwrap();
-    std::fs::write(p.join("manifest.toml"),format!("id=\"com.test.nodes\"\nversion=\"{version}\"\nname=\"Nodes\"\n[addon]\nentry=\"main.wasm\"\ncall_timeout_ms=40\n[[nodes]]\nname=\"Calculate\"\nfunction=\"run\"\n[nodes.signature]\n{}",toml::to_string(sig).unwrap().replace("[[pins]]", "[[nodes.signature.pins]]"))).unwrap();
+    std::fs::write(p.join("manifest.toml"),format!("id=\"com.test.nodes\"\nversion=\"{version}\"\nname=\"Nodes\"\n[addon]\nentry=\"main.wasm\"\ncall_timeout_ms={timeout_ms}\n[[nodes]]\nname=\"Calculate\"\nfunction=\"run\"\n[nodes.signature]\n{}",toml::to_string(sig).unwrap().replace("[[pins]]", "[[nodes.signature.pins]]"))).unwrap();
     let key = ed25519_dalek::SigningKey::from_bytes(&[19; 32]);
     std::fs::write(
         p.join("signature.toml"),
@@ -355,37 +414,124 @@ async fn node_contract_rejects_forged_names_pins_types_and_identity() {
     assert!(crate::addon::manifest::Manifest::load(&malformed).is_err());
 }
 #[tokio::test]
-async fn node_wasm_limits_capabilities_and_output_types_fail_visibly() {
+async fn node_output_errors_are_not_timeout_successes() {
     let base = temp();
     let host = host(&base);
-    let spin = wat::parse_str(
-        r#"(module (func (export "run") (result i32) (loop $l br $l) i32.const 0))"#,
-    )
-    .unwrap();
-    let denied=wat::parse_str(r#"(module (import "extism:host/user" "fs_read" (func $read (param i64) (result i64))) (func (export "run") (result i32) i64.const 0 call $read drop i32.const 0))"#).unwrap();
-    for (i, bytes) in [
-        wasm(r#"{"outputs":{"result":"bad"}}"#),
-        wasm(r#"{"outputs":{"other":14}}"#),
-        wasm(r#"{"outputs":{"result":14},"permissions":["fs:write"]}"#),
-        spin,
-        denied,
+    for (i, (output, expected)) in [
+        (
+            r#"{"outputs":{"result":"bad"}}"#,
+            "Addon node output violates its declared type or choices",
+        ),
+        (r#"{"outputs":{"other":14}}"#, "Addon node output pin is missing"),
+        (
+            r#"{"outputs":{"result":14},"permissions":["fs:write"]}"#,
+            "Addon node must return only an outputs object",
+        ),
     ]
     .iter()
     .enumerate()
     {
-        let p = package(&base, &format!("1.0.{i}"), &signature(), bytes);
+        let p = package(&base, &format!("1.0.{i}"), &signature(), &wasm(output));
         host.install(&p, None, &[]).await.unwrap();
         let reg = host.registry_for(None, false).await.unwrap();
         let bp = graph(&reg);
-        assert!(
-            tokio::time::timeout(std::time::Duration::from_secs(3), call(reg, &base, &bp.nodes[1]))
-                .await
-                .unwrap()
-                .is_err(),
-            "{i}"
-        );
+        let error = call(reg, &base, &bp.nodes[1]).await.unwrap_err();
+        assert_addon_error(&error, expected);
     }
-    assert!(!base.join("escape").exists());
+}
+
+#[tokio::test]
+async fn node_read_capability_rejection_is_not_an_invalid_pointer_or_timeout() {
+    let base = temp();
+    let host = host(&base);
+    let bytes = wat::parse_str(
+        r#"(module
+        (import "extism:host/env" "alloc" (func $alloc (param i64) (result i64)))
+        (import "extism:host/env" "store_u8" (func $store (param i64 i32)))
+        (import "extism:host/user" "fs_read" (func $read (param i64) (result i64)))
+        (func (export "run") (result i32) (local $path i64)
+            i64.const 1 call $alloc local.tee $path i32.const 120 call $store
+            local.get $path call $read drop i32.const 0))"#,
+    )
+    .unwrap();
+    let p = package(&base, "1.0.0", &signature(), &bytes);
+    host.install(&p, None, &[]).await.unwrap();
+    let reg = host.registry_for(None, false).await.unwrap();
+    let bp = graph(&reg);
+    let error = call(reg, &base, &bp.nodes[1]).await.unwrap_err();
+    assert_addon_error(&error, "permission denied: fs:read");
+}
+
+#[tokio::test]
+async fn node_timeout_preserves_actual_effects_and_journal_without_replay() {
+    use crate::storage::persistence::{Db, cf};
+    for wrote in [false, true] {
+        let base = temp();
+        let host = host(&base);
+        let bytes = if wrote {
+            write_then_wasm("effect.txt", true)
+        } else {
+            wat::parse_str(
+                r#"(module (func (export "run") (result i32) (loop $l br $l) i32.const 0))"#,
+            )
+            .unwrap()
+        };
+        // The short historical budget belongs only to a pure spin. A write must
+        // finish before the deliberate infinite loop, even on a busy CI host.
+        let p = package_with_timeout(
+            &base,
+            "1.0.0",
+            &signature(),
+            &bytes,
+            if wrote {
+                5_000
+            } else {
+                40
+            },
+        );
+        let manifest = std::fs::read_to_string(p.join("manifest.toml"))
+            .unwrap()
+            .replace("[addon]", "[permissions]\nrequired=[\"fs:write\"]\n[addon]");
+        std::fs::write(p.join("manifest.toml"), manifest).unwrap();
+        let key = ed25519_dalek::SigningKey::from_bytes(&[19; 32]);
+        std::fs::write(
+            p.join("signature.toml"),
+            crate::addon::signature::sign_package(&p, &key).unwrap(),
+        )
+        .unwrap();
+        host.install(&p, Some(&base), &["fs:write".into()]).await.unwrap();
+        let reg = host.registry_for(Some(&base), false).await.unwrap();
+        let bp = graph(&reg);
+        let mut ctx = ExecutionContext::new(reg.clone(), LlmClientFactory::new(), base.clone());
+        let db = Db::open(&base.join("journal")).unwrap();
+        ctx.workspace_db = Some(db.clone());
+        let started = std::time::Instant::now();
+        let error = tokio::time::timeout(
+            std::time::Duration::from_secs(30),
+            reg.node_executor(&bp.nodes[1].kind).unwrap().execute(
+                &bp.nodes[1],
+                &HashMap::new(),
+                &mut ctx,
+            ),
+        )
+        .await
+        .expect("Wasm worker must terminate")
+        .unwrap_err();
+        assert_addon_error(&error, "timeout");
+        eprintln!("timeout wrote={wrote}, elapsed={:?}, error={error}", started.elapsed());
+        let intents = db.scan(cf::FILE_INTENTS).unwrap();
+        assert_eq!(!intents.is_empty(), wrote);
+        assert_eq!(base.join("effect.txt").exists(), wrote);
+        assert_eq!(ctx.mutated_paths.contains(&PathBuf::from("effect.txt")), wrote);
+        if wrote {
+            assert_eq!(std::fs::read_to_string(base.join("effect.txt")).unwrap(), "node journal");
+            assert_eq!(intents.len(), 1, "a timeout must not replay the write");
+            ctx.transaction_log.rollback().unwrap();
+            assert!(!base.join("effect.txt").exists());
+            ctx.transaction_log.rollback().unwrap();
+            assert!(!base.join("effect.txt").exists());
+        }
+    }
 }
 
 #[tokio::test]

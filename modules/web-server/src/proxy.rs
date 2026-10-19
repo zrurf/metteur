@@ -60,6 +60,15 @@ fn pump_stream<T: Send + 'static>(
 
 #[tonic::async_trait]
 impl Daemon for ForwardService {
+    async fn select_prompt_resource(&self, request: Request<metteur_proto::proto::ResourceRequest>) -> Result<Response<metteur_proto::proto::ResourceResponse>, Status> { self.client.clone().select_prompt_resource(request).await }
+    async fn query_prompt_resources(&self, request: Request<metteur_proto::proto::ResourceRequest>) -> Result<Response<metteur_proto::proto::ResourceResponse>, Status> { self.client.clone().query_prompt_resources(request).await }
+    async fn write_prompt_resource(&self, request: Request<metteur_proto::proto::ResourceRequest>) -> Result<Response<metteur_proto::proto::ResourceResponse>, Status> { self.client.clone().write_prompt_resource(request).await }
+    async fn delete_prompt_resource(&self, request: Request<metteur_proto::proto::ResourceRequest>) -> Result<Response<metteur_proto::proto::ResourceResponse>, Status> { self.client.clone().delete_prompt_resource(request).await }
+    async fn copy_prompt_to_project(&self, request: Request<metteur_proto::proto::ResourceRequest>) -> Result<Response<metteur_proto::proto::ResourceResponse>, Status> { self.client.clone().copy_prompt_to_project(request).await }
+    async fn query_project_memory(&self, request: Request<metteur_proto::proto::ResourceRequest>) -> Result<Response<metteur_proto::proto::ResourceResponse>, Status> { self.client.clone().query_project_memory(request).await }
+    async fn write_project_note(&self, request: Request<metteur_proto::proto::ResourceRequest>) -> Result<Response<metteur_proto::proto::ResourceResponse>, Status> { self.client.clone().write_project_note(request).await }
+    async fn promote_project_convention(&self, request: Request<metteur_proto::proto::ResourceRequest>) -> Result<Response<metteur_proto::proto::ResourceResponse>, Status> { self.client.clone().promote_project_convention(request).await }
+    async fn update_project_memory_status(&self, request: Request<metteur_proto::proto::ResourceRequest>) -> Result<Response<metteur_proto::proto::ResourceResponse>, Status> { self.client.clone().update_project_memory_status(request).await }
     type SendConciergeMessageStream = ReceiverStream<Result<metteur_proto::proto::ConciergeEvent, Status>>;
     async fn list_oversight_reports(&self, request: Request<metteur_proto::proto::OversightReportsRequest>) -> Result<Response<metteur_proto::proto::OversightReports>, Status> { self.client.clone().list_oversight_reports(request).await }
     async fn get_concierge_state(&self, request: Request<metteur_proto::proto::ConciergeStateRequest>) -> Result<Response<metteur_proto::proto::ConciergeState>, Status> {

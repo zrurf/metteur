@@ -69,6 +69,8 @@ impl crate::registry::NodeExecutor for EndExecutor {
 }
 
 use std::collections::HashMap;
+mod prompt;
+pub use prompt::PromptResourceExecutor;
 
 use metteur_shared::{Node, PinId, PinType, Value};
 

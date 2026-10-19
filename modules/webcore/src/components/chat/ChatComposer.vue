@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { usePromptResourcesStore } from '@/stores/prompt-resources'
+import '@/components/resources/resources.css'
 import { ArrowUp, ChevronUp, FileCode, ListPlus, Square, X } from '@lucide/vue'
 import ContextMenu from './ContextMenu.vue'
 import ContextMeter from './ContextMeter.vue'
@@ -63,6 +65,7 @@ const props = defineProps<{
 }>()
 
 const draft = ref('')
+const prompts = usePromptResourcesStore()
 const textarea = ref<HTMLTextAreaElement | null>(null)
 /** Which upward menu is open; only one at a time keeps the row readable. */
 const menu = ref<'context' | 'model' | 'permission' | 'delivery' | null>(null)
@@ -262,7 +265,11 @@ defineExpose({
 </script>
 
 <template>
-  <div class="chat-composer">
+  <div class="chat-composer" @dragover.prevent @drop="!concierge && prompts.dropChat($event)">
+    <div v-if="!concierge && prompts.selections.length" class="chat-composer-chips">
+      <span v-for="(item,index) in prompts.selections" :key="item.snapshot.id" class="pv-chip"><span :title="item.snapshot.body">{{ item.snapshot.reference.scope.scope }} / {{ item.snapshot.name }} · r{{ item.snapshot.reference.revision }}</span><span v-if="item.status!=='current'">{{ item.status }}</span><button v-if="item.status==='changed'" class="pv-link" @click="prompts.refresh(index)">Refresh selection</button><button :aria-label="`Remove selected prompt ${index+1}`" @click="prompts.selections.splice(index,1)">×</button></span>
+    </div>
+    <p v-if="!concierge && prompts.error" role="alert" class="pv-callout">{{ prompts.error }}</p>
     <div v-if="pendingFiles.length" class="chat-composer-chips">
       <span v-for="file in pendingFiles" :key="file.path" class="chat-chip">
         <FileCode class="h-3 w-3 shrink-0" />

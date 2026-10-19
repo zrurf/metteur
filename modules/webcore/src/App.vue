@@ -61,12 +61,14 @@ const { openSurface } = useSurfaceNavigation()
 /* Activity rail                                                        */
 
 interface Activity {
-  key: 'explorer' | 'chat' | 'version' | 'execution' | 'execution-preview'
+  key: 'explorer' | 'chat' | 'version' | 'execution' | 'execution-preview' | 'memory' | 'prompts'
   label: string
   icon: Component
 }
 
 const activities: Activity[] = [
+  { key: 'prompts', label: 'Prompt resources', icon: Files },
+  { key: 'memory', label: 'Project memory', icon: Files },
   { key: 'explorer', label: 'Explorer', icon: Files },
   { key: 'execution', label: 'Execution', icon: Workflow },
   ...(import.meta.env.DEV && import.meta.env.VITE_MOCK === '1'
@@ -78,6 +80,8 @@ const activities: Activity[] = [
 /** Route → which activity it belongs to (drives rail highlight when no panel
  *  owns the sidebar). `route.name` may be undefined before mount. */
 function routeActivity(name: string | symbol | null | undefined): Activity['key'] | null {
+  if (name === 'prompts') return 'prompts'
+  if (name === 'memory') return 'memory'
   if (name === 'execution') return 'execution'
   if (name === 'execution-preview') return 'execution-preview'
   if (name === 'chat') return 'chat'
@@ -97,7 +101,7 @@ function toggleExplorer() {
  *  asserted centrally in {@link openSurface} (lib/surface), mirrored by the
  *  tab bar, so both entry points restore the correct rail. */
 function openActivity(a: Activity['key']) {
-  if (a === 'execution-preview' || a === 'execution') {
+  if (a === 'prompts' || a === 'memory' || a === 'execution-preview' || a === 'execution') {
     openSurface(a)
     return
   }

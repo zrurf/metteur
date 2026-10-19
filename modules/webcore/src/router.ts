@@ -12,6 +12,8 @@ declare module 'vue-router' {
 }
 
 const routes = [
+  { path: '/work/:wid/prompts', name: 'prompts', component: () => import('./views/PromptResourcesView.vue'), meta: { title: 'Prompt resources', workspace: true } },
+  { path: '/work/:wid/memory', name: 'memory', component: () => import('./views/ProjectMemoryView.vue'), meta: { title: 'Project memory', workspace: true } },
   { path: '/work/:wid/execution', name: 'execution', component: () => import('./views/ExecutionView.vue'), meta: { title: 'Execution', workspace: true } },
   ...(import.meta.env.DEV && import.meta.env.VITE_MOCK === '1' ? [{
     path: '/preview/execution',
