@@ -40,6 +40,9 @@ impl NodeExecutor for ToolExecutor {
             .or_else(|| node.data.get("tool_name").and_then(|v| v.as_str()))
             .ok_or_else(|| DaemonError::Execution("tool node missing tool_name".to_string()))?;
 
+        if !crate::registry::capabilities::allowed(ctx,tool_name) {
+            return Err(DaemonError::PermissionDenied("Tool is not allowed for this host role".into()));
+        }
         let tool = ctx
             .registry
             .tool(tool_name)

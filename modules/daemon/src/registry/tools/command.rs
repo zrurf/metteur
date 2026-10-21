@@ -104,7 +104,41 @@ async fn start_command(
             "cwd": cwd.to_string_lossy(),
         }),
     );
-    let job_id = ctx.jobs.start(command, cwd, ctx.run_id, output_cap)?;
+    let handle = ctx.continuation.clone();
+    let mut registered = None;
+    let started = ctx.jobs.start_registered(command, cwd, ctx.run_id, output_cap, |id| {
+        if let Some(handle) = &handle { if ctx.handoff_ref.is_some() && ctx.blueprint.is_some(){handle.register_run_job(id,ctx.run_id)?;}else{handle.register(id, "job", true)?;} registered=Some(id.to_owned()); }
+        Ok(())
+    });
+    let job_id=match started {
+        Ok(id)=>id,
+        Err(error)=>{
+            if let (Some(handle),Some(id))=(&handle,registered){handle.finish(&id,crate::continuation::state::Terminal::Failed,serde_json::json!({"started":false,"reason":"process_spawn_failed"}),chrono::Utc::now().timestamp_millis().max(0) as u64)?;}
+            return Err(error);
+        }
+    };
+    if let Some(handle) = handle {
+        let jobs = ctx.jobs.clone();
+        let id = job_id.clone();
+        tokio::spawn(async move {
+            if let Some(job) = jobs.wait(&id).await {
+                use crate::continuation::state::Terminal;
+                let status = match &job.state {
+                    JobState::Exited { code: 0 } => Terminal::Succeeded,
+                    JobState::Exited { .. } | JobState::Failed { .. } => Terminal::Failed,
+                    JobState::Killed => Terminal::Cancelled,
+                    JobState::Running => Terminal::Indeterminate,
+                };
+                // Only bounded output; source data never becomes a permission grant.
+                let raw = crate::execution::blackboard::safe_value(&serde_json::json!({"output": jobs.tail(&id, 40), "state": job.state.label()}), 0);
+                let safe = crate::observability::anon::Anonymizer::new(&[]).anonymize(&raw.to_string()).await;
+                let data = handle.store.result_artifact(handle.id, &id, &safe).unwrap_or_else(|error|serde_json::json!({"summary": crate::registry::tools::result::truncate_result(&safe, 8192), "artifact_error":error.to_string(),"truncated":safe.len()>8192}));
+                if let Err(error) = handle.finish(&id, status, data, chrono::Utc::now().timestamp_millis().max(0) as u64) {
+                    tracing::warn!("Could not persist job terminal receipt: {error}");
+                }
+            }
+        });
+    }
     if let Some(tx) = &ctx.events {
         let summary = ctx.jobs.snapshot(&job_id).map(|job| job.summary()).unwrap_or_default();
         let _ = tx.send(crate::execution::ExecutionEvent::Job {

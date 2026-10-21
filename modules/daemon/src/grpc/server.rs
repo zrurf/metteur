@@ -29,7 +29,7 @@ pub async fn serve(
 
     builder
         .layer(AclLayer::new(state.acl_store.clone(), tls_enabled))
-        .add_service(DaemonServer::new(DaemonService::new(state)))
+        .add_service(DaemonServer::new(DaemonService::new(state)).max_decoding_message_size(metteur_proto::MAX_RPC_MESSAGE_BYTES).max_encoding_message_size(metteur_proto::MAX_RPC_MESSAGE_BYTES))
         .serve(addr)
         .await
         .map_err(|e| DaemonError::Internal(format!("gRPC server error: {e}")))?;

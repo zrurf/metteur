@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "id": "dev-03",
+  "split": "development",
+  "mode": "chat",
+  "files": {
+    "shared.py": "def normalize(value):\n    return value.upper()\n",
+    "alpha.py": "from shared import normalize\ndef alpha(value): return normalize(value)\n",
+    "beta.py": "from shared import normalize\ndef beta(value): return normalize(value)\n",
+    "test_shared.py": "import unittest\nfrom alpha import alpha\nfrom beta import beta\nclass Both(unittest.TestCase):\n    def test_both(self):\n        self.assertEqual(alpha(\"HeLLo\"), \"hello\")\n        self.assertEqual(beta(\"WORLD\"), \"world\")\nif __name__ == \"__main__\": unittest.main()\n"
+  },
+  "goal": "Fix shared.normalize to lowercase input without changing its signature or either caller. Run {test_command:test_shared.py} and report the real result.",
+  "checks": {
+    "test": "test_shared.py",
+    "modified": [
+      "shared.py"
+    ],
+    "signature": "normalize"
+  },
+  "limits": {
+    "max_iterations": 7,
+    "max_tokens": 1024,
+    "max_turns": 4,
+    "token_limit": 300000
+  },
+  "seed_digest": "8cba4ea6ccb4e9654cd981484a3f4b3f7c234f75236bb5108b3c6062d89cd16c"
+}

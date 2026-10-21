@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import BlueprintLaunchReview from './continuations/BlueprintLaunchReview.vue'
 import { ShieldAlert, X } from '@lucide/vue'
 import { useExecutionStore } from '@/stores/execution'
 import { useChatStore } from '@/stores/chat'
@@ -15,6 +16,13 @@ import { blueprintApproval } from '@/core/blueprint-approval'
  */
 const execution = useExecutionStore()
 const chat = useChatStore()
+
+const launch = computed(() => {
+  if(execution.approval || !chat.approval) return null
+  const payload = parseDetail(chat.approval.detail)
+  return payload.request_type === 'blueprint_launch' ? payload as unknown as InstanceType<typeof BlueprintLaunchReview>['$props']['payload'] : null
+})
+function launchResolved(){ chat.approval = null }
 
 const request = computed(() => {
   if (execution.approval) {
@@ -62,10 +70,11 @@ function parseDetail(raw: string): Record<string, unknown> {
         v-if="request"
         class="fixed inset-0 z-50 flex items-center justify-center p-4"
         style="background: var(--overlay)"
-        role="dialog"
-        aria-modal="true"
+        :role="launch ? undefined : 'dialog'"
+        :aria-modal="launch ? undefined : true"
       >
-        <div class="glass max-h-[90vh] w-full max-w-md overflow-y-auto rounded-xl p-5">
+        <BlueprintLaunchReview v-if="launch && chat.approval" :key="chat.approval.requestId" :payload="launch" :request-id="chat.approval.requestId" @resolved="launchResolved" />
+        <div v-else class="glass max-h-[90vh] w-full max-w-md overflow-y-auto rounded-xl p-5">
           <div class="flex items-center justify-between">
             <div class="flex items-center gap-2 text-danger">
               <ShieldAlert class="h-5 w-5" />

@@ -17,7 +17,7 @@ pub use context::{
     ContextManager, ContextRegion, ContextSnapshot, EvictionPolicy, ReleaseQuery, ReleaseReport,
     SystemFragment,
 };
-pub use message::{ContentBlock, Message, Role};
+pub use message::{ContentBlock, Message, MessageOrigin, Role};
 pub use params::{GenerationParams, ReasoningEffort};
 pub use todo::{TodoItem, TodoStatus, render as render_todos};
 pub use token::{estimate_context_tokens, estimate_message, estimate_tokens};

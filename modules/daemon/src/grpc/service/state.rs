@@ -27,7 +27,9 @@ use super::super::proto::{AddonInfo, ExecutionEvent};
 /// The control state of a running execution.
 #[derive(Clone)]
 pub(crate) struct RunningExecution {
+    pub(crate) approval_details: Arc<parking_lot::Mutex<HashMap<String,String>>>,
     pub(crate) blueprint_id: Uuid,
+    pub(crate) continuation_task: Option<Uuid>,
     pub(crate) run_id: Uuid,
     /// Bus for injecting interrupts into the execution.
     pub(crate) interrupt_bus: Option<InterruptBus>,
@@ -42,6 +44,7 @@ pub(crate) struct RunningExecution {
 /// The control state of a running chat session.
 #[derive(Clone)]
 pub(crate) struct ChatRun {
+    pub(crate) approval_details: Arc<parking_lot::Mutex<HashMap<String,String>>>,
     /// Bus for injecting interrupts into the ReAct loop.
     pub(crate) interrupt_bus: Option<InterruptBus>,
     /// Set when an abort has been requested (shared with the chat task).
@@ -85,6 +88,7 @@ pub struct AppState {
     pub(crate) running: RwLock<HashMap<PathBuf, RunningExecution>>,
     /// Workspaces with a currently running chat session.
     pub(crate) chats: RwLock<HashMap<PathBuf, ChatRun>>,
+    pub(crate) continuation_workers: tokio::sync::Mutex<HashMap<PathBuf, Uuid>>,
     /// Workspace-scoped blueprint function names per workspace root, so only
     /// the closing workspace's functions are retired from the shared registry.
     pub(crate) ws_functions: RwLock<HashMap<PathBuf, Vec<String>>>,
@@ -190,6 +194,7 @@ impl AppState {
             acl_store,
             running: RwLock::new(HashMap::new()),
             chats: RwLock::new(HashMap::new()),
+            continuation_workers: tokio::sync::Mutex::new(HashMap::new()),
             ws_functions: RwLock::new(HashMap::new()),
             config_tx,
         }
@@ -420,6 +425,7 @@ pub(crate) async fn spawn_execution(
     addon_fragments: Vec<metteur_shared::llm::SystemFragment>,
     version_manager: Option<Arc<crate::storage::versioning::VersionManager>>,
     jobs: Arc<crate::execution::JobManager>,
+    launch: Option<super::launches::LaunchBinding>,
 ) -> Result<tokio_stream::wrappers::ReceiverStream<Result<ExecutionEvent, Status>>, Status> {
     let workspace = state
         .workspaces
@@ -431,6 +437,7 @@ pub(crate) async fn spawn_execution(
         return Err(Status::failed_precondition("workspace already has a running chat"));
     }
     let broker = Arc::new(ApprovalBroker::new());
+    let approval_details=Arc::new(parking_lot::Mutex::new(HashMap::new()));
     {
         // Check and register under one write lock so two concurrent requests
         // cannot both claim the workspace's single execution slot.
@@ -439,10 +446,15 @@ pub(crate) async fn spawn_execution(
             return Err(Status::failed_precondition("workspace already has a running execution"));
         }
         workspace.reconcile_files().map_err(super::to_status)?;
+        if let Some(binding)=&launch {
+            super::launches::admit_launch(state,&workspace,&registry,binding,sink.run_id()).await?;
+        }
         running.insert(
             ws_key.clone(),
             RunningExecution {
+                approval_details:approval_details.clone(),
                 blueprint_id: blueprint.id,
+                continuation_task: launch.as_ref().map(|b|b.task.id),
                 run_id: sink.run_id(),
                 interrupt_bus: Some(interrupt_bus.clone()),
                 pause_requested: pause_flag.clone(),
@@ -463,6 +475,8 @@ pub(crate) async fn spawn_execution(
     let (err_tx, err_rx) = tokio::sync::oneshot::channel();
 
     let lsp_source = workspace.lsp_manager.clone();
+    let launch_for_run=launch.clone();
+    let completion_db=ws_db.clone();
     let interp_tx = event_tx.clone();
     let stream_broker = broker.clone();
     let stream_cancel = cancel_flag.clone();
@@ -478,6 +492,7 @@ pub(crate) async fn spawn_execution(
                 .with_approvals(broker)
                 .with_metrics(run_metrics)
                 .with_workspace_db(ws_db);
+        if let Some(binding)=&launch_for_run {interpreter=interpreter.with_continuation(binding.task.clone(),binding.intent.handoff);}
         if let Some(lsp) = lsp {
             interpreter = interpreter.with_lsp(lsp);
         }
@@ -520,19 +535,25 @@ pub(crate) async fn spawn_execution(
         if killed > 0 {
             tracing::info!("run {run_id} ended; terminated {killed} background job(s)");
         }
+        if let Some(binding)=&launch_for_run {
+            if let Err(error)=super::launches::finalize_launch(binding,&completion_db,run_id,killed>0).await {
+                tracing::warn!("Launch completion requires recovery: {error}");
+            }
+        }
         let _ = err_tx.send(result.map(|_| ()));
     });
     drop(event_tx);
 
     let (out_tx, out_rx) = tokio::sync::mpsc::channel(64);
     let state = state.clone();
+    let host_owned=launch.is_some();
     tokio::spawn(async move {
         let stream_id = uuid::Uuid::new_v4().to_string();
         let mut sequence = 0_u64;
         loop {
             let event = tokio::select! {
                 biased;
-                _ = out_tx.closed() => {
+                _ = out_tx.closed(), if !host_owned => {
                     stream_cancel.store(true, std::sync::atomic::Ordering::SeqCst);
                     stream_broker.close();
                     break;
@@ -543,6 +564,7 @@ pub(crate) async fn spawn_execution(
                 },
             };
             let mut event = proto_event(event);
+            if event.kind=="approval_request" {approval_details.lock().insert(event.message.clone(),event.detail_json.clone());}
             sequence += 1;
             let mut detail: serde_json::Value =
                 serde_json::from_str(&event.detail_json).unwrap_or_else(|_| serde_json::json!({}));
@@ -553,7 +575,7 @@ pub(crate) async fn spawn_execution(
             detail["stream_id"] = serde_json::json!(stream_id);
             detail["sequence"] = serde_json::json!(sequence);
             event.detail_json = detail.to_string();
-            if out_tx.send(Ok(event)).await.is_err() {
+            if out_tx.send(Ok(event)).await.is_err() && !host_owned {
                 stream_cancel.store(true, std::sync::atomic::Ordering::SeqCst);
                 stream_broker.close();
                 break;

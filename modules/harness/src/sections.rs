@@ -60,9 +60,10 @@ pub const PRIORITY_NODE: i32 = 20;
 pub const PRIORITY_APPEND: i32 = 10;
 
 /// The sections every harness prompt carries, in render order.
-pub const STATIC_SECTIONS: [(&str, i32, &str); 6] = [
+pub const STATIC_SECTIONS: [(&str, i32, &str); 7] = [
     ("identity", PRIORITY_IDENTITY, IDENTITY),
     ("tools", PRIORITY_TOOLS, TOOLS),
+        ("runtime_contract", 85, include_str!("prompts/runtime-contract.md")),
     ("coding", PRIORITY_CODING, CODING),
     ("plan", PRIORITY_PLAN, PLAN),
     ("verify", PRIORITY_VERIFY, VERIFY),

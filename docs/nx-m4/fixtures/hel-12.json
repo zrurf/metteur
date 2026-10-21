@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "id": "hel-12",
+  "split": "held_out",
+  "mode": "job",
+  "files": {
+    "evidence.txt": "synthetic_reconnect_same_run\n"
+  },
+  "goal": "Use StartCommand with command {delay_command}. Then call AwaitEvents for its job_id/source with mode any and a deadline 60 seconds from now. Do not poll using commands or sleeps. After the host resumes this same conversation, report the actual source result once. Do not start another job.",
+  "checks": {
+    "continuation": true,
+    "min_dispatches": 1,
+    "max_dispatches": 1,
+    "unchanged": true,
+    "reconnect": true
+  },
+  "limits": {
+    "max_iterations": 7,
+    "max_tokens": 1024,
+    "max_turns": 4,
+    "token_limit": 300000
+  },
+  "seed_digest": "a2f29ec821fa65a49227efb1e21f3d2b1d38bc7cee43adcf6700678230ba5bb8"
+}

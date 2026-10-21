@@ -67,7 +67,7 @@ pub async fn connect(addr: &str, tls: Option<&TlsPaths>) -> anyhow::Result<Daemo
         }
     };
     let channel = endpoint.connect().await.context("failed to connect to daemon")?;
-    let mut client = DaemonClient::new(channel);
+    let mut client = DaemonClient::new(channel).max_decoding_message_size(metteur_proto::MAX_RPC_MESSAGE_BYTES).max_encoding_message_size(metteur_proto::MAX_RPC_MESSAGE_BYTES);
     // Force the TLS handshake and ACL to resolve our identity now, so an
     // authentication failure surfaces here instead of on the first command.
     client.list_workspaces(Empty {}).await.context("preflight check failed")?;

@@ -1,0 +1,66 @@
+{
+  "time_utc": "2026-10-20T17:08:43.620514+00:00",
+  "operation": "GET models; no generation",
+  "alias": "commandcode-flash",
+  "configured_model": "deepseek/deepseek-v4.1-flash",
+  "api_base": "https://api.commandcode.ai/provider/v1",
+  "http_status": 200,
+  "configured_model_listed": true,
+  "deepseek_catalogue": [
+    {
+      "id": "deepseek/deepseek-v4-pro",
+      "name": "DeepSeek V4 Pro (latest)",
+      "context_length": 1000000,
+      "supported_endpoints": [
+        "/chat/completions",
+        "/responses"
+      ]
+    },
+    {
+      "id": "deepseek/deepseek-v4-flash",
+      "name": "DeepSeek V4 Flash (latest)",
+      "context_length": 1000000,
+      "supported_endpoints": [
+        "/chat/completions",
+        "/responses"
+      ]
+    },
+    {
+      "id": "deepseek/deepseek-v4-flash-vision-exp",
+      "name": "DeepSeek V4 Flash Vision (exp)",
+      "context_length": 1000000,
+      "supported_endpoints": [
+        "/chat/completions",
+        "/responses"
+      ]
+    },
+    {
+      "id": "deepseek/deepseek-v4-flash-fast",
+      "name": "DeepSeek V4 Flash Fast",
+      "context_length": 1000000,
+      "supported_endpoints": [
+        "/chat/completions"
+      ]
+    },
+    {
+      "id": "deepseek/deepseek-v4.1-flash",
+      "name": "DeepSeek V4.1 Flash (latest)",
+      "context_length": 1000000,
+      "supported_endpoints": [
+        "/chat/completions",
+        "/responses"
+      ]
+    },
+    {
+      "id": "deepseek/deepseek-v4.1-flash-fast",
+      "name": "DeepSeek V4.1 Flash Fast (latest)",
+      "context_length": 1000000,
+      "supported_endpoints": [
+        "/chat/completions",
+        "/responses"
+      ]
+    }
+  ],
+  "configured_pricing": {},
+  "configured_temperature": null
+}

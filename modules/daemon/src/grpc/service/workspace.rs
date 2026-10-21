@@ -47,6 +47,11 @@ impl DaemonService {
             self.state.workspaces.list().await.len() as u64,
             std::sync::atomic::Ordering::Relaxed,
         );
+        if !already_open {
+            let store=crate::continuation::store::ContinuationStore::new(ws.db.clone(),ws.root()).map_err(to_status)?;
+            store.recover().map_err(to_status)?;
+        }
+        super::continuations::start_monitor(self.state.clone(),ws.root().to_path_buf()).await;
         Ok(Response::new(WorkspaceInfo {
             path: ws.root().to_string_lossy().to_string(),
             locked: true,
@@ -70,6 +75,14 @@ impl DaemonService {
             .map(|ws| ws.root().to_path_buf())
             .ok_or_else(|| Status::not_found("workspace is not open"))?;
         if self.state.running.read().await.contains_key(&root) || self.state.chats.read().await.contains_key(&root) {return Err(Status::failed_precondition("Workspace has an active execution or chat turn"));}
+        self.state.continuation_workers.lock().await.remove(&root);
+        if let Some(ws)=self.state.workspaces.get(&root).await {
+            let store=crate::continuation::store::ContinuationStore::new(ws.db.clone(),ws.root()).map_err(to_status)?;
+            let mut after=None;
+            loop { let page=store.list(after).map_err(to_status)?;if page.is_empty(){break;}
+                for r in page {after=Some(r.task.id);if !matches!(r.task.state,crate::continuation::state::TaskState::Stopped|crate::continuation::state::TaskState::Completed) {store.update(r.task.id,r.revision,|r|{r.task.paused=true;r.task.state=crate::continuation::state::TaskState::Paused;r.task.attention=Some("Workspace closed".into());Ok(())}).map_err(to_status)?;}}
+            }
+        }
         if let Some(host)=&self.state.addon_host {host.close_workspace(&root,&self.state.workspaces).await.map_err(to_status)?;}
         else {self.state.workspaces.close(&root).await.map_err(to_status)?;}
         // Retire exactly this workspace's functions. A name another open

@@ -29,7 +29,7 @@ pub struct ResourceStore { db: Db, prefix: String }
 
 impl ResourceStore {
     pub fn new(db: Db, scope: &ResourceScope, namespace: &str) -> Result<Self> {
-        if !matches!(namespace, "memory" | "prompts" | "snapshots" | "continuations" | "prompt_intents") {
+        if !matches!(namespace, "memory" | "prompts" | "snapshots" | "continuations" | "prompt_intents" | "handoffs" | "launches") {
             return Err(fault("invalid_namespace", "Unknown resource namespace"));
         }
         let owner = digest(&serde_json::to_vec(scope).map_err(storage_error)?);

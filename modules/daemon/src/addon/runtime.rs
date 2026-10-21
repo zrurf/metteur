@@ -45,9 +45,10 @@ impl Permission {
 pub struct InvocationContext {
     /// Runtime handle captured before entering `spawn_blocking`.
     pub runtime: tokio::runtime::Handle,
+    pub parent_cancel: Arc<std::sync::atomic::AtomicBool>,
     pub permissions: HashSet<Permission>,
     pub execution: parking_lot::Mutex<crate::execution::context::ExecutionContext>,
-    pub http: reqwest::blocking::Client,
+    pub http: reqwest::Client,
 }
 
 // Keep host-owned reasons typed across Wasmtime's backtrace wrapper. Only
@@ -97,7 +98,32 @@ type Ctx = Arc<InvocationContext>;
 
 fn shared(user_data: UserData<Ctx>) -> Result<Ctx, extism::Error> {
     let inner = user_data.get().map_err(host_error)?;
-    inner.lock().map(|guard| guard.clone()).map_err(|_| extism::Error::msg("context poisoned"))
+    let ctx = inner.lock().map(|guard| guard.clone()).map_err(|_| extism::Error::msg("context poisoned"))?;
+    ensure_running(&ctx)?;
+    Ok(ctx)
+}
+
+pub(super) struct CancelOnDrop(pub Arc<std::sync::atomic::AtomicBool>);
+impl Drop for CancelOnDrop {
+    fn drop(&mut self) { self.0.store(true, std::sync::atomic::Ordering::SeqCst); }
+}
+fn ensure_running(ctx: &InvocationContext) -> Result<(), extism::Error> {
+    use std::sync::atomic::Ordering;
+    if ctx.parent_cancel.load(Ordering::SeqCst)
+        || ctx.execution.lock().cancel_requested.load(Ordering::SeqCst) {
+        return Err(denied("addon invocation cancelled"));
+    }
+    Ok(())
+}
+struct CallMonitor {
+    done: Arc<std::sync::atomic::AtomicBool>,
+    thread: Option<std::thread::JoinHandle<()>>,
+}
+impl Drop for CallMonitor {
+    fn drop(&mut self) {
+        self.done.store(true, std::sync::atomic::Ordering::SeqCst);
+        if let Some(thread) = self.thread.take() { let _ = thread.join(); }
+    }
 }
 
 extism::host_fn!(hf_log(user_data: Ctx; level: String, message: String) -> () {
@@ -130,7 +156,8 @@ extism::host_fn!(hf_call_tool(user_data: Ctx; name: String, args_json: String) -
         _ => serde_json::Map::new(),
     };
     let path=object.get("path").and_then(Value::as_str).ok_or_else(||denied("explicit file path required"))?;
-    file_path(&exec_ctx,path)?;
+    let resolved = file_path(&exec_ctx,path)?;
+    if name != "ListDirectory" && resolved.exists() && !std::fs::metadata(&resolved).map_err(host_error)?.is_file() { return Err(denied("Addon file tools require regular files")); }
     let values = vec![metteur_shared::Value::Json(Value::Object(object))];
     let result = ctx.runtime.block_on(tool.call(&values, &mut exec_ctx));
     let result = result.map_err(host_error)?;
@@ -142,10 +169,12 @@ extism::host_fn!(hf_fs_read(user_data: Ctx; path: String) -> Vec<u8> {
     require(&ctx.permissions, Permission::FsRead, "fs:read")?;
     let mut execution=ctx.execution.lock();
     let resolved=file_path(&execution,&path)?;
+    if !std::fs::metadata(&resolved).map_err(host_error)?.is_file() { return Err(denied("Addon reads require regular files")); }
     let mut file=std::fs::File::open(&resolved).map_err(host_error)?;
     use std::io::Read;
     let mut bytes=vec![]; (&mut file).take(1024*1024+1).read_to_end(&mut bytes).map_err(host_error)?;
     if bytes.len()>1024*1024 { return Err(denied("file exceeds addon read limit")); }
+    if ctx.parent_cancel.load(std::sync::atomic::Ordering::SeqCst) || execution.cancel_requested.load(std::sync::atomic::Ordering::SeqCst) { return Err(denied("addon invocation cancelled")); }
     execution.note_full_read([resolved]);
     Ok(bytes)
 });
@@ -156,8 +185,13 @@ extism::host_fn!(hf_fs_write(user_data: Ctx; path: String, data: Vec<u8>) -> () 
     if data.len()>1024*1024 { return Err(denied("file exceeds addon write limit")); }
     let mut execution=ctx.execution.lock();
     let resolved=file_path(&execution,&path)?;
+    if resolved.exists() && !std::fs::metadata(&resolved).map_err(host_error)?.is_file() { return Err(denied("Addon writes require regular files")); }
     if !ctx.runtime.block_on(crate::sandbox::authorize_write(&execution,&resolved,&path,"Addon file write")).map_err(host_error)? {
         return Err(denied("file write approval"));
+    }
+    if ctx.parent_cancel.load(std::sync::atomic::Ordering::SeqCst)
+        || execution.cancel_requested.load(std::sync::atomic::Ordering::SeqCst) {
+        return Err(denied("addon invocation cancelled"));
     }
     execution.write_file(&resolved,&data,None).map_err(host_error)?;
     Ok(())
@@ -187,17 +221,32 @@ extism::host_fn!(hf_http_request(
             }
         }
     }
-    let response = request.body(body).send().map_err(host_error)?;
-    let status = response.status().as_u16();
-    use std::io::Read;
-    let mut body_bytes=vec![];
-    response.take(1024*1024+1).read_to_end(&mut body_bytes).map_err(host_error)?;
-    if body_bytes.len()>1024*1024 { return Err(denied("HTTP response exceeds addon limit")); }
-    Ok(serde_json::json!({
-        "status": status,
-        "body_base64": base64_encode(&body_bytes),
+    // Sending a request can have remote effects even when no response arrives.
+    // Record uncertainty rather than making a retry-safe claim.
+    ctx.execution.lock().audit("addon.http.started", serde_json::json!({"method":method,"external_effects":"unknown_until_reconciled"}));
+    // The Wasm host callback is synchronous, but network I/O runs on the host
+    // runtime and is raced against cancellation. Dropping the request stops local
+    // waiting; it does not retract an already-sent remote side effect.
+    ctx.runtime.block_on(async {
+        let transfer = async {
+            let mut response = request.body(body).send().await.map_err(host_error)?;
+            let status = response.status().as_u16();
+            let mut bytes = Vec::new();
+            while let Some(chunk) = response.chunk().await.map_err(host_error)? {
+                if bytes.len() + chunk.len() > 1024 * 1024 { return Err(denied("HTTP response exceeds addon limit")); }
+                bytes.extend_from_slice(&chunk);
+            }
+            ensure_running(&ctx)?;
+            Ok(serde_json::json!({"status":status,"body_base64":base64_encode(&bytes)}).to_string())
+        };
+        let cancellation = async {
+            loop { if ensure_running(&ctx).is_err() { break; } tokio::time::sleep(std::time::Duration::from_millis(10)).await; }
+        };
+        tokio::select! { biased;
+            _ = cancellation => Err(denied("addon network request cancelled; external effects may have occurred")),
+            result = transfer => result,
+        }
     })
-    .to_string())
 });
 
 extism::host_fn!(hf_llm_complete(
@@ -321,7 +370,7 @@ pub fn invoke(
     if input_json.len() > 1024 * 1024 {
         return Err(DaemonError::Addon("Addon input exceeds limit".into()));
     }
-    let wasm_manifest = bounded_manifest(
+    let mut wasm_manifest = bounded_manifest(
         wasm,
         manifest.call_timeout_ms(if fallback_timeout_ms == 0 {
             DEFAULT_CALL_TIMEOUT_MS
@@ -329,7 +378,12 @@ pub fn invoke(
             fallback_timeout_ms
         }),
     );
-    let user_data = UserData::new(call_context);
+    let active_timeout = std::time::Duration::from_millis(wasm_manifest.timeout_ms.unwrap());
+    // Extism wall timeout continues through synchronous host callbacks. Use
+    // its real cancellation handle with a host-owned active-time clock instead.
+    wasm_manifest.timeout_ms = None;
+    ensure_running(&call_context).map_err(|_| DaemonError::Addon("Addon cancelled before start".into()))?;
+    let user_data = UserData::new(call_context.clone());
 
     let mut plugin = PluginBuilder::new(wasm_manifest)
         .with_wasi(true)
@@ -348,6 +402,31 @@ pub fn invoke(
         .build()
         .map_err(|err| DaemonError::Addon(format!("plugin init failed: {err}")))?;
 
+    let (cancel, wait_clock) = {
+        let execution = call_context.execution.lock();
+        (execution.cancel_requested.clone(), execution.approval_wait_clock.clone())
+    };
+    let cancel_handle = plugin.cancel_handle();
+    let parent_cancel = call_context.parent_cancel.clone();
+    let done = Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let monitor_done = done.clone();
+    let invocation_cancel = cancel.clone();
+    let thread = std::thread::spawn(move || {
+        use std::sync::atomic::Ordering;
+        let start = std::time::Instant::now();
+        while !monitor_done.load(Ordering::SeqCst) {
+            let human_wait = wait_clock.as_ref().map(|clock| clock.elapsed()).unwrap_or_default();
+            if parent_cancel.load(Ordering::SeqCst) || invocation_cancel.load(Ordering::SeqCst)
+                || start.elapsed().saturating_sub(human_wait) >= active_timeout {
+                invocation_cancel.store(true, Ordering::SeqCst);
+                // Re-send until the worker returns: cancellation may precede
+                // Extism's Start event. Never treat the signal as termination.
+                let _ = cancel_handle.cancel();
+            }
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+    });
+    let _monitor = CallMonitor { done, thread: Some(thread) };
     let output: Vec<u8> = plugin
         .call(function, input_json)
         .map_err(|err| {
@@ -356,6 +435,8 @@ pub fn invoke(
                 .unwrap_or_else(|| err.to_string());
             DaemonError::Addon(format!("addon call '{function}' failed: {reason}"))
         })?;
+    ensure_running(&call_context).map_err(|_| DaemonError::Addon(
+        "Addon cancelled or timed out; inspect recorded effects before retrying".into()))?;
     if output.len() > 1024 * 1024 {
         return Err(DaemonError::Addon("Addon output exceeds limit".into()));
     }

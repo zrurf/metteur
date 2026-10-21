@@ -310,7 +310,8 @@ async fn signature_policy_and_portable_paths_are_checked_before_install() {
     }
 }
 
-fn write_wasm(path: &str) -> Vec<u8> {
+fn write_wasm(path: &str) -> Vec<u8> { write_wasm_tail(path, "") }
+fn write_wasm_tail(path: &str, tail: &str) -> Vec<u8> {
     fn allocation(text: &str, local: &str) -> String {
         let stores = text
             .bytes()
@@ -330,7 +331,7 @@ fn write_wasm(path: &str) -> Vec<u8> {
       (import "extism:host/user" "fs_write" (func $write (param i64 i64)))
       (func (export "run") (result i32) (local $path i64) (local $data i64) (local $result i64)
         {} {} {} local.get $path local.get $data call $write
-        local.get $result i64.const 4 call $output i32.const 0))"#,
+        local.get $result i64.const 4 call $output {tail} i32.const 0))"#,
         allocation(path, "path"),
         allocation("written by addon", "data"),
         allocation("true", "result")
@@ -388,5 +389,226 @@ async fn actual_wasm_file_host_requires_grant_original_approval_and_safe_path() 
         } else if !path.starts_with("..") {
             assert!(!base.join(path).exists(), "{id}");
         }
+    }
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn nx38_human_wait_is_separate_and_late_approval_cannot_write() {
+    use crate::sandbox::{approval::{ApprovalBroker, Decision, Scope}, grant::GrantStore};
+    use std::sync::atomic::Ordering;
+    for cancelled in [false, true] {
+        let base = root();
+        let host = host(&base);
+        let source = package(&base, "com.test.wait", "test", r#""fs:write""#);
+        let path = source.join("manifest.toml");
+        let manifest = std::fs::read_to_string(&path).unwrap().replace("[addon]", "[addon]\ncall_timeout_ms = 200");
+        std::fs::write(path, manifest).unwrap();
+        std::fs::write(source.join("main.wasm"), write_wasm("result.txt")).unwrap();
+        host.install(&source, Some(&base), &["fs:write".into()]).await.unwrap();
+        let registry = host.registry_for(Some(&base), false).await.unwrap();
+        let tool = registry.tool("ComTestWaitReadValue").unwrap();
+        let mut ctx = ExecutionContext::new(registry, LlmClientFactory::new(), base.clone());
+        let broker = Arc::new(ApprovalBroker::new());
+        ctx.approvals = Some(broker.clone());
+        ctx.permission_mode = crate::sandbox::PermissionMode::Ask;
+        let cancel = ctx.cancel_requested.clone();
+        let job = tokio::spawn(async move { tool.call(&[], &mut ctx).await });
+        let id = tokio::time::timeout(std::time::Duration::from_secs(5), async {
+            loop {
+                if let Some(id) = broker.pending_ids().first() { break id.clone(); }
+                tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+            }
+        }).await.unwrap();
+        // Longer than the active execution budget, shorter than human expiry.
+        tokio::time::sleep(std::time::Duration::from_millis(350)).await;
+        assert!(!job.is_finished(), "human wait consumed active timeout");
+        if cancelled {
+            cancel.store(true, Ordering::SeqCst);
+            let result = tokio::time::timeout(std::time::Duration::from_secs(3), job).await.unwrap().unwrap();
+            assert!(result.is_err());
+            assert!(broker.respond(&id, Decision::Allow, Scope::Once, &GrantStore::default()).is_err());
+            assert!(!base.join("result.txt").exists());
+        } else {
+            broker.respond(&id, Decision::Allow, Scope::Once, &GrantStore::default()).unwrap();
+            assert!(tokio::time::timeout(std::time::Duration::from_secs(3), job).await.unwrap().unwrap().is_ok());
+            assert_eq!(std::fs::read_to_string(base.join("result.txt")).unwrap(), "written by addon");
+        }
+    }
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn nx38_cpu_timeout_preserves_completed_file_effects() {
+    let base = root();
+    let host = host(&base);
+    let source = package(&base, "com.test.timeout", "test", r#""fs:write""#);
+    let path = source.join("manifest.toml");
+    let manifest = std::fs::read_to_string(&path).unwrap().replace("[addon]", "[addon]\ncall_timeout_ms = 100");
+    std::fs::write(path, manifest).unwrap();
+    // Add an endless loop after the real host write, before returning.
+    std::fs::write(source.join("main.wasm"), write_wasm_tail("written-before-timeout.txt", "(loop $forever (br $forever))")).unwrap();
+    host.install(&source, Some(&base), &["fs:write".into()]).await.unwrap();
+    let registry = host.registry_for(Some(&base), false).await.unwrap();
+    let tool = registry.tool("ComTestTimeoutReadValue").unwrap();
+    let mut ctx = ExecutionContext::new(registry, LlmClientFactory::new(), base.clone());
+    let result = tokio::time::timeout(std::time::Duration::from_secs(5), tool.call(&[], &mut ctx)).await.unwrap();
+    assert!(result.is_err());
+    assert_eq!(std::fs::read_to_string(base.join("written-before-timeout.txt")).unwrap(), "written by addon");
+    assert!(!ctx.mutated_paths.is_empty(), "timeout must retain effects for reconciliation");
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn nx38_stop_interrupts_cpu_without_cancelling_parent_for_timeout() {
+    use std::sync::atomic::Ordering;
+    let base = root();
+    let host = host(&base);
+    let source = package(&base, "com.test.stop", "test", r#""fs:write""#);
+    let path = source.join("manifest.toml");
+    let manifest = std::fs::read_to_string(&path).unwrap().replace("[addon]", "[addon]\ncall_timeout_ms = 30000");
+    std::fs::write(path, manifest).unwrap();
+    std::fs::write(source.join("main.wasm"), write_wasm_tail("started.txt", "(loop $forever (br $forever))")).unwrap();
+    host.install(&source, Some(&base), &["fs:write".into()]).await.unwrap();
+    let registry = host.registry_for(Some(&base), false).await.unwrap();
+    let tool = registry.tool("ComTestStopReadValue").unwrap();
+    let mut ctx = ExecutionContext::new(registry, LlmClientFactory::new(), base.clone());
+    let cancel = ctx.cancel_requested.clone();
+    let job = tokio::spawn(async move { tool.call(&[], &mut ctx).await });
+    tokio::time::timeout(std::time::Duration::from_secs(5), async {
+        while !base.join("started.txt").exists() { tokio::time::sleep(std::time::Duration::from_millis(10)).await; }
+    }).await.unwrap();
+    cancel.store(true, Ordering::SeqCst);
+    assert!(tokio::time::timeout(std::time::Duration::from_secs(2), job).await.unwrap().unwrap().is_err());
+}
+
+#[tokio::test]
+async fn nx39_signed_page_binding_schema_replay_and_disable() {
+    let base=root();let host=host(&base);
+    let source=package(&base,"com.test.page","page","");
+    let path=source.join("manifest.toml");
+    let mut text=std::fs::read_to_string(&path).unwrap();
+    text.push_str("\n[[pages]]\nid=\"inspector\"\ntitle=\"Inspector\"\nentry=\"page.html\"\nbridge_version=1\ncapabilities=[\"theme\",\"resize\"]\n");
+    std::fs::write(&path,text).unwrap();std::fs::write(source.join("page.html"),"<!doctype html><h1>Inspector</h1>").unwrap();
+    assert!(host.install(&source,Some(&base),&[]).await.is_err(),"unsigned pages must fail");
+    let key=ed25519_dalek::SigningKey::from_bytes(&[19;32]);
+    std::fs::write(source.join("signature.toml"),signature::sign_package(&source,&key).unwrap()).unwrap();
+    let info=host.install(&source,Some(&base),&[]).await.unwrap();
+    let open=host.page_request(&base,"alice",ui::PageRequest::Open{package_id:"com.test.page".into(),page_id:"inspector".into(),expected_digest:info.fingerprint}).await.unwrap();
+    let id=serde_json::from_value(open["instance_id"].clone()).unwrap();let nonce=serde_json::from_value(open["nonce"].clone()).unwrap();
+    let request_id=uuid::Uuid::new_v4();
+    let message=||ui::PageRequest::Message{instance_id:id,nonce,message:ui::BridgeMessage{bridge_version:1,request_id,method:"theme".into(),params:serde_json::json!({"mode":"dark"})}};
+    assert!(host.page_request(&base,"bob",message()).await.is_err());
+    assert!(host.page_request(&base,"alice",message()).await.is_ok());
+    assert!(host.page_request(&base,"alice",message()).await.is_err(),"replay denied");
+    for payload in [
+        serde_json::json!({"bridge_version":1,"request_id":uuid::Uuid::new_v4(),"method":"theme","params":{"mode":"dark"},"approval":true}),
+        serde_json::json!({"bridge_version":1,"request_id":uuid::Uuid::new_v4(),"method":"theme","params":{"mode":"dark"},"workspace":"elsewhere"}),
+    ] {assert!(serde_json::from_value::<ui::BridgeMessage>(payload).is_err());}
+    let attack=ui::PageRequest::Message{instance_id:id,nonce,message:ui::BridgeMessage{bridge_version:1,request_id:uuid::Uuid::new_v4(),method:"approve_launch".into(),params:serde_json::json!({})}};
+    assert!(host.page_request(&base,"alice",attack).await.is_err());
+    let wrong_nonce=ui::PageRequest::Message{instance_id:id,nonce:uuid::Uuid::new_v4(),message:ui::BridgeMessage{bridge_version:1,request_id:uuid::Uuid::new_v4(),method:"theme".into(),params:serde_json::json!({"mode":"dark"})}};
+    assert!(host.page_request(&base,"alice",wrong_nonce).await.is_err());
+    let injected=ui::PageRequest::Message{instance_id:id,nonce,message:ui::BridgeMessage{bridge_version:1,request_id:uuid::Uuid::new_v4(),method:"theme".into(),params:serde_json::json!({"mode":"dark","approval":true})}};
+    assert!(host.page_request(&base,"alice",injected).await.is_err());
+    host.set_enabled("com.test.page",false,Some(&base)).await.unwrap();
+    assert!(host.page_request(&base,"alice",message()).await.is_err());
+}
+
+#[tokio::test]
+async fn nx41_selected_source_report_review_and_changed_revision() {
+    let base=root();let host=host(&base);
+    let source=base.join("inspector-package");std::fs::create_dir_all(&source).unwrap();
+    std::fs::write(source.join("manifest.toml"),include_str!("../../../../examples/addons/preview-inspector/manifest.toml")).unwrap();
+    std::fs::write(source.join("page.html"),include_str!("../../../../examples/addons/preview-inspector/page.html")).unwrap();
+    // Public, deterministic fixture key; never a production trust credential.
+    let key=ed25519_dalek::SigningKey::from_bytes(&[23;32]);
+    std::fs::write(source.join("signature.toml"),signature::sign_package(&source,&key).unwrap()).unwrap();
+    let info=host.install(&source,Some(&base),&[]).await.unwrap();
+    std::fs::create_dir_all(base.join(".metteur")).unwrap();
+    std::fs::write(base.join(".metteur/preview-targets.json"),r#"[{"id":"home","title":"Local sample","revision":1,"file":"preview.html"}]"#).unwrap();
+    std::fs::write(base.join("preview.html"),"<!doctype html><html lang=\"en\"><title>Sample</title><meta name=\"viewport\" content=\"width=device-width\"><h1>Sample</h1></html>").unwrap();
+    let opened=host.page_request(&base,"alice",ui::PageRequest::Open{package_id:"com.metteur.preview".into(),page_id:"inspector".into(),expected_digest:info.fingerprint}).await.unwrap();
+    let id=serde_json::from_value(opened["instance_id"].clone()).unwrap();let nonce=serde_json::from_value(opened["nonce"].clone()).unwrap();
+    host.page_request(&base,"alice",ui::PageRequest::SelectTarget{instance_id:id,nonce,target_id:"home".into()}).await.unwrap();
+    let report=host.page_request(&base,"alice",ui::PageRequest::Message{instance_id:id,nonce,message:ui::BridgeMessage{bridge_version:1,request_id:uuid::Uuid::new_v4(),method:"inspect_selected".into(),params:serde_json::json!({})}}).await.unwrap()["result"].clone();
+    assert_eq!(report["checks"].as_array().unwrap().len(),4);
+    assert_eq!(report["browser_checks"],"not_configured");assert!(report["model_opinion"].is_null());
+    let review=||ui::PageRequest::Review{instance_id:id,nonce,report_id:serde_json::from_value(report["id"].clone()).unwrap(),expected_digest:report["digest"].as_str().unwrap().into(),accepted:true};
+    let accepted=host.page_request(&base,"alice",review()).await.unwrap();
+    assert_eq!(accepted["human_acceptance"]["permission_grant"],false);
+    assert_eq!(std::fs::read_dir(base.join("data/addon-state/inspection-reports")).unwrap().count(),3);
+    std::fs::write(base.join("preview.html"),"changed").unwrap();
+    assert!(host.page_request(&base,"alice",review()).await.is_err());
+    // Optional artifact copy for the isolated native demonstration only.
+    if let Ok(out)=std::env::var("NX_M5_FIXTURE_OUT") {
+        let out=PathBuf::from(out);std::fs::create_dir_all(&out).unwrap();
+        for name in ["manifest.toml","page.html","signature.toml"]{std::fs::copy(source.join(name),out.join(name)).unwrap();}
+    }
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn nx38_slow_http_stop_and_timeout_do_not_run_following_mutation() {
+    use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt};
+    use std::sync::atomic::Ordering;
+    fn allocation(text: &str, local: &str) -> String {
+        let stores = text.bytes().enumerate().map(|(i,b)|format!("local.get ${local} i64.const {i} i64.add i32.const {b} call $store")).collect::<Vec<_>>().join(" ");
+        format!("i64.const {} call $alloc local.set ${local} {stores}", text.len())
+    }
+    for stop in [true, false] {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let url = format!("http://{}/slow", listener.local_addr().unwrap());
+        let (sent, received) = tokio::sync::oneshot::channel();
+        let server = tokio::spawn(async move {
+            let (socket, _) = listener.accept().await.unwrap();
+            let mut request = tokio::io::BufReader::new(socket);
+            let mut header_bytes = 0;
+            let mut content_length = 0;
+            loop {
+                let mut line = String::new();
+                let read = request.read_line(&mut line).await.unwrap();
+                assert!(read > 0, "request ended before its headers");
+                header_bytes += read;
+                assert!(header_bytes <= 16 * 1024, "fixture request headers exceed limit");
+                if line == "\r\n" {
+                    break;
+                }
+                if let Some((name, value)) = line.split_once(':')
+                    && name.eq_ignore_ascii_case("content-length")
+                {
+                    content_length = value.trim().parse::<usize>().unwrap();
+                }
+            }
+            assert!(content_length <= 4096, "fixture request body exceeds limit");
+            let mut body = vec![0; content_length];
+            request.read_exact(&mut body).await.unwrap();
+            let mut socket = request.into_inner();
+            socket.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 4\r\n\r\n").await.unwrap();
+            let _ = sent.send(());
+            tokio::time::sleep(std::time::Duration::from_secs(3)).await;
+            let _ = socket.write_all(b"slow").await;
+        });
+        let base=root(); let host=host(&base);
+        let source=package(&base,"com.test.slow","test",r#""network","fs:write""#);
+        let p=source.join("manifest.toml"); let text=std::fs::read_to_string(&p).unwrap().replace("[addon]",&format!("[addon]\ncall_timeout_ms = {}",if stop {30000}else{250}));std::fs::write(p,text).unwrap();
+        let wasm=wat::parse_str(format!(r#"(module
+          (import "extism:host/env" "alloc" (func $alloc (param i64) (result i64)))
+          (import "extism:host/env" "store_u8" (func $store (param i64 i32)))
+          (import "extism:host/user" "http_request" (func $http (param i64 i64 i64 i64) (result i64)))
+          (import "extism:host/user" "fs_write" (func $write (param i64 i64)))
+          (func (export "run") (result i32) (local $method i64)(local $url i64)(local $headers i64)(local $body i64)(local $path i64)
+          {} {} {} {} {}
+          local.get $method local.get $url local.get $headers local.get $body call $http drop
+          local.get $path local.get $body call $write i32.const 0))"#,
+          allocation("GET","method"),allocation(&url,"url"),allocation("{}","headers"),allocation("test","body"),allocation("must-not-exist.txt","path"))).unwrap();
+        std::fs::write(source.join("main.wasm"),wasm).unwrap();
+        host.install(&source,Some(&base),&["network".into(),"fs:write".into()]).await.unwrap();
+        let registry=host.registry_for(Some(&base),false).await.unwrap();let tool=registry.tool("ComTestSlowReadValue").unwrap();
+        let mut ctx=ExecutionContext::new(registry,LlmClientFactory::new(),base.clone());let cancel=ctx.cancel_requested.clone();
+        let job=tokio::spawn(async move { tool.call(&[],&mut ctx).await });
+        tokio::time::timeout(std::time::Duration::from_secs(5),received).await.unwrap().unwrap();
+        let start=std::time::Instant::now();if stop {cancel.store(true,Ordering::SeqCst);}
+        let result=tokio::time::timeout(std::time::Duration::from_secs(2),job).await.unwrap().unwrap();
+        assert!(result.is_err());assert!(!base.join("must-not-exist.txt").exists());
+        if !stop {assert!(!cancel.load(Ordering::SeqCst),"local timeout cannot cancel parent");}
+        eprintln!("slow_http mode={} return_ms={} subsequent_write=false",if stop {"stop"}else{"timeout"},start.elapsed().as_millis());
+        server.abort();
     }
 }

@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "id": "dev-01",
+  "split": "development",
+  "mode": "chat",
+  "files": {
+    "app.py": "ROLE = \"application\"\nMARKER = \"synthetic_inventory_42\"\n",
+    "test_app.py": "ROLE = \"test\"\n"
+  },
+  "goal": "Read app.py and test_app.py. Report their roles and the exact MARKER. Make no changes.",
+  "checks": {
+    "unchanged": true,
+    "answer_contains": [
+      "synthetic_inventory_42",
+      "app.py",
+      "test_app.py"
+    ]
+  },
+  "limits": {
+    "max_iterations": 7,
+    "max_tokens": 1024,
+    "max_turns": 4,
+    "token_limit": 300000
+  },
+  "seed_digest": "2ed8e0900b3c940cc72ffa830d31d4e952371b7f8c4a41ab77bd6a930571e30c"
+}

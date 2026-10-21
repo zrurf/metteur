@@ -63,6 +63,33 @@ impl Db {
         let mut options = rocksdb::WriteOptions::default(); options.set_sync(true);
         self.inner.write_opt(batch, &options).map_err(|e| DaemonError::Persistence(e.to_string()))
     }
+    pub fn chat_revision(&self, session: &[u8]) -> DaemonResult<u64> {
+        let key = [b"nx/v1/chat-revision/".as_slice(), session].concat();
+        self.get(cf::EXECUTION_STATE, &key)?.map(|raw| serde_json::from_slice(&raw).map_err(|e| DaemonError::Persistence(e.to_string()))).transpose().map(|v| v.unwrap_or(0))
+    }
+
+    /// The caller holds resource_gate. Session revisions are outside rewind data.
+    pub(crate) fn continuation_batch(&self, values: &[(Vec<u8>, Vec<u8>)], session: Option<(&[u8], &[u8], u64)>) -> DaemonResult<()> {
+        let resources = self.inner.cf_handle(cf::EXECUTION_STATE).ok_or_else(|| DaemonError::Persistence("Missing resource family".into()))?;
+        let mut batch = rocksdb::WriteBatch::default();
+        for (key, value) in values { batch.put_cf(resources, key, value); }
+        if let Some((id, data, expected)) = session {
+            let current = self.chat_revision(id)?;
+            if current != expected { return Err(DaemonError::Execution("Session revision changed".into())); }
+            let revision = current.checked_add(1).ok_or_else(|| DaemonError::Persistence("Session revision exhausted".into()))?;
+            let threads = self.inner.cf_handle(cf::CHAT_THREADS).ok_or_else(|| DaemonError::Persistence("Missing chat family".into()))?;
+            batch.put_cf(threads, id, data);
+            batch.put_cf(resources, [b"nx/v1/chat-revision/".as_slice(), id].concat(), serde_json::to_vec(&revision).map_err(|e| DaemonError::Persistence(e.to_string()))?);
+        }
+        let mut options = rocksdb::WriteOptions::default(); options.set_sync(true);
+        self.inner.write_opt(batch, &options).map_err(|e| DaemonError::Persistence(e.to_string()))
+    }
+
+    pub fn save_chat_revision(&self, id: &[u8], data: &[u8]) -> DaemonResult<()> {
+        let _guard = self.resource_gate.lock().map_err(|_| DaemonError::Persistence("Session revision lock unavailable".into()))?;
+        self.continuation_batch(&[], Some((id, data, self.chat_revision(id)?)))
+    }
+
     /// Atomically replaces a chat thread and removes invalidated checkpoints.
     pub fn commit_chat_rewind(
         &self,
@@ -70,6 +97,9 @@ impl Db {
         data: &[u8],
         obsolete: &[Vec<u8>],
     ) -> DaemonResult<()> {
+        let _guard = self.resource_gate.lock().map_err(|_| DaemonError::Persistence("Session revision lock unavailable".into()))?;
+        let revision = self.chat_revision(session_id)?.checked_add(1).ok_or_else(|| DaemonError::Persistence("Session revision exhausted".into()))?;
+        let resources = self.inner.cf_handle(cf::EXECUTION_STATE).ok_or_else(|| DaemonError::Persistence("Missing resource family".into()))?;
         let threads = self
             .inner
             .cf_handle(cf::CHAT_THREADS)
@@ -80,6 +110,7 @@ impl Db {
             .ok_or_else(|| DaemonError::Internal("missing chat checkpoints family".into()))?;
         let mut batch = rocksdb::WriteBatch::default();
         batch.put_cf(threads, session_id, data);
+        batch.put_cf(resources, [b"nx/v1/chat-revision/".as_slice(), session_id].concat(), serde_json::to_vec(&revision).map_err(|e| DaemonError::Persistence(e.to_string()))?);
         for key in obsolete {
             batch.delete_cf(checkpoints, key);
         }
@@ -126,6 +157,9 @@ impl Db {
 
     /// Creates a consistent checkpoint without copying a live database directory.
     pub fn checkpoint(&self, path: &Path) -> DaemonResult<()> {
+        // As with opening a database, RocksDB needs the ordinary Windows path:
+        // its checkpoint implementation appends '/' before linking each file.
+        let path = normalize_path(path);
         rocksdb::checkpoint::Checkpoint::new(&self.inner)
             .and_then(|checkpoint| checkpoint.create_checkpoint(path))
             .map_err(|e| DaemonError::Persistence(e.to_string()))
@@ -244,5 +278,19 @@ mod tests {
         let db = Db::open(&dir).unwrap();
         db.put(cf::BLUEPRINTS, b"key1", b"value1").unwrap();
         assert_eq!(db.get(cf::BLUEPRINTS, b"key1").unwrap().unwrap(), b"value1");
+    }
+
+    #[test]
+    fn canonical_checkpoint_preserves_live_data() {
+        let root = std::env::temp_dir().join(format!("metteur-db-checkpoint-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&root).unwrap();
+        let db = Db::open(&root.join("source")).unwrap();
+        db.put_durable(cf::BLUEPRINTS, b"key", b"before").unwrap();
+        let checkpoint = root.canonicalize().unwrap().join("checkpoint");
+        db.checkpoint(&checkpoint).unwrap();
+        db.put_durable(cf::BLUEPRINTS, b"key", b"after").unwrap();
+        let restored = Db::open(&checkpoint).unwrap();
+        assert_eq!(restored.get(cf::BLUEPRINTS, b"key").unwrap().unwrap(), b"before");
+        assert_eq!(db.get(cf::BLUEPRINTS, b"key").unwrap().unwrap(), b"after");
     }
 }

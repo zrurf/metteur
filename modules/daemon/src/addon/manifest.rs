@@ -136,6 +136,18 @@ pub struct FunctionEntry {
     pub dependencies: Vec<String>,
 }
 
+#[derive(Debug, Clone, Deserialize, serde::Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct PageEntry {
+    pub id: String,
+    pub title: String,
+    /// Self-contained HTML; no external resource or network access.
+    pub entry: String,
+    pub bridge_version: u32,
+    #[serde(default)]
+    pub capabilities: Vec<String>,
+}
+
 /// The parsed and validated `manifest.toml`.
 #[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -173,6 +185,8 @@ pub struct Manifest {
     pub nodes: Vec<NodeEntry>,
     #[serde(default)]
     pub functions: Vec<FunctionEntry>,
+    #[serde(default)]
+    pub pages: Vec<PageEntry>,
 }
 
 #[derive(Debug, Clone, Default, Deserialize)]
@@ -250,12 +264,28 @@ impl Manifest {
             && (!self.tools.is_empty()
                 || !self.hooks.is_empty()
                 || !self.nodes.is_empty()
-                || (self.mcp.is_empty() && self.lsp.is_empty() && self.functions.is_empty()))
+                || (self.mcp.is_empty() && self.lsp.is_empty() && self.functions.is_empty() && self.pages.is_empty()))
         {
             return Err(DaemonError::Addon("[addon] entry is required".to_string()));
         }
         if !self.addon.entry.is_empty() {
             package_file(files, &self.addon.entry)?;
+        }
+        if self.pages.len() > 8 { return Err(DaemonError::Addon("Addon page limit exceeded".into())); }
+        let mut page_ids = HashSet::new();
+        for page in &self.pages {
+            if page.id.is_empty() || page.id.len() > 64
+                || !page.id.bytes().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == b'-')
+                || !page_ids.insert(&page.id) || page.title.trim().is_empty() || page.title.len() > 120
+                || page.bridge_version != 1 || !page.entry.ends_with(".html")
+                || page.capabilities.len() > 5
+                || page.capabilities.iter().any(|c| !matches!(c.as_str(), "theme"|"resize"|"selected-preview"|"inspect-preview"|"own-reports")) {
+                return Err(DaemonError::Addon("Invalid addon page declaration".into()));
+            }
+            let bytes = package_file(files, &page.entry)?;
+            if bytes.len() > 256 * 1024 || std::str::from_utf8(bytes).is_err() {
+                return Err(DaemonError::Addon("Addon page must be bounded UTF-8 HTML".into()));
+            }
         }
         let mut names = HashSet::new();
         for tool in &self.tools {

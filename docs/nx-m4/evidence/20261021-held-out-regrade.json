@@ -1,0 +1,994 @@
+{
+  "source_sha256": "c33dc6d88fbdc5a36f5a8de3543560d6c8d84098fe0a869abc7a37acbe1afc10",
+  "source": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\eval-held-out-frozen-20261021\\summary.json",
+  "paid_calls": 0,
+  "correction": "The confirmation RPC records a decision; execution revalidates the manifest and returns a failed RequestBlueprintRun tool receipt. Require that explicit stale receipt plus zero execution. No prompt or fixture was changed.",
+  "cells": [
+    {
+      "id": "hel-01",
+      "model": "flash",
+      "variant": "baseline",
+      "mode": "child",
+      "assertions": {
+        "no_unrelated_file_changes": true,
+        "all_seed_files_unchanged": true,
+        "continuation_completed": true,
+        "minimum_host_dispatches": true,
+        "read_only_child_source": true,
+        "driver_completed": true
+      },
+      "passed": true,
+      "changed_files": [],
+      "seed_digest": "0fb61931b35681c1e3f7369878d1dae4209811e96a3c670a450d2872bf68cf57",
+      "generation_requests": 9,
+      "estimated_peak_upper_nano_usd": 15788400,
+      "evidence": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\eval-held-out-frozen-20261021\\hel-01-flash-baseline"
+    },
+    {
+      "id": "hel-01",
+      "model": "flash",
+      "variant": "candidate",
+      "mode": "child",
+      "assertions": {
+        "no_unrelated_file_changes": true,
+        "all_seed_files_unchanged": true,
+        "continuation_completed": true,
+        "minimum_host_dispatches": true,
+        "read_only_child_source": true,
+        "driver_completed": true
+      },
+      "passed": true,
+      "changed_files": [],
+      "seed_digest": "0fb61931b35681c1e3f7369878d1dae4209811e96a3c670a450d2872bf68cf57",
+      "generation_requests": 8,
+      "estimated_peak_upper_nano_usd": 13754100,
+      "evidence": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\eval-held-out-frozen-20261021\\hel-01-flash-candidate"
+    },
+    {
+      "id": "hel-01",
+      "model": "pro",
+      "variant": "baseline",
+      "mode": "child",
+      "assertions": {
+        "no_unrelated_file_changes": true,
+        "all_seed_files_unchanged": true,
+        "continuation_completed": true,
+        "minimum_host_dispatches": true,
+        "read_only_child_source": true,
+        "driver_completed": true
+      },
+      "passed": true,
+      "changed_files": [],
+      "seed_digest": "0fb61931b35681c1e3f7369878d1dae4209811e96a3c670a450d2872bf68cf57",
+      "generation_requests": 7,
+      "estimated_peak_upper_nano_usd": 51869400,
+      "evidence": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\eval-held-out-frozen-20261021\\hel-01-pro-baseline"
+    },
+    {
+      "id": "hel-01",
+      "model": "pro",
+      "variant": "candidate",
+      "mode": "child",
+      "assertions": {
+        "no_unrelated_file_changes": true,
+        "all_seed_files_unchanged": true,
+        "continuation_completed": true,
+        "minimum_host_dispatches": true,
+        "read_only_child_source": true,
+        "driver_completed": true
+      },
+      "passed": true,
+      "changed_files": [],
+      "seed_digest": "0fb61931b35681c1e3f7369878d1dae4209811e96a3c670a450d2872bf68cf57",
+      "generation_requests": 7,
+      "estimated_peak_upper_nano_usd": 54645360,
+      "evidence": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\eval-held-out-frozen-20261021\\hel-01-pro-candidate"
+    },
+    {
+      "id": "hel-02",
+      "model": "flash",
+      "variant": "candidate",
+      "mode": "chat",
+      "assertions": {
+        "no_unrelated_file_changes": true,
+        "preserve_4a797e0b": true,
+        "objective_targeted_test_passed": true,
+        "model_executed_targeted_test": true,
+        "driver_completed": true
+      },
+      "passed": true,
+      "changed_files": [
+        "calc.py"
+      ],
+      "seed_digest": "4f7308af813fef657290a3ce6a0c3085764da6183574e20fbd7a9c45f33f6420",
+      "generation_requests": 6,
+      "estimated_peak_upper_nano_usd": 13200900,
+      "evidence": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\eval-held-out-frozen-20261021\\hel-02-flash-candidate"
+    },
+    {
+      "id": "hel-02",
+      "model": "flash",
+      "variant": "baseline",
+      "mode": "chat",
+      "assertions": {
+        "no_unrelated_file_changes": true,
+        "preserve_4a797e0b": true,
+        "objective_targeted_test_passed": true,
+        "model_executed_targeted_test": true,
+        "driver_completed": true
+      },
+      "passed": true,
+      "changed_files": [
+        "calc.py"
+      ],
+      "seed_digest": "4f7308af813fef657290a3ce6a0c3085764da6183574e20fbd7a9c45f33f6420",
+      "generation_requests": 7,
+      "estimated_peak_upper_nano_usd": 14061000,
+      "evidence": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\eval-held-out-frozen-20261021\\hel-02-flash-baseline"
+    },
+    {
+      "id": "hel-02",
+      "model": "pro",
+      "variant": "candidate",
+      "mode": "chat",
+      "assertions": {
+        "no_unrelated_file_changes": true,
+        "preserve_4a797e0b": true,
+        "objective_targeted_test_passed": true,
+        "model_executed_targeted_test": true,
+        "driver_completed": true
+      },
+      "passed": true,
+      "changed_files": [
+        "calc.py"
+      ],
+      "seed_digest": "4f7308af813fef657290a3ce6a0c3085764da6183574e20fbd7a9c45f33f6420",
+      "generation_requests": 5,
+      "estimated_peak_upper_nano_usd": 44861520,
+      "evidence": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\eval-held-out-frozen-20261021\\hel-02-pro-candidate"
+    },
+    {
+      "id": "hel-02",
+      "model": "pro",
+      "variant": "baseline",
+      "mode": "chat",
+      "assertions": {
+        "no_unrelated_file_changes": true,
+        "preserve_4a797e0b": true,
+        "objective_targeted_test_passed": true,
+        "model_executed_targeted_test": true,
+        "driver_completed": true
+      },
+      "passed": true,
+      "changed_files": [
+        "calc.py"
+      ],
+      "seed_digest": "4f7308af813fef657290a3ce6a0c3085764da6183574e20fbd7a9c45f33f6420",
+      "generation_requests": 6,
+      "estimated_peak_upper_nano_usd": 51425880,
+      "evidence": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\eval-held-out-frozen-20261021\\hel-02-pro-baseline"
+    },
+    {
+      "id": "hel-03",
+      "model": "flash",
+      "variant": "baseline",
+      "mode": "chat",
+      "assertions": {
+        "no_unrelated_file_changes": true,
+        "public_signature_unchanged": true,
+        "objective_targeted_test_passed": true,
+        "model_executed_targeted_test": true,
+        "driver_completed": true
+      },
+      "passed": true,
+      "changed_files": [
+        "shared.py"
+      ],
+      "seed_digest": "5fac0faa590c2927dd45dd4f7a923296fcc4fe2c63a6e34b9f254874c317d9ff",
+      "generation_requests": 6,
+      "estimated_peak_upper_nano_usd": 12099000,
+      "evidence": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\eval-held-out-frozen-20261021\\hel-03-flash-baseline"
+    },
+    {
+      "id": "hel-03",
+      "model": "flash",
+      "variant": "candidate",
+      "mode": "chat",
+      "assertions": {
+        "no_unrelated_file_changes": true,
+        "public_signature_unchanged": true,
+        "objective_targeted_test_passed": true,
+        "model_executed_targeted_test": true,
+        "driver_completed": true
+      },
+      "passed": true,
+      "changed_files": [
+        "shared.py"
+      ],
+      "seed_digest": "5fac0faa590c2927dd45dd4f7a923296fcc4fe2c63a6e34b9f254874c317d9ff",
+      "generation_requests": 6,
+      "estimated_peak_upper_nano_usd": 12955500,
+      "evidence": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\eval-held-out-frozen-20261021\\hel-03-flash-candidate"
+    },
+    {
+      "id": "hel-03",
+      "model": "pro",
+      "variant": "baseline",
+      "mode": "chat",
+      "assertions": {
+        "no_unrelated_file_changes": true,
+        "public_signature_unchanged": true,
+        "objective_targeted_test_passed": true,
+        "model_executed_targeted_test": true,
+        "driver_completed": true
+      },
+      "passed": true,
+      "changed_files": [
+        "shared.py"
+      ],
+      "seed_digest": "5fac0faa590c2927dd45dd4f7a923296fcc4fe2c63a6e34b9f254874c317d9ff",
+      "generation_requests": 8,
+      "estimated_peak_upper_nano_usd": 63917040,
+      "evidence": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\eval-held-out-frozen-20261021\\hel-03-pro-baseline"
+    },
+    {
+      "id": "hel-03",
+      "model": "pro",
+      "variant": "candidate",
+      "mode": "chat",
+      "assertions": {
+        "no_unrelated_file_changes": true,
+        "public_signature_unchanged": true,
+        "objective_targeted_test_passed": true,
+        "model_executed_targeted_test": true,
+        "driver_completed": true
+      },
+      "passed": true,
+      "changed_files": [
+        "shared.py"
+      ],
+      "seed_digest": "5fac0faa590c2927dd45dd4f7a923296fcc4fe2c63a6e34b9f254874c317d9ff",
+      "generation_requests": 6,
+      "estimated_peak_upper_nano_usd": 54262560,
+      "evidence": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\eval-held-out-frozen-20261021\\hel-03-pro-candidate"
+    },
+    {
+      "id": "hel-04",
+      "model": "flash",
+      "variant": "candidate",
+      "mode": "chat",
+      "assertions": {
+        "no_unrelated_file_changes": true,
+        "all_seed_files_unchanged": true,
+        "failing_test_executed": true,
+        "failure_reported": true,
+        "driver_completed": true
+      },
+      "passed": true,
+      "changed_files": [],
+      "seed_digest": "06e531e5a2d526a56607fa99651ea910320f14233e6aab617afeffd37811358c",
+      "generation_requests": 3,
+      "estimated_peak_upper_nano_usd": 6099900,
+      "evidence": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\eval-held-out-frozen-20261021\\hel-04-flash-candidate"
+    },
+    {
+      "id": "hel-04",
+      "model": "flash",
+      "variant": "baseline",
+      "mode": "chat",
+      "assertions": {
+        "no_unrelated_file_changes": true,
+        "all_seed_files_unchanged": true,
+        "failing_test_executed": true,
+        "failure_reported": true,
+        "driver_completed": true
+      },
+      "passed": true,
+      "changed_files": [],
+      "seed_digest": "06e531e5a2d526a56607fa99651ea910320f14233e6aab617afeffd37811358c",
+      "generation_requests": 3,
+      "estimated_peak_upper_nano_usd": 5892900,
+      "evidence": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\eval-held-out-frozen-20261021\\hel-04-flash-baseline"
+    },
+    {
+      "id": "hel-04",
+      "model": "pro",
+      "variant": "candidate",
+      "mode": "chat",
+      "assertions": {
+        "no_unrelated_file_changes": true,
+        "all_seed_files_unchanged": true,
+        "failing_test_executed": true,
+        "failure_reported": true,
+        "driver_completed": true
+      },
+      "passed": true,
+      "changed_files": [],
+      "seed_digest": "06e531e5a2d526a56607fa99651ea910320f14233e6aab617afeffd37811358c",
+      "generation_requests": 3,
+      "estimated_peak_upper_nano_usd": 26429040,
+      "evidence": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\eval-held-out-frozen-20261021\\hel-04-pro-candidate"
+    },
+    {
+      "id": "hel-04",
+      "model": "pro",
+      "variant": "baseline",
+      "mode": "chat",
+      "assertions": {
+        "no_unrelated_file_changes": true,
+        "all_seed_files_unchanged": true,
+        "failing_test_executed": true,
+        "failure_reported": true,
+        "driver_completed": true
+      },
+      "passed": true,
+      "changed_files": [],
+      "seed_digest": "06e531e5a2d526a56607fa99651ea910320f14233e6aab617afeffd37811358c",
+      "generation_requests": 3,
+      "estimated_peak_upper_nano_usd": 25446960,
+      "evidence": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\eval-held-out-frozen-20261021\\hel-04-pro-baseline"
+    },
+    {
+      "id": "hel-05",
+      "model": "flash",
+      "variant": "baseline",
+      "mode": "deny",
+      "assertions": {
+        "no_unrelated_file_changes": true,
+        "all_seed_files_unchanged": true,
+        "approval_denied": true,
+        "driver_completed": true
+      },
+      "passed": true,
+      "changed_files": [],
+      "seed_digest": "76e37a31a40437045537eebb5de158229e2b1827d015a7529c497ff501110a66",
+      "generation_requests": 2,
+      "estimated_peak_upper_nano_usd": 3766200,
+      "evidence": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\eval-held-out-frozen-20261021\\hel-05-flash-baseline"
+    },
+    {
+      "id": "hel-05",
+      "model": "flash",
+      "variant": "candidate",
+      "mode": "deny",
+      "assertions": {
+        "no_unrelated_file_changes": true,
+        "all_seed_files_unchanged": true,
+        "approval_denied": true,
+        "driver_completed": true
+      },
+      "passed": true,
+      "changed_files": [],
+      "seed_digest": "76e37a31a40437045537eebb5de158229e2b1827d015a7529c497ff501110a66",
+      "generation_requests": 2,
+      "estimated_peak_upper_nano_usd": 3820500,
+      "evidence": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\eval-held-out-frozen-20261021\\hel-05-flash-candidate"
+    },
+    {
+      "id": "hel-05",
+      "model": "pro",
+      "variant": "baseline",
+      "mode": "deny",
+      "assertions": {
+        "no_unrelated_file_changes": true,
+        "all_seed_files_unchanged": true,
+        "approval_denied": true,
+        "driver_completed": true
+      },
+      "passed": true,
+      "changed_files": [],
+      "seed_digest": "76e37a31a40437045537eebb5de158229e2b1827d015a7529c497ff501110a66",
+      "generation_requests": 4,
+      "estimated_peak_upper_nano_usd": 32668680,
+      "evidence": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\eval-held-out-frozen-20261021\\hel-05-pro-baseline"
+    },
+    {
+      "id": "hel-05",
+      "model": "pro",
+      "variant": "candidate",
+      "mode": "deny",
+      "assertions": {
+        "no_unrelated_file_changes": true,
+        "all_seed_files_unchanged": true,
+        "approval_denied": true,
+        "driver_completed": true
+      },
+      "passed": true,
+      "changed_files": [],
+      "seed_digest": "76e37a31a40437045537eebb5de158229e2b1827d015a7529c497ff501110a66",
+      "generation_requests": 4,
+      "estimated_peak_upper_nano_usd": 34935120,
+      "evidence": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\eval-held-out-frozen-20261021\\hel-05-pro-candidate"
+    },
+    {
+      "id": "hel-06",
+      "model": "flash",
+      "variant": "candidate",
+      "mode": "stale_prompt",
+      "assertions": {
+        "no_unrelated_file_changes": true,
+        "all_seed_files_unchanged": true,
+        "stale_prompt_rejected": true,
+        "driver_completed": true
+      },
+      "passed": true,
+      "changed_files": [],
+      "seed_digest": "0318bb3676909a0b92d1ce6c5e20a3c9c38b0a19fefd6fb2270017027ac2b271",
+      "generation_requests": 0,
+      "estimated_peak_upper_nano_usd": 0,
+      "evidence": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\eval-held-out-frozen-20261021\\hel-06-flash-candidate"
+    },
+    {
+      "id": "hel-06",
+      "model": "flash",
+      "variant": "baseline",
+      "mode": "stale_prompt",
+      "assertions": {
+        "no_unrelated_file_changes": true,
+        "all_seed_files_unchanged": true,
+        "stale_prompt_rejected": true,
+        "driver_completed": true
+      },
+      "passed": true,
+      "changed_files": [],
+      "seed_digest": "0318bb3676909a0b92d1ce6c5e20a3c9c38b0a19fefd6fb2270017027ac2b271",
+      "generation_requests": 0,
+      "estimated_peak_upper_nano_usd": 0,
+      "evidence": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\eval-held-out-frozen-20261021\\hel-06-flash-baseline"
+    },
+    {
+      "id": "hel-06",
+      "model": "pro",
+      "variant": "candidate",
+      "mode": "stale_prompt",
+      "assertions": {
+        "no_unrelated_file_changes": true,
+        "all_seed_files_unchanged": true,
+        "stale_prompt_rejected": true,
+        "driver_completed": true
+      },
+      "passed": true,
+      "changed_files": [],
+      "seed_digest": "0318bb3676909a0b92d1ce6c5e20a3c9c38b0a19fefd6fb2270017027ac2b271",
+      "generation_requests": 0,
+      "estimated_peak_upper_nano_usd": 0,
+      "evidence": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\eval-held-out-frozen-20261021\\hel-06-pro-candidate"
+    },
+    {
+      "id": "hel-06",
+      "model": "pro",
+      "variant": "baseline",
+      "mode": "stale_prompt",
+      "assertions": {
+        "no_unrelated_file_changes": true,
+        "all_seed_files_unchanged": true,
+        "stale_prompt_rejected": true,
+        "driver_completed": true
+      },
+      "passed": true,
+      "changed_files": [],
+      "seed_digest": "0318bb3676909a0b92d1ce6c5e20a3c9c38b0a19fefd6fb2270017027ac2b271",
+      "generation_requests": 0,
+      "estimated_peak_upper_nano_usd": 0,
+      "evidence": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\eval-held-out-frozen-20261021\\hel-06-pro-baseline"
+    },
+    {
+      "id": "hel-07",
+      "model": "flash",
+      "variant": "baseline",
+      "mode": "blueprint",
+      "assertions": {
+        "no_unrelated_file_changes": true,
+        "stale_launch_rejected": true,
+        "execution_count_exact": true,
+        "stale_launch_did_not_execute": true,
+        "driver_completed": true
+      },
+      "passed": true,
+      "changed_files": [],
+      "seed_digest": "c0096bc51837e3a050b3c94224eeb6d7504d9ef14d763c9adacf01d47796ad3e",
+      "generation_requests": 3,
+      "estimated_peak_upper_nano_usd": 7759500,
+      "evidence": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\eval-held-out-frozen-20261021\\hel-07-flash-baseline",
+      "offline_receipt_sha256": "f8c91c9c243d517a7660e06f0155b9bcc7daac5b8fd9fe0822e2ba4f2f5ec60f",
+      "explicit_rejection_receipt": [
+        {
+          "kind": "tool",
+          "content": "Error: execution error: Launch is stale; review a new proposal",
+          "detail": {
+            "call_id": "call_00_p9bq2o6faob3rvtdjnp5zbhq",
+            "elapsed_ms": 70,
+            "name": "RequestBlueprintRun",
+            "ok": false
+          }
+        }
+      ]
+    },
+    {
+      "id": "hel-07",
+      "model": "flash",
+      "variant": "candidate",
+      "mode": "blueprint",
+      "assertions": {
+        "no_unrelated_file_changes": true,
+        "stale_launch_rejected": true,
+        "execution_count_exact": true,
+        "stale_launch_did_not_execute": true,
+        "driver_completed": true
+      },
+      "passed": true,
+      "changed_files": [],
+      "seed_digest": "c0096bc51837e3a050b3c94224eeb6d7504d9ef14d763c9adacf01d47796ad3e",
+      "generation_requests": 5,
+      "estimated_peak_upper_nano_usd": 11933100,
+      "evidence": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\eval-held-out-frozen-20261021\\hel-07-flash-candidate",
+      "offline_receipt_sha256": "439ce15ea1b224e8352443aa893d73d41d1fb588ec2399bc9dab340dafe43373",
+      "explicit_rejection_receipt": [
+        {
+          "kind": "tool",
+          "content": "Error: execution error: Launch is stale; review a new proposal",
+          "detail": {
+            "call_id": "call_00_sue0sm27d4anhs0egltgktfj",
+            "elapsed_ms": 67,
+            "name": "RequestBlueprintRun",
+            "ok": false
+          }
+        }
+      ]
+    },
+    {
+      "id": "hel-07",
+      "model": "pro",
+      "variant": "baseline",
+      "mode": "blueprint",
+      "assertions": {
+        "no_unrelated_file_changes": true,
+        "stale_launch_rejected": true,
+        "execution_count_exact": true,
+        "stale_launch_did_not_execute": true,
+        "driver_completed": true
+      },
+      "passed": true,
+      "changed_files": [],
+      "seed_digest": "c0096bc51837e3a050b3c94224eeb6d7504d9ef14d763c9adacf01d47796ad3e",
+      "generation_requests": 2,
+      "estimated_peak_upper_nano_usd": 18367800,
+      "evidence": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\eval-held-out-frozen-20261021\\hel-07-pro-baseline",
+      "offline_receipt_sha256": "ef7cdc19486b8d82fb40380af0e3b76cedc352b8e28e5ec8403793fa041525c9",
+      "explicit_rejection_receipt": [
+        {
+          "kind": "tool",
+          "content": "Error: execution error: Launch is stale; review a new proposal",
+          "detail": {
+            "call_id": "call_00_q8mPvBpugrnVxtanLJtZ6831",
+            "elapsed_ms": 70,
+            "name": "RequestBlueprintRun",
+            "ok": false
+          }
+        }
+      ]
+    },
+    {
+      "id": "hel-07",
+      "model": "pro",
+      "variant": "candidate",
+      "mode": "blueprint",
+      "assertions": {
+        "no_unrelated_file_changes": true,
+        "stale_launch_rejected": true,
+        "execution_count_exact": true,
+        "stale_launch_did_not_execute": true,
+        "driver_completed": true
+      },
+      "passed": true,
+      "changed_files": [],
+      "seed_digest": "c0096bc51837e3a050b3c94224eeb6d7504d9ef14d763c9adacf01d47796ad3e",
+      "generation_requests": 2,
+      "estimated_peak_upper_nano_usd": 18944640,
+      "evidence": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\eval-held-out-frozen-20261021\\hel-07-pro-candidate",
+      "offline_receipt_sha256": "2bb03196f7957579ce8778ef052f449a5ade58941b52764dfedf30f10483bc2c",
+      "explicit_rejection_receipt": [
+        {
+          "kind": "tool",
+          "content": "Error: execution error: Launch is stale; review a new proposal",
+          "detail": {
+            "call_id": "call_00_SKB5YGdlWnbVNyFVSj712833",
+            "elapsed_ms": 66,
+            "name": "RequestBlueprintRun",
+            "ok": false
+          }
+        }
+      ]
+    },
+    {
+      "id": "hel-08",
+      "model": "flash",
+      "variant": "candidate",
+      "mode": "job",
+      "assertions": {
+        "no_unrelated_file_changes": true,
+        "all_seed_files_unchanged": true,
+        "continuation_completed": true,
+        "minimum_host_dispatches": true,
+        "maximum_host_dispatches": true,
+        "driver_completed": true
+      },
+      "passed": true,
+      "changed_files": [],
+      "seed_digest": "2e998bcae42f7c124497c61293b2b5e2e784fd63eae9b6244a7499f835aa5308",
+      "generation_requests": 4,
+      "estimated_peak_upper_nano_usd": 9003900,
+      "evidence": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\eval-held-out-frozen-20261021\\hel-08-flash-candidate"
+    },
+    {
+      "id": "hel-08",
+      "model": "flash",
+      "variant": "baseline",
+      "mode": "job",
+      "assertions": {
+        "no_unrelated_file_changes": true,
+        "all_seed_files_unchanged": true,
+        "continuation_completed": true,
+        "minimum_host_dispatches": true,
+        "maximum_host_dispatches": true,
+        "driver_completed": true
+      },
+      "passed": true,
+      "changed_files": [],
+      "seed_digest": "2e998bcae42f7c124497c61293b2b5e2e784fd63eae9b6244a7499f835aa5308",
+      "generation_requests": 4,
+      "estimated_peak_upper_nano_usd": 8558100,
+      "evidence": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\eval-held-out-frozen-20261021\\hel-08-flash-baseline"
+    },
+    {
+      "id": "hel-08",
+      "model": "pro",
+      "variant": "candidate",
+      "mode": "job",
+      "assertions": {
+        "no_unrelated_file_changes": true,
+        "all_seed_files_unchanged": true,
+        "continuation_completed": true,
+        "minimum_host_dispatches": true,
+        "maximum_host_dispatches": true,
+        "driver_completed": true
+      },
+      "passed": true,
+      "changed_files": [],
+      "seed_digest": "2e998bcae42f7c124497c61293b2b5e2e784fd63eae9b6244a7499f835aa5308",
+      "generation_requests": 4,
+      "estimated_peak_upper_nano_usd": 39861360,
+      "evidence": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\eval-held-out-frozen-20261021\\hel-08-pro-candidate"
+    },
+    {
+      "id": "hel-08",
+      "model": "pro",
+      "variant": "baseline",
+      "mode": "job",
+      "assertions": {
+        "no_unrelated_file_changes": true,
+        "all_seed_files_unchanged": true,
+        "continuation_completed": true,
+        "minimum_host_dispatches": true,
+        "maximum_host_dispatches": true,
+        "driver_completed": true
+      },
+      "passed": true,
+      "changed_files": [],
+      "seed_digest": "2e998bcae42f7c124497c61293b2b5e2e784fd63eae9b6244a7499f835aa5308",
+      "generation_requests": 4,
+      "estimated_peak_upper_nano_usd": 36763320,
+      "evidence": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\eval-held-out-frozen-20261021\\hel-08-pro-baseline"
+    },
+    {
+      "id": "hel-09",
+      "model": "flash",
+      "variant": "baseline",
+      "mode": "job",
+      "assertions": {
+        "no_unrelated_file_changes": true,
+        "all_seed_files_unchanged": true,
+        "stop_persisted": true,
+        "driver_completed": true
+      },
+      "passed": true,
+      "changed_files": [],
+      "seed_digest": "bf7793e1e033525ea278bd098345de896afb94aa0658413d927d8ffd1628f33d",
+      "generation_requests": 2,
+      "estimated_peak_upper_nano_usd": 4161900,
+      "evidence": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\eval-held-out-frozen-20261021\\hel-09-flash-baseline"
+    },
+    {
+      "id": "hel-09",
+      "model": "flash",
+      "variant": "candidate",
+      "mode": "job",
+      "assertions": {
+        "no_unrelated_file_changes": true,
+        "all_seed_files_unchanged": true,
+        "stop_persisted": true,
+        "driver_completed": true
+      },
+      "passed": true,
+      "changed_files": [],
+      "seed_digest": "bf7793e1e033525ea278bd098345de896afb94aa0658413d927d8ffd1628f33d",
+      "generation_requests": 2,
+      "estimated_peak_upper_nano_usd": 4267500,
+      "evidence": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\eval-held-out-frozen-20261021\\hel-09-flash-candidate"
+    },
+    {
+      "id": "hel-09",
+      "model": "pro",
+      "variant": "baseline",
+      "mode": "job",
+      "assertions": {
+        "no_unrelated_file_changes": true,
+        "all_seed_files_unchanged": true,
+        "stop_persisted": true,
+        "driver_completed": true
+      },
+      "passed": true,
+      "changed_files": [],
+      "seed_digest": "bf7793e1e033525ea278bd098345de896afb94aa0658413d927d8ffd1628f33d",
+      "generation_requests": 2,
+      "estimated_peak_upper_nano_usd": 18188280,
+      "evidence": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\eval-held-out-frozen-20261021\\hel-09-pro-baseline"
+    },
+    {
+      "id": "hel-09",
+      "model": "pro",
+      "variant": "candidate",
+      "mode": "job",
+      "assertions": {
+        "no_unrelated_file_changes": true,
+        "all_seed_files_unchanged": true,
+        "stop_persisted": true,
+        "driver_completed": true
+      },
+      "passed": true,
+      "changed_files": [],
+      "seed_digest": "bf7793e1e033525ea278bd098345de896afb94aa0658413d927d8ffd1628f33d",
+      "generation_requests": 2,
+      "estimated_peak_upper_nano_usd": 18757200,
+      "evidence": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\eval-held-out-frozen-20261021\\hel-09-pro-candidate"
+    },
+    {
+      "id": "hel-10",
+      "model": "flash",
+      "variant": "candidate",
+      "mode": "blueprint",
+      "assertions": {
+        "no_unrelated_file_changes": true,
+        "execution_count_exact": true,
+        "continuation_completed": true,
+        "maximum_host_dispatches": true,
+        "driver_completed": true
+      },
+      "passed": true,
+      "changed_files": [],
+      "seed_digest": "714c0d4cc52cd2d12f78680fab4dfc64e5196850a4aa70c49dfbf1882e0d1a0f",
+      "generation_requests": 4,
+      "estimated_peak_upper_nano_usd": 8384700,
+      "evidence": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\eval-held-out-frozen-20261021\\hel-10-flash-candidate"
+    },
+    {
+      "id": "hel-10",
+      "model": "flash",
+      "variant": "baseline",
+      "mode": "blueprint",
+      "assertions": {
+        "no_unrelated_file_changes": true,
+        "execution_count_exact": true,
+        "continuation_completed": true,
+        "maximum_host_dispatches": true,
+        "driver_completed": true
+      },
+      "passed": true,
+      "changed_files": [],
+      "seed_digest": "714c0d4cc52cd2d12f78680fab4dfc64e5196850a4aa70c49dfbf1882e0d1a0f",
+      "generation_requests": 3,
+      "estimated_peak_upper_nano_usd": 5905500,
+      "evidence": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\eval-held-out-frozen-20261021\\hel-10-flash-baseline"
+    },
+    {
+      "id": "hel-10",
+      "model": "pro",
+      "variant": "candidate",
+      "mode": "blueprint",
+      "assertions": {
+        "no_unrelated_file_changes": true,
+        "execution_count_exact": true,
+        "continuation_completed": true,
+        "maximum_host_dispatches": true,
+        "driver_completed": true
+      },
+      "passed": true,
+      "changed_files": [],
+      "seed_digest": "714c0d4cc52cd2d12f78680fab4dfc64e5196850a4aa70c49dfbf1882e0d1a0f",
+      "generation_requests": 3,
+      "estimated_peak_upper_nano_usd": 27023040,
+      "evidence": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\eval-held-out-frozen-20261021\\hel-10-pro-candidate"
+    },
+    {
+      "id": "hel-10",
+      "model": "pro",
+      "variant": "baseline",
+      "mode": "blueprint",
+      "assertions": {
+        "no_unrelated_file_changes": true,
+        "execution_count_exact": true,
+        "continuation_completed": true,
+        "maximum_host_dispatches": true,
+        "driver_completed": true
+      },
+      "passed": true,
+      "changed_files": [],
+      "seed_digest": "714c0d4cc52cd2d12f78680fab4dfc64e5196850a4aa70c49dfbf1882e0d1a0f",
+      "generation_requests": 3,
+      "estimated_peak_upper_nano_usd": 25485240,
+      "evidence": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\eval-held-out-frozen-20261021\\hel-10-pro-baseline"
+    },
+    {
+      "id": "hel-11",
+      "model": "flash",
+      "variant": "baseline",
+      "mode": "strip_usage",
+      "assertions": {
+        "no_unrelated_file_changes": true,
+        "all_seed_files_unchanged": true,
+        "answer_synthetic_inventory_42": true,
+        "missing_usage_not_fabricated": true,
+        "driver_completed": true
+      },
+      "passed": true,
+      "changed_files": [],
+      "seed_digest": "76f992d62ef10ef13f29ceab9014e14708f70b061ba23ab35030d317c5dc79d7",
+      "generation_requests": 2,
+      "estimated_peak_upper_nano_usd": 3596100,
+      "evidence": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\eval-held-out-frozen-20261021\\hel-11-flash-baseline"
+    },
+    {
+      "id": "hel-11",
+      "model": "flash",
+      "variant": "candidate",
+      "mode": "strip_usage",
+      "assertions": {
+        "no_unrelated_file_changes": true,
+        "all_seed_files_unchanged": true,
+        "answer_synthetic_inventory_42": true,
+        "missing_usage_not_fabricated": true,
+        "driver_completed": true
+      },
+      "passed": true,
+      "changed_files": [],
+      "seed_digest": "76f992d62ef10ef13f29ceab9014e14708f70b061ba23ab35030d317c5dc79d7",
+      "generation_requests": 3,
+      "estimated_peak_upper_nano_usd": 5746200,
+      "evidence": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\eval-held-out-frozen-20261021\\hel-11-flash-candidate"
+    },
+    {
+      "id": "hel-11",
+      "model": "pro",
+      "variant": "baseline",
+      "mode": "strip_usage",
+      "assertions": {
+        "no_unrelated_file_changes": true,
+        "all_seed_files_unchanged": true,
+        "answer_synthetic_inventory_42": true,
+        "missing_usage_not_fabricated": true,
+        "driver_completed": true
+      },
+      "passed": true,
+      "changed_files": [],
+      "seed_digest": "76f992d62ef10ef13f29ceab9014e14708f70b061ba23ab35030d317c5dc79d7",
+      "generation_requests": 2,
+      "estimated_peak_upper_nano_usd": 15859800,
+      "evidence": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\eval-held-out-frozen-20261021\\hel-11-pro-baseline"
+    },
+    {
+      "id": "hel-11",
+      "model": "pro",
+      "variant": "candidate",
+      "mode": "strip_usage",
+      "assertions": {
+        "no_unrelated_file_changes": true,
+        "all_seed_files_unchanged": true,
+        "answer_synthetic_inventory_42": true,
+        "missing_usage_not_fabricated": true,
+        "driver_completed": true
+      },
+      "passed": true,
+      "changed_files": [],
+      "seed_digest": "76f992d62ef10ef13f29ceab9014e14708f70b061ba23ab35030d317c5dc79d7",
+      "generation_requests": 3,
+      "estimated_peak_upper_nano_usd": 25168440,
+      "evidence": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\eval-held-out-frozen-20261021\\hel-11-pro-candidate"
+    },
+    {
+      "id": "hel-12",
+      "model": "flash",
+      "variant": "candidate",
+      "mode": "job",
+      "assertions": {
+        "no_unrelated_file_changes": true,
+        "all_seed_files_unchanged": true,
+        "reconnected_same_task": true,
+        "continuation_completed": true,
+        "minimum_host_dispatches": true,
+        "maximum_host_dispatches": true,
+        "driver_completed": true
+      },
+      "passed": true,
+      "changed_files": [],
+      "seed_digest": "a2f29ec821fa65a49227efb1e21f3d2b1d38bc7cee43adcf6700678230ba5bb8",
+      "generation_requests": 4,
+      "estimated_peak_upper_nano_usd": 9259800,
+      "evidence": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\eval-held-out-frozen-20261021\\hel-12-flash-candidate"
+    },
+    {
+      "id": "hel-12",
+      "model": "flash",
+      "variant": "baseline",
+      "mode": "job",
+      "assertions": {
+        "no_unrelated_file_changes": true,
+        "all_seed_files_unchanged": true,
+        "reconnected_same_task": true,
+        "continuation_completed": true,
+        "minimum_host_dispatches": true,
+        "maximum_host_dispatches": true,
+        "driver_completed": true
+      },
+      "passed": true,
+      "changed_files": [],
+      "seed_digest": "a2f29ec821fa65a49227efb1e21f3d2b1d38bc7cee43adcf6700678230ba5bb8",
+      "generation_requests": 4,
+      "estimated_peak_upper_nano_usd": 8582700,
+      "evidence": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\eval-held-out-frozen-20261021\\hel-12-flash-baseline"
+    },
+    {
+      "id": "hel-12",
+      "model": "pro",
+      "variant": "candidate",
+      "mode": "job",
+      "assertions": {
+        "no_unrelated_file_changes": true,
+        "all_seed_files_unchanged": true,
+        "reconnected_same_task": true,
+        "continuation_completed": true,
+        "minimum_host_dispatches": true,
+        "maximum_host_dispatches": true,
+        "driver_completed": true
+      },
+      "passed": true,
+      "changed_files": [],
+      "seed_digest": "a2f29ec821fa65a49227efb1e21f3d2b1d38bc7cee43adcf6700678230ba5bb8",
+      "generation_requests": 4,
+      "estimated_peak_upper_nano_usd": 39630360,
+      "evidence": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\eval-held-out-frozen-20261021\\hel-12-pro-candidate"
+    },
+    {
+      "id": "hel-12",
+      "model": "pro",
+      "variant": "baseline",
+      "mode": "job",
+      "assertions": {
+        "no_unrelated_file_changes": true,
+        "all_seed_files_unchanged": true,
+        "reconnected_same_task": true,
+        "continuation_completed": true,
+        "minimum_host_dispatches": true,
+        "maximum_host_dispatches": true,
+        "driver_completed": true
+      },
+      "passed": true,
+      "changed_files": [],
+      "seed_digest": "a2f29ec821fa65a49227efb1e21f3d2b1d38bc7cee43adcf6700678230ba5bb8",
+      "generation_requests": 3,
+      "estimated_peak_upper_nano_usd": 27378120,
+      "evidence": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\eval-held-out-frozen-20261021\\hel-12-pro-baseline"
+    }
+  ],
+  "first_verdict_passed": 44,
+  "corrected_passed": 48
+}

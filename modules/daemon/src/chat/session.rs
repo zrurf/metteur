@@ -116,7 +116,7 @@ pub fn load_thread(db: &Db, session_id: &Uuid) -> DaemonResult<Option<ChatSessio
 pub fn save_thread(db: &Db, record: &ChatSessionRecord) -> DaemonResult<()> {
     migrate_legacy(db)?;
     let data = serde_json::to_vec(record).map_err(|e| DaemonError::Serialization(e.to_string()))?;
-    db.put(cf::CHAT_THREADS, record.session_id.as_bytes(), &data)?;
+    db.save_chat_revision(record.session_id.as_bytes(), &data)?;
     // Evict oldest past the cap; the id tie-break keeps eviction deterministic
     // when several threads share the same `updated_at` millisecond.
     let mut threads = list_threads(db)?;

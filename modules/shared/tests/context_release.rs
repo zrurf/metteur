@@ -23,6 +23,7 @@ fn context_with_reads(count: usize) -> ContextManager {
     for index in 0..count {
         let path = format!("src/file{index}.rs");
         context.push_message(Message {
+            origin: Default::default(),
             role: Role::Assistant,
             content: vec![ContentBlock::Text("reading".to_string())],
             tool_calls: vec![ToolCall {
@@ -214,6 +215,7 @@ fn text_history_keeps_prose_and_drops_tool_traffic() {
     let mut context = ContextManager::new_from_prompt(vec![], "first question");
     context.push_message(Message::text(Role::Assistant, "first answer"));
     context.push_message(Message {
+        origin: Default::default(),
         role: Role::Assistant,
         content: vec![ContentBlock::Text("calling".to_string())],
         tool_calls: vec![ToolCall {
@@ -276,6 +278,7 @@ fn text_history_merges_adjacent_turns_of_one_role() {
     // roles, so they have to become one turn.
     let mut context = ContextManager::new_from_prompt(vec![], "first");
     context.push_message(Message {
+        origin: Default::default(),
         role: Role::Assistant,
         content: vec![ContentBlock::Text("calling".to_string())],
         tool_calls: vec![ToolCall {
@@ -320,6 +323,7 @@ fn repair_tool_pairing_folds_a_stranded_assistant_text() {
     // between the tool call and its result, which providers reject.
     let mut context = ContextManager::new_from_prompt(vec![], "start");
     context.push_message(Message {
+        origin: Default::default(),
         role: Role::Assistant,
         content: vec![ContentBlock::Text("let me look".to_string())],
         tool_calls: vec![ToolCall {
@@ -331,6 +335,7 @@ fn repair_tool_pairing_folds_a_stranded_assistant_text() {
     });
     context.push_message(Message::text(Role::Assistant, "let me look"));
     context.push_message(Message {
+        origin: Default::default(),
         role: Role::Tool,
         content: vec![ContentBlock::Text("file body".to_string())],
         tool_calls: Vec::new(),
@@ -351,6 +356,7 @@ fn repair_tool_pairing_keeps_unalike_text() {
     // Text that the calling turn does not carry is preserved, only moved.
     let mut context = ContextManager::new_from_prompt(vec![], "start");
     context.push_message(Message {
+        origin: Default::default(),
         role: Role::Assistant,
         content: vec![ContentBlock::Text("calling".to_string())],
         tool_calls: vec![ToolCall {
@@ -362,6 +368,7 @@ fn repair_tool_pairing_keeps_unalike_text() {
     });
     context.push_message(Message::text(Role::Assistant, "additional context"));
     context.push_message(Message {
+        origin: Default::default(),
         role: Role::Tool,
         content: vec![ContentBlock::Text("body".to_string())],
         tool_calls: Vec::new(),
@@ -379,6 +386,7 @@ fn repair_tool_pairing_keeps_unalike_text() {
 fn repair_tool_pairing_leaves_valid_conversations_alone() {
     let mut context = ContextManager::new_from_prompt(vec![], "start");
     context.push_message(Message {
+        origin: Default::default(),
         role: Role::Assistant,
         content: vec![ContentBlock::Text("working".to_string())],
         tool_calls: vec![ToolCall {

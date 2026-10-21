@@ -1,4 +1,4 @@
-export type ResourceMethod = 'queryProjectMemory' | 'writeProjectNote' | 'promoteProjectConvention' | 'updateProjectMemoryStatus' | 'queryPromptResources' | 'writePromptResource' | 'deletePromptResource' | 'copyPromptToProject' | 'selectPromptResource'
+export type ResourceMethod = 'addonPages' | 'confirmBlueprintLaunch' | 'queryBlueprintLaunch' | 'queryContinuations' | 'controlContinuation' | 'writeSchedule' | 'queryProjectMemory' | 'writeProjectNote' | 'promoteProjectConvention' | 'updateProjectMemoryStatus' | 'queryPromptResources' | 'writePromptResource' | 'deletePromptResource' | 'copyPromptToProject' | 'selectPromptResource'
 export interface ResourceRef { scope: { scope: 'project' | 'personal'; owner: string }; id: string; revision: number; content_digest: string }
 export interface MemoryEntry {
   reference: ResourceRef

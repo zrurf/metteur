@@ -16,6 +16,9 @@ pub struct Usage {
     /// Whether cache reads were explicitly reported, including a confirmed zero.
     #[serde(default)]
     pub cache_read_reported: bool,
+    /// Whether cache writes were explicitly present; omitted is unknown, not zero.
+    #[serde(default)]
+    pub cache_write_reported: bool,
     /// Tokens consumed by the input (cache reads and writes included).
     pub input_tokens: u64,
     /// Total output tokens, including reasoning tokens.
@@ -38,7 +41,7 @@ impl Usage {
         if !self.tokens_reported
             || !self.cache_read_reported
             || self.input_tokens == 0
-            || self.cached_input_tokens > self.input_tokens
+            || self.cached_input_tokens.saturating_add(self.cache_write_input_tokens) > self.input_tokens
         {
             return None;
         }
@@ -57,6 +60,7 @@ impl Usage {
         // An unknown operand cannot become complete by adding known counters.
         self.tokens_reported &= other.tokens_reported;
         self.cache_read_reported &= other.cache_read_reported;
+        self.cache_write_reported &= other.cache_write_reported;
         self.input_tokens += other.input_tokens;
         self.output_tokens += other.output_tokens;
         self.reasoning_tokens += other.reasoning_tokens;

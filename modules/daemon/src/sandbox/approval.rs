@@ -249,3 +249,28 @@ impl Drop for ApprovalRunGuard {
         self.0.close();
     }
 }
+
+/// Host-only wall-time accounting. Only a real broker wait may pause the
+/// Addon active-time budget; plugin input cannot manipulate this clock.
+#[derive(Default)]
+pub struct ApprovalWaitClock(std::sync::Mutex<(usize, Option<std::time::Instant>, std::time::Duration)>);
+impl ApprovalWaitClock {
+    pub fn enter(self: &std::sync::Arc<Self>) -> ApprovalWaitGuard {
+        let mut state = self.0.lock().unwrap();
+        if state.0 == 0 { state.1 = Some(std::time::Instant::now()); }
+        state.0 += 1;
+        ApprovalWaitGuard(self.clone())
+    }
+    pub fn elapsed(&self) -> std::time::Duration {
+        let state = self.0.lock().unwrap();
+        state.2 + state.1.map(|start| start.elapsed()).unwrap_or_default()
+    }
+}
+pub struct ApprovalWaitGuard(std::sync::Arc<ApprovalWaitClock>);
+impl Drop for ApprovalWaitGuard {
+    fn drop(&mut self) {
+        let mut state = self.0.0.lock().unwrap();
+        state.0 -= 1;
+        if state.0 == 0 && let Some(start) = state.1.take() { state.2 += start.elapsed(); }
+    }
+}

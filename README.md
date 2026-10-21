@@ -14,11 +14,17 @@ Pull-request CI runs static web checks and three live-identity guards only.
 Run tests needed for the changed behavior; do not repeat unaffected suites.
 The full Ubuntu 24.04 / Windows 2025 matrix is a manual workflow option (`full`).
 
-The default command runs frozen install, typecheck, lint and three identity guards:
+The default command runs frozen install, effective app/config typechecks, lint,
+live-identity and native delay guards, navigation-order checks and preview isolation:
 
 ```sh
 python scripts/verify.py
 ```
+
+Local acceptance status and the separate cloud/local evidence matrix are recorded
+in `docs/local-handoff/LOCAL_ACCEPTANCE_20261020.md` and
+`docs/local-handoff/LOCAL_ACCEPTANCE_MATRIX.json`. Native Windows and real-model
+results are reported separately from browser fixtures and WSL Linux checks.
 
 Only when a full browser gate is explicitly needed, prepare the browser once
 (the explicit install also supplies the headless shell):

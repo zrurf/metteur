@@ -256,6 +256,7 @@ pub(crate) async fn request_user_approval(
         ctx.audit("sandbox.approval", serde_json::json!({
             "subject": subject, "request_id": request_id, "outcome": "pending",
         }));
+        let _human_wait = ctx.approval_wait_clock.as_ref().map(|clock| clock.enter());
         match request.wait().await {
             Ok(response) => {
                 ctx.audit("sandbox.approval", serde_json::json!({

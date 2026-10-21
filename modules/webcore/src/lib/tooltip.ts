@@ -133,7 +133,9 @@ function candidate(node: EventTarget | null): Element | null {
   // been moved aside, and re-entering it must still be recognized as the same
   // target.
   const el = node.closest(`[title], [${ATTRIBUTE}], [${STASH}], button[aria-label], a[aria-label]`)
-  if (!el || el === tip) return null
+  // A frame's title names its browsing context for assistive technology.
+  // Moving it into the tooltip stash makes a hovered/focused frame unnamed.
+  if (!el || el === tip || el.matches('iframe, frame')) return null
   // Never tooltip the tooltip.
   if (tip && el.contains(tip)) return null
   return el
@@ -146,12 +148,18 @@ export function installTooltips(): void {
   if (document.documentElement.dataset.tooltips === 'on') return
   document.documentElement.dataset.tooltips = 'on'
 
+  let dragging = false
+  document.addEventListener('dragstart', () => { dragging = true; hide() })
+  document.addEventListener('dragend', () => { dragging = false; hide() })
+  document.addEventListener('drop', () => { dragging = false; hide() })
+
   // `pointerover` alone decides whether a tooltip should be open: it fires for
   // every element the pointer enters, including the ones that have no tooltip,
   // which is exactly where the previous one must close. A `pointerout` handler
   // cannot do this, because the element it leaves no longer carries a `title`
   // (it was stashed while the tooltip was visible).
   document.addEventListener('pointerover', (event) => {
+    if (dragging) return
     const el = candidate(event.target)
     if (el === target) return
     hide()

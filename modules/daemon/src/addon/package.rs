@@ -41,6 +41,9 @@ impl Package {
         let snapshot = Snapshot::read(path)?;
         snapshot.verify(&policy.trusted_keys, policy.require_signature)?;
         let manifest = Manifest::from_files(&snapshot.files)?;
+        // Page assets always require a verifiable signature, even when legacy
+        // tool-only development packages are allowed without one.
+        if !manifest.pages.is_empty() { snapshot.verify(&policy.trusted_keys, true)?; }
         let wasm = Arc::new(if manifest.addon.entry.is_empty() {
             vec![]
         } else {
@@ -86,6 +89,7 @@ impl Package {
                     .iter()
                     .map(|entry| format!("mcp:{}{}", super::pascal(&manifest.id), entry.name)),
             )
+            .chain(manifest.pages.iter().map(|page| format!("page:{}",page.id)))
             .collect();
         let identity = Identity {
             id: manifest.id.clone(),

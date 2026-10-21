@@ -187,6 +187,7 @@ mod tests {
     #[test]
     fn redacted_thinking_is_counted() {
         let message = super::super::Message {
+            origin: Default::default(),
             role: super::super::Role::Assistant,
             content: vec![ContentBlock::RedactedThinking {
                 data: "x".repeat(400),

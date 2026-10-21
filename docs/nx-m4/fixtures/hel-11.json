@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "id": "hel-11",
+  "split": "held_out",
+  "mode": "strip_usage",
+  "files": {
+    "app.py": "ROLE = \"application\"\nMARKER = \"synthetic_inventory_42\"\n",
+    "test_app.py": "ROLE = \"test\"\n"
+  },
+  "goal": "Read app.py and report its MARKER. Do not modify files or invent token, cost or cache values.",
+  "checks": {
+    "unchanged": true,
+    "usage_unknown": true,
+    "answer_contains": [
+      "synthetic_inventory_42"
+    ]
+  },
+  "limits": {
+    "max_iterations": 7,
+    "max_tokens": 1024,
+    "max_turns": 4,
+    "token_limit": 300000
+  },
+  "seed_digest": "76f992d62ef10ef13f29ceab9014e14708f70b061ba23ab35030d317c5dc79d7"
+}

@@ -56,11 +56,18 @@ pub fn cost(
     if !usage.tokens_reported || p.validate().is_err() {
         return None;
     }
+    if usage.cached_input_tokens.saturating_add(usage.cache_write_input_tokens)>usage.input_tokens {
+        return None;
+    }
     let uncached = usage.uncached_input_tokens();
     let cache_hit_rate =
         if p.cache_hit_per_mtok > 0.0 { p.cache_hit_per_mtok } else { p.input_per_mtok };
     let cache_write_rate =
         if p.cache_write_per_mtok > 0.0 { p.cache_write_per_mtok } else { p.input_per_mtok };
+    if (!usage.cache_read_reported && cache_hit_rate != p.input_per_mtok)
+        || (!usage.cache_write_reported && cache_write_rate != p.input_per_mtok) {
+        return None;
+    }
     let input = p.input_per_mtok * uncached as f64
         + cache_hit_rate * usage.cached_input_tokens as f64
         + cache_write_rate * usage.cache_write_input_tokens as f64;
@@ -175,8 +182,8 @@ pub fn run_usage(
         slot.cache_complete &= tokens_complete
             && entry.detail.get("cache_read_reported").and_then(|v| v.as_bool()) == Some(true)
             && entry.detail.get("cached_input_tokens").and_then(|v| v.as_u64()).is_some()
-            && get("cached_input_tokens") <= get("input_tokens");
-        slot.cost_complete &= tokens_complete && entry.detail.get("cost_micros").and_then(|v| v.as_u64()).is_some()
+            && get("cached_input_tokens").saturating_add(get("cache_write_input_tokens")) <= get("input_tokens");
+        slot.cost_complete &= get("cached_input_tokens").saturating_add(get("cache_write_input_tokens")) <= get("input_tokens") && tokens_complete && entry.detail.get("cost_micros").and_then(|v| v.as_u64()).is_some()
             && (get("reasoning_tokens") == 0 || get("accounting_version") == 1)
             && entry.detail.get("currency").and_then(|v| v.as_str()) == Some(if config.currency.is_empty() { "USD" } else { &config.currency });
         slot.calls += 1;
@@ -206,8 +213,8 @@ pub fn run_usage(
             let usage = call.usage.unwrap_or_default();
             slot.calls += 1;
             slot.tokens_complete &= usage.tokens_reported;
-            slot.cache_complete &= usage.tokens_reported && usage.cache_read_reported && usage.cached_input_tokens <= usage.input_tokens;
-            slot.cost_complete &= usage.tokens_reported && (usage.reasoning_tokens == 0 || call.accounting_version == 1)
+            slot.cache_complete &= usage.tokens_reported && usage.cache_read_reported && usage.cached_input_tokens.saturating_add(usage.cache_write_input_tokens) <= usage.input_tokens;
+            slot.cost_complete &= usage.cached_input_tokens.saturating_add(usage.cache_write_input_tokens) <= usage.input_tokens && usage.tokens_reported && (usage.reasoning_tokens == 0 || call.accounting_version == 1)
                 && call.cost_micros.is_some() && call.currency == if config.currency.is_empty() { "USD" } else { &config.currency };
             slot.input_tokens += usage.input_tokens;
             slot.output_tokens += usage.output_tokens;
@@ -270,6 +277,16 @@ mod tests {
     }
 
     #[test]
+    fn nx_m4_unknown_cache_write_prevents_fabricated_cost() {
+        let mut p=pricing(1.0,10.0);p.cache_hit_per_mtok=0.1;p.cache_write_per_mtok=1.25;
+        let mut u=Usage{tokens_reported:true,cache_read_reported:true,input_tokens:100,output_tokens:10,total_tokens:110,..Default::default()};
+        assert!(cost(Some(&p),"USD",&u).is_none());
+        u.cache_write_reported=true;assert!(cost(Some(&p),"USD",&u).is_some());
+        u.cached_input_tokens=90;u.cache_write_input_tokens=20;
+        assert!(cost(Some(&p),"USD",&u).is_none());assert!(u.cache_hit_rate().is_none());
+    }
+
+    #[test]
     fn cache_traffic_uses_the_cache_rates() {
         let mut p = pricing(1.0, 10.0);
         p.cache_hit_per_mtok = 0.1;
@@ -279,6 +296,8 @@ mod tests {
             input_tokens: 1_000_000,
             output_tokens: 0,
             cached_input_tokens: 500_000,
+            cache_read_reported: true,
+            cache_write_reported: true,
             cache_write_input_tokens: 200_000,
             ..Usage::default()
         };
@@ -388,7 +407,7 @@ mod tests {
         for (model, input, cached) in [("small", 100, 100), ("large", 900, 0)] {
             writer.record("test", "llm.usage", serde_json::json!({
                 "run_id": "known", "model": model, "input_tokens": input, "output_tokens": 50,
-                "cached_input_tokens": cached, "cache_write_input_tokens": 30,
+                "cached_input_tokens": cached, "cache_write_input_tokens": 0,
                 "tokens_reported": true, "cache_read_reported": true, "cost_micros": 1, "currency": "USD"
             })).unwrap();
         }

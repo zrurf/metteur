@@ -1,0 +1,230 @@
+.nx-live {
+  padding: 28px;
+  max-width: 1320px;
+  margin: auto;
+}
+.nx-live-heading,
+.nx-live-between {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.nx-live-heading {
+  margin-bottom: 26px;
+}
+.nx-live h1 {
+  font-size: 26px;
+  font-weight: 600;
+}
+.nx-live h2 {
+  font-size: 18px;
+  font-weight: 550;
+  margin: 0 0 14px;
+}
+.nx-live-heading p {
+  font-size: 12px;
+  color: var(--muted-foreground);
+  margin-top: 8px;
+}
+.nx-live-layout {
+  display: grid;
+  grid-template-columns: 260px minmax(0, 1fr);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--surface);
+}
+.nx-live-layout > aside {
+  padding: 14px;
+  background: var(--sidebar);
+  border-right: 1px solid var(--border);
+}
+.nx-live-row {
+  display: grid;
+  gap: 8px;
+  width: 100%;
+  padding: 14px;
+  text-align: left;
+  border-radius: 7px;
+  margin: 4px 0;
+  cursor: pointer;
+}
+.nx-live-row.selected {
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--border);
+}
+.nx-live-row strong {
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+.nx-live-row span {
+  font-size: 12px;
+  color: var(--muted-foreground);
+}
+.nx-live-detail {
+  padding: 26px;
+  min-width: 0;
+}
+.nx-live-badge {
+  display: inline-flex;
+  padding: 5px 10px;
+  border-radius: 20px;
+  background: var(--primary-soft);
+  color: var(--primary);
+  font-size: 12px;
+  margin: 10px 0 20px;
+}
+.nx-live-source {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 0;
+  border-top: 1px solid var(--border);
+  font-size: 13px;
+}
+.nx-live-source strong {
+  flex: 1;
+  overflow-wrap: anywhere;
+}
+.nx-live-facts {
+  display: grid;
+  grid-template-columns: 145px minmax(0, 1fr);
+  gap: 16px;
+  margin: 24px 0;
+  font-size: 13px;
+}
+.nx-live-facts dt {
+  color: var(--muted-foreground);
+}
+.nx-live-facts dd {
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+.nx-live-disclosure {
+  padding: 16px 0;
+  border-top: 1px solid var(--border);
+  font-size: 12px;
+}
+.nx-live-disclosure summary {
+  cursor: pointer;
+  color: var(--muted-foreground);
+}
+.nx-live pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  margin-top: 15px;
+  max-height: 400px;
+  overflow: auto;
+}
+.nx-live-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 20px;
+}
+.nx-live .btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+.nx-live .btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.nx-live-danger {
+  color: #b74b42;
+}
+.nx-live-empty {
+  padding: 70px 25px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  text-align: center;
+  color: var(--muted-foreground);
+  line-height: 1.8;
+}
+.nx-live-alert {
+  padding: 14px;
+  border: 1px solid #b4834540;
+  background: #b4834510;
+  border-radius: 8px;
+  font-size: 13px;
+  margin: 15px 0;
+  overflow-wrap: anywhere;
+  line-height: 1.6;
+}
+.nx-live-overlay {
+  position: fixed;
+  inset: 0;
+  background: #0006;
+  z-index: 150;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+}
+.nx-live-modal {
+  padding: 26px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--popover);
+  max-width: 620px;
+  width: 100%;
+  max-height: 90vh;
+  overflow: auto;
+  box-shadow: var(--shadow-popover);
+}
+.nx-live-modal p {
+  font-size: 13px;
+  line-height: 1.8;
+}
+.nx-live-form {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+.nx-live-form label {
+  display: grid;
+  gap: 7px;
+  font-size: 12px;
+}
+.nx-live-form .input {
+  width: 100%;
+}
+.nx-live-consent {
+  display: flex;
+  gap: 10px;
+  font-size: 13px;
+  margin-top: 18px;
+}
+@media (max-width: 760px) {
+  .nx-live {
+    padding: 18px;
+  }
+  .nx-live-layout {
+    grid-template-columns: 1fr;
+  }
+  .nx-live-layout > aside {
+    border-right: 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .nx-live-facts {
+    grid-template-columns: 1fr;
+    gap: 7px;
+  }
+  .nx-live-facts dd {
+    margin-bottom: 10px;
+  }
+  .nx-live-form {
+    grid-template-columns: 1fr;
+  }
+  .nx-live-between {
+    flex-wrap: wrap;
+  }
+  .nx-live-source {
+    flex-wrap: wrap;
+  }
+}
+
+.nx-live-heading h1 { display:flex; align-items:center; gap:8px; }
+.nx-live .btn:not(.btn-primary):not(.btn-danger-outline) { box-shadow:inset 0 0 0 1px var(--border); }
+@media(max-width:640px) { .nx-live-heading { flex-wrap:wrap; } }

@@ -83,6 +83,9 @@ pub struct TranscriptEntry {
     /// Wall-clock duration of the call in milliseconds.
     #[serde(default)]
     pub elapsed_ms: u64,
+    /// Host task identity for clients following a yielded conversation.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub continuation_task: Option<uuid::Uuid>,
 }
 
 impl TranscriptEntry {
@@ -100,6 +103,7 @@ impl TranscriptEntry {
             summary: String::new(),
             ok: true,
             elapsed_ms: 0,
+            continuation_task: None,
         }
     }
 }
@@ -225,6 +229,14 @@ impl Transcript {
     pub fn push_notice(&mut self, text: impl Into<String>, at: u64) {
         let mut entry = TranscriptEntry::new(EntryRole::Notice, at);
         entry.content = text.into();
+        self.entries.push(entry);
+    }
+
+    /// Retains a structured yield marker across browser reloads.
+    pub fn push_waiting(&mut self, task: uuid::Uuid, at: u64) {
+        let mut entry = TranscriptEntry::new(EntryRole::Notice, at);
+        entry.content = "Task yielded to an owned event.".into();
+        entry.continuation_task = Some(task);
         self.entries.push(entry);
     }
 

@@ -21,6 +21,7 @@ fn tool_result(id: &str, paths: &[&str], lifetime: ToolResultLifetime) -> ToolRe
 /// Builds an assistant message that calls one tool.
 fn assistant_with_call(id: &str, name: &str) -> Message {
     Message {
+        origin: Default::default(),
         role: Role::Assistant,
         content: vec![ContentBlock::Text("working".to_string())],
         tool_calls: vec![ToolCall {
@@ -178,6 +179,7 @@ fn estimate_message_includes_tool_calls_and_thinking() {
     );
 
     let thinking = Message {
+        origin: Default::default(),
         role: Role::Assistant,
         content: vec![
             ContentBlock::Thinking {
@@ -217,6 +219,7 @@ fn estimate_context_covers_system_and_messages() {
 #[test]
 fn text_content_excludes_thinking() {
     let message = Message {
+        origin: Default::default(),
         role: Role::Assistant,
         content: vec![
             ContentBlock::Thinking {
@@ -260,6 +263,7 @@ fn usage_cache_breakdown_is_consistent() {
         cache_read_reported: true,
         input_tokens: 1000,
         cached_input_tokens: 600,
+        cache_write_reported: false,
         cache_write_input_tokens: 100,
         ..Default::default()
     };

@@ -186,6 +186,9 @@ pub async fn complete(
         max_tokens: Some(settings.max_output_tokens),
         ..Default::default()
     };
+    let observer=crate::observability::audit::AuditWriter::new(db.clone());
+    let started=std::time::Instant::now();
+    let _=observer.record("host","llm.observation.begin",serde_json::json!({"call_id":id,"run_id":run,"role":caller,"provider":client.provider(),"model":client.model(),"request":client.diagnostics(context,&params,&[],false)}));
     let result = tokio::time::timeout(
         std::time::Duration::from_millis(timeout),
         client.complete(context, &params, &[]),
@@ -194,6 +197,7 @@ pub async fn complete(
     .unwrap_or_else(|_| {
         Err(DaemonError::Llm("oversight request timed out; remote usage may continue".into()))
     });
+    let _=observer.record("host","llm.observation.end",serde_json::json!({"call_id":id,"run_id":run,"role":caller,"provider":client.provider(),"model":client.model(),"elapsed_ms":started.elapsed().as_millis() as u64,"ttft_ms":null,"cost":crate::llm::diagnostics::cost(config.llm.models.get(model_key),&config.billing.currency,&config.billing.timezone,result.as_ref().ok().map(|r|&r.usage)),"outcome":if result.is_ok(){"response"}else{"error"},"usage":result.as_ref().ok().map(|r|crate::llm::diagnostics::usage(client.provider(),&r.usage))}));
     settle(db, run, id, result.as_ref().ok().map(|r| r.usage), model_key, config)?;
     result
 }

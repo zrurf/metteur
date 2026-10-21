@@ -41,12 +41,13 @@ export const useExecutionStore = defineStore('execution', () => {
   const controlBusy = ref(false)
   const connected = ref(false)
   let epoch = 0, query = 0
+  let pinnedRun:string|undefined
   const seen = new Map<string, number>()
   const streamActive = ref(false)
   let priorRuns = new Set<string>()
   const active = computed(() => !!current.value?.snapshot?.runtime?.active || streamActive.value && running.value)
   watch(() => workspace.active?.path, () => {
-    epoch++; query++; seen.clear(); streamActive.value = false; priorRuns = new Set()
+    epoch++; query++; pinnedRun=undefined; seen.clear(); streamActive.value = false; priorRuns = new Set()
     blueprint.value = null; sourcePath.value = ''; error.value = ''; status.value = 'idle'
     events.value = []; nodeAudits.value = new Map(); clearApprovals(); runId.value = null
     current.value = null; connected.value = false; launching.value = false; controlBusy.value = false
@@ -158,7 +159,9 @@ export const useExecutionStore = defineStore('execution', () => {
     if (events.value.length > limit) events.value.splice(0, events.value.length - limit)
   }
 
-  async function reconcile() {
+  async function reconcile(preferredRun?:string) {
+    if(preferredRun)pinnedRun=preferredRun
+    preferredRun=pinnedRun
     const ws = workspace.active?.path, generation = epoch, ticket = ++query, approvalTicket = approvalRevision
     if (!ws || launching.value) return
     try {
@@ -167,7 +170,8 @@ export const useExecutionStore = defineStore('execution', () => {
       if (!result.ok) throw new Error(result.error)
       connected.value = true
       const candidates = result.data.filter(r => !streamActive.value || runId.value || !priorRuns.has(r.runId))
-      const item = candidates.find(r => r.snapshot?.runtime?.active) ?? candidates.find(r => r.runId === runId.value) ?? candidates.at(-1)
+      const item = preferredRun ? candidates.find(r=>r.runId===preferredRun) : candidates.find(r => r.snapshot?.runtime?.active) ?? candidates.find(r => r.runId === runId.value) ?? candidates.at(-1)
+      if(preferredRun&&!item){error.value='The requested run is unavailable. No other run was selected.';return}
       if (!item) return
       if (current.value?.runId === item.runId && current.value.updatedAt > item.updatedAt) return
       current.value = item; runId.value = item.runId
@@ -184,6 +188,12 @@ export const useExecutionStore = defineStore('execution', () => {
           const valid = new Set(runtime.pending_approval_ids)
           for (let i = approvalQueue.length - 1; i >= 0; i--) if (!valid.has(approvalQueue[i]!.id)) approvalQueue.splice(i, 1)
           if (approval.value && !valid.has(approval.value.id)) approval.value = approvalQueue.shift() ?? null
+          for(const pending of runtime.pending_approvals ?? []){
+            if(approval.value?.id===pending.request_id || approvalQueue.some(a=>a.id===pending.request_id)) continue
+            let detail:Record<string,unknown>={}
+            try {detail=JSON.parse(pending.detail)}catch{ /* Show a bounded generic request if legacy detail is unavailable. */ }
+            push({nodeId:'',kind:'approval_request',message:pending.request_id,detail:{...detail,requestId:pending.request_id}})
+          }
         }
       }
     } catch (e) {
@@ -193,6 +203,7 @@ export const useExecutionStore = defineStore('execution', () => {
   }
 
   async function run(blueprintId: string, graph?: Blueprint, filePath = '') {
+    pinnedRun=undefined
     const ws = workspace.active
     if (!ws || running.value || launching.value) return
     const generation = ++epoch

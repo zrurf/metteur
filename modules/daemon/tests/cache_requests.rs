@@ -130,6 +130,7 @@ async fn final_http_requests_share_one_breakpoint_budget_and_canonical_prefix() 
                     ));
                 }
                 context.messages.push(Message {
+                    origin: Default::default(),
                     role: Role::Assistant,
                     content: vec![
                         ContentBlock::Thinking {
@@ -148,6 +149,7 @@ async fn final_http_requests_share_one_breakpoint_budget_and_canonical_prefix() 
                     tool_call_id: None,
                 });
                 context.messages.push(Message {
+                    origin: Default::default(),
                     role: Role::Tool,
                     content: vec![ContentBlock::Text("actual local result".into())],
                     tool_calls: vec![],
@@ -163,6 +165,10 @@ async fn final_http_requests_share_one_breakpoint_budget_and_canonical_prefix() 
                     .await
                     .unwrap();
                 let first = captured.lock().unwrap().last().unwrap().clone();
+                let observed=client.diagnostics(&context,&GenerationParams::default(),&definitions,false);
+                assert_eq!(observed["cache_breakpoints"].as_u64(),Some(markers(&first) as u64));
+                assert!(!observed.to_string().contains("unchanged-signature"));
+                assert!(!observed.to_string().contains("actual local result"));
                 assert!(
                     markers(&first)
                         <= if cache {
@@ -285,6 +291,7 @@ async fn empty_system_and_thinking_only_tail_do_not_get_invalid_markers() {
         "",
     );
     context.messages = vec![Message {
+        origin: Default::default(),
         role: Role::Assistant,
         content: vec![ContentBlock::Thinking {
             text: "reasoning".into(),

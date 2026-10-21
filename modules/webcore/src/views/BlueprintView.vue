@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { blueprintEdgeVisual, CATEGORY_ACCENT as ACCENT } from '@/lib/blueprint-edges'
-import { computed, nextTick, onBeforeUnmount, onMounted, provide, ref, watch } from 'vue'
+import { computed, markRaw, nextTick, onBeforeUnmount, onMounted, provide, ref, watch } from 'vue'
 import { useVueFlow, VueFlow, ConnectionMode } from '@vue-flow/core'
 import { Background } from '@vue-flow/background'
 import { Controls } from '@vue-flow/controls'
@@ -46,6 +46,8 @@ import FileVersionPanel from '@/components/FileVersionPanel.vue'
 import NodeInspector from '@/components/NodeInspector.vue'
 import FilePickerDialog, { type FilePick } from '@/components/FilePickerDialog.vue'
 import { CATEGORIES, execInOf, isPinCompatible, makeCallFunctionNode, makeFlowNode, makeFileReference, categoryFor, NODE_PRESETS, uuid } from '@/lib/blueprint'
+
+const nodeTypes = { blueprint: markRaw(BlueprintNodeComp) as unknown as NodeComponent }
 
 const workspace = useWorkspaceStore()
 const prompts = usePromptResourcesStore()
@@ -1543,10 +1545,11 @@ function openVersionPanel() {
     <div ref="flowWrap" class="relative min-w-0 flex-1" @dragover.prevent @drop="dropPrompt">
       <VueFlow
         ref="flowRef"
+        :only-render-visible-elements="true"
         v-model:nodes="flowNodes"
         v-model:edges="canvasEdges"
         class="blueprint-flow"
-        :node-types="{ blueprint: BlueprintNodeComp as unknown as NodeComponent }"
+        :node-types="nodeTypes"
         :snap-to-grid="true"
         :snap-grid="[12, 12]"
         :default-viewport="{ zoom: 0.8 }"

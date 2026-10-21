@@ -1,0 +1,2744 @@
+{
+  "schema_version": 1,
+  "date": "Started 2026-10-20; updated 2026-10-21 Asia/Shanghai",
+  "state": "LOCAL_ENGINEERING_COMPLETE_OWNER_VISUAL_SIGNOFF_SEPARATE",
+  "base_commit": "ff7b795e536042e885f08a9bf7a2e5d4a3121749",
+  "evidence_root": "D:/BaiduNetdiskDownload/metteur-a7-work/tmp/local-acceptance-20261020",
+  "claim_boundary": "Implementation and bounded local engineering acceptance complete. Unit/contract, real native processes, real model observations and owner visual acceptance remain explicitly separate. Multi-day soak and arbitrary old-binary interoperability are not certified.",
+  "tasks": [
+    {
+      "id": "NX-00",
+      "phase": "NX-M0",
+      "requirement": "冻结真实起点与基线",
+      "historical_cloud_status": "DONE_TARGETED (historical)",
+      "local_status": "PASS_LOCAL_ENGINEERING",
+      "evidence": [
+        "workspace-review-2026-10-20/handoff-reception.json",
+        "workspace-review-2026-10-20/source-bundle-comparison.json",
+        "native-full-rust-layout-fixed-gwgv_txm",
+        "linux-final-frozen/first-gpw6sw0x"
+      ],
+      "pre_completion_status": "PASS_LOCAL_RECEPTION",
+      "engineering_status": "COMPLETE_IN_DECLARED_LOCAL_SCOPE"
+    },
+    {
+      "id": "NX-01",
+      "phase": "NX-M0",
+      "requirement": "修复 Addon 权限测试的假绿与过紧预算",
+      "historical_cloud_status": "DONE_TARGETED (historical)",
+      "local_status": "PASS_LOCAL_ENGINEERING",
+      "evidence": [
+        "linux-frozen-gate/first-21szndqv",
+        "native-full-rust-layout-fixed-gwgv_txm",
+        "linux-final-frozen/first-gpw6sw0x"
+      ],
+      "scoped_checks": [
+        "ADDON"
+      ],
+      "pre_completion_status": "PARTIAL_SCOPED_LOCAL_BACKEND_TESTS",
+      "engineering_status": "COMPLETE_IN_DECLARED_LOCAL_SCOPE"
+    },
+    {
+      "id": "NX-02",
+      "phase": "NX-M0",
+      "requirement": "修复缓存请求的断点与排序",
+      "historical_cloud_status": "DONE_TARGETED (historical)",
+      "local_status": "PASS_LOCAL_ENGINEERING",
+      "evidence": [
+        "linux-frozen-gate/first-21szndqv",
+        "native-full-rust-layout-fixed-gwgv_txm",
+        "linux-final-frozen/first-gpw6sw0x"
+      ],
+      "scoped_checks": [
+        "CACHE"
+      ],
+      "pre_completion_status": "PARTIAL_SCOPED_LOCAL_BACKEND_TESTS",
+      "engineering_status": "COMPLETE_IN_DECLARED_LOCAL_SCOPE"
+    },
+    {
+      "id": "NX-03",
+      "phase": "NX-M0",
+      "requirement": "建立可复现验证门槛",
+      "historical_cloud_status": "PARTIAL_PLATFORM",
+      "local_status": "PASS_LOCAL_ENGINEERING",
+      "evidence": [
+        "current-frontend-types-xk9gxphl",
+        "typecheck-coverage-directed-8wh7l5ua",
+        "fixture-e2e-owned-port-5idnbprw",
+        "default-gate/first-8umb2qrd",
+        "frontend-production-memory-wszd5ubn",
+        "web-final-gate/first-k44as6eq",
+        "web-follow-gate/first-bbohctr8",
+        "native-workspace-build-zeqx_w2j",
+        "linux-continuation-build-srs0ixhz",
+        "native-full-rust-layout-fixed-gwgv_txm",
+        "linux-final-frozen/first-gpw6sw0x"
+      ],
+      "pre_completion_status": "PASS_LOCAL_GATES_LIMITED_PLATFORMS",
+      "engineering_status": "COMPLETE_IN_DECLARED_LOCAL_SCOPE"
+    },
+    {
+      "id": "NX-04",
+      "phase": "NX-M1",
+      "requirement": "冻结共同身份、权限与数据契约",
+      "historical_cloud_status": "IMPLEMENTED_TARGETED",
+      "local_status": "PASS_LOCAL_ENGINEERING",
+      "evidence": [
+        "linux-frozen-gate/first-21szndqv",
+        "native-full-rust-layout-fixed-gwgv_txm",
+        "linux-final-frozen/first-gpw6sw0x"
+      ],
+      "scoped_checks": [
+        "STORAGE"
+      ],
+      "pre_completion_status": "PARTIAL_SCOPED_LOCAL_BACKEND_TESTS",
+      "engineering_status": "COMPLETE_IN_DECLARED_LOCAL_SCOPE"
+    },
+    {
+      "id": "NX-05",
+      "phase": "NX-M1",
+      "requirement": "建立隔离前端预览工作流",
+      "historical_cloud_status": "IMPLEMENTED_TARGETED",
+      "local_status": "PASS_LOCAL_ENGINEERING",
+      "evidence": [
+        "preview-isolation-e_qqnstl",
+        "native-full-rust-layout-fixed-gwgv_txm",
+        "linux-final-frozen/first-gpw6sw0x",
+        "frontend-full-e2e-completion-huiigsyr"
+      ],
+      "pre_completion_status": "PARTIAL_STATIC_ISOLATION",
+      "engineering_status": "COMPLETE_IN_DECLARED_LOCAL_SCOPE"
+    },
+    {
+      "id": "NX-06",
+      "phase": "NX-M1",
+      "requirement": "增加版本化持久记录与迁移",
+      "historical_cloud_status": "IMPLEMENTED_TARGETED",
+      "local_status": "PASS_LOCAL_ENGINEERING",
+      "evidence": [
+        "linux-frozen-gate/first-21szndqv",
+        "native-full-rust-layout-fixed-gwgv_txm",
+        "linux-final-frozen/first-gpw6sw0x"
+      ],
+      "scoped_checks": [
+        "STORAGE"
+      ],
+      "pre_completion_status": "PARTIAL_SCOPED_LOCAL_BACKEND_TESTS",
+      "engineering_status": "COMPLETE_IN_DECLARED_LOCAL_SCOPE"
+    },
+    {
+      "id": "NX-07",
+      "phase": "NX-M1",
+      "requirement": "项目记忆与证据引用服务",
+      "historical_cloud_status": "IMPLEMENTED_TARGETED",
+      "local_status": "PASS_LOCAL_ENGINEERING",
+      "evidence": [
+        "linux-frozen-gate/first-21szndqv",
+        "native-full-rust-layout-fixed-gwgv_txm",
+        "linux-final-frozen/first-gpw6sw0x"
+      ],
+      "scoped_checks": [
+        "MEMORY"
+      ],
+      "pre_completion_status": "PARTIAL_SCOPED_LOCAL_BACKEND_TESTS",
+      "engineering_status": "COMPLETE_IN_DECLARED_LOCAL_SCOPE"
+    },
+    {
+      "id": "NX-08",
+      "phase": "NX-M1",
+      "requirement": "记忆查询／写笔记工具",
+      "historical_cloud_status": "IMPLEMENTED_TARGETED",
+      "local_status": "PASS_LOCAL_ENGINEERING",
+      "evidence": [
+        "linux-frozen-gate/first-21szndqv",
+        "native-full-rust-layout-fixed-gwgv_txm",
+        "linux-final-frozen/first-gpw6sw0x"
+      ],
+      "scoped_checks": [
+        "MEMORY"
+      ],
+      "pre_completion_status": "PARTIAL_SCOPED_LOCAL_BACKEND_TESTS",
+      "engineering_status": "COMPLETE_IN_DECLARED_LOCAL_SCOPE"
+    },
+    {
+      "id": "NX-09",
+      "phase": "NX-M1",
+      "requirement": "批准后接入项目黑板 UI",
+      "historical_cloud_status": "IMPLEMENTED_TARGETED",
+      "local_status": "PASS_ENGINEERING_OWNER_VISUAL_PENDING",
+      "evidence": [
+        "memory-races-fixed-666mybqp",
+        "memory-and-layout-types-m6bo3zjj",
+        "memory-resource-lint-o1fcb7b9",
+        "memory-snapshot-revision-hnipyak_",
+        "memory-page-revision-chkk5zw5",
+        "native-full-rust-layout-fixed-gwgv_txm",
+        "linux-final-frozen/first-gpw6sw0x"
+      ],
+      "pre_completion_status": "PARTIAL_BROWSER_FIXTURE",
+      "engineering_status": "COMPLETE_IN_DECLARED_LOCAL_SCOPE",
+      "owner_final_visual_signoff": "PENDING_OWNER"
+    },
+    {
+      "id": "NX-10",
+      "phase": "NX-M1",
+      "requirement": "双作用域 Prompt 资源服务",
+      "historical_cloud_status": "IMPLEMENTED_TARGETED",
+      "local_status": "PASS_LOCAL_ENGINEERING",
+      "evidence": [
+        "linux-frozen-gate/first-21szndqv",
+        "native-full-rust-layout-fixed-gwgv_txm",
+        "linux-final-frozen/first-gpw6sw0x"
+      ],
+      "scoped_checks": [
+        "PROMPTS"
+      ],
+      "pre_completion_status": "PARTIAL_SCOPED_LOCAL_BACKEND_TESTS",
+      "engineering_status": "COMPLETE_IN_DECLARED_LOCAL_SCOPE"
+    },
+    {
+      "id": "NX-11",
+      "phase": "NX-M1",
+      "requirement": "Prompt 快照与 Chat/蓝图上下文接入",
+      "historical_cloud_status": "IMPLEMENTED_TARGETED",
+      "local_status": "PASS_LOCAL_ENGINEERING",
+      "evidence": [
+        "resource-chat-blueprint-regression-9ntxd8fk",
+        "linux-frozen-gate/first-21szndqv",
+        "native-full-rust-layout-fixed-gwgv_txm",
+        "linux-final-frozen/first-gpw6sw0x"
+      ],
+      "scoped_checks": [
+        "PROMPTS"
+      ],
+      "pre_completion_status": "PARTIAL_BROWSER_FIXTURE",
+      "engineering_status": "COMPLETE_IN_DECLARED_LOCAL_SCOPE"
+    },
+    {
+      "id": "NX-12",
+      "phase": "NX-M1",
+      "requirement": "批准后接入 Prompt 资源 UI",
+      "historical_cloud_status": "IMPLEMENTED_TARGETED",
+      "local_status": "PASS_ENGINEERING_OWNER_VISUAL_PENDING",
+      "evidence": [
+        "resource-chat-blueprint-regression-9ntxd8fk",
+        "native-full-rust-layout-fixed-gwgv_txm",
+        "linux-final-frozen/first-gpw6sw0x"
+      ],
+      "pre_completion_status": "PARTIAL_BROWSER_FIXTURE",
+      "engineering_status": "COMPLETE_IN_DECLARED_LOCAL_SCOPE",
+      "owner_final_visual_signoff": "PENDING_OWNER"
+    },
+    {
+      "id": "NX-13",
+      "phase": "NX-M2",
+      "requirement": "抽取宿主拥有的回合生命周期",
+      "historical_cloud_status": "IMPLEMENTED_TARGETED",
+      "local_status": "PASS_LOCAL_ENGINEERING",
+      "evidence": [
+        "linux-frozen-gate/first-21szndqv",
+        "native-full-rust-layout-fixed-gwgv_txm",
+        "linux-final-frozen/first-gpw6sw0x"
+      ],
+      "scoped_checks": [
+        "CONTINUATION"
+      ],
+      "pre_completion_status": "PARTIAL_SCOPED_LOCAL_BACKEND_TESTS",
+      "engineering_status": "COMPLETE_IN_DECLARED_LOCAL_SCOPE"
+    },
+    {
+      "id": "NX-14",
+      "phase": "NX-M2",
+      "requirement": "持久化事件、outbox 与 inbox",
+      "historical_cloud_status": "IMPLEMENTED_TARGETED",
+      "local_status": "PASS_LOCAL_ENGINEERING",
+      "evidence": [
+        "linux-frozen-gate/first-21szndqv",
+        "native-full-rust-layout-fixed-gwgv_txm",
+        "linux-final-frozen/first-gpw6sw0x"
+      ],
+      "scoped_checks": [
+        "CONTINUATION"
+      ],
+      "pre_completion_status": "PARTIAL_SCOPED_LOCAL_BACKEND_TESTS",
+      "engineering_status": "COMPLETE_IN_DECLARED_LOCAL_SCOPE"
+    },
+    {
+      "id": "NX-15",
+      "phase": "NX-M2",
+      "requirement": "任务状态机、订阅与等待提交",
+      "historical_cloud_status": "IMPLEMENTED_TARGETED",
+      "local_status": "PASS_LOCAL_ENGINEERING",
+      "evidence": [
+        "linux-frozen-gate/first-21szndqv",
+        "native-full-rust-layout-fixed-gwgv_txm",
+        "linux-final-frozen/first-gpw6sw0x"
+      ],
+      "scoped_checks": [
+        "CONTINUATION"
+      ],
+      "pre_completion_status": "PARTIAL_SCOPED_LOCAL_BACKEND_TESTS",
+      "engineering_status": "COMPLETE_IN_DECLARED_LOCAL_SCOPE"
+    },
+    {
+      "id": "NX-16",
+      "phase": "NX-M2",
+      "requirement": "统一准入、dispatch 与副作用租约",
+      "historical_cloud_status": "IMPLEMENTED_TARGETED",
+      "local_status": "PASS_LOCAL_ENGINEERING",
+      "evidence": [
+        "native-recovery-fixed-i59ki_j4",
+        "native-canonical-checkpoint-oalhtm6t",
+        "linux-frozen-gate/first-21szndqv",
+        "native-full-rust-layout-fixed-gwgv_txm",
+        "linux-final-frozen/first-gpw6sw0x"
+      ],
+      "scoped_checks": [
+        "CONTINUATION"
+      ],
+      "pre_completion_status": "PARTIAL_NATIVE_RECOVERY",
+      "engineering_status": "COMPLETE_IN_DECLARED_LOCAL_SCOPE"
+    },
+    {
+      "id": "NX-17",
+      "phase": "NX-M2",
+      "requirement": "Job 完成源与 owner 转移",
+      "historical_cloud_status": "IMPLEMENTED_TARGETED",
+      "local_status": "PASS_LOCAL_ENGINEERING",
+      "evidence": [
+        "linux-daemon-live-nx-transition-4wdpse3g",
+        "linux-frozen-gate/first-21szndqv",
+        "native-full-rust-layout-fixed-gwgv_txm",
+        "linux-final-frozen/first-gpw6sw0x",
+        "eval-held-out-frozen-20261021",
+        "actual-pending-job-restart-xbuq51_e"
+      ],
+      "scoped_checks": [
+        "CONTINUATION"
+      ],
+      "pre_completion_status": "PARTIAL_LIVE_JOB_SYNTHETIC_PROVIDER",
+      "engineering_status": "COMPLETE_IN_DECLARED_LOCAL_SCOPE"
+    },
+    {
+      "id": "NX-18",
+      "phase": "NX-M2",
+      "requirement": "异步子代理句柄与完成事件",
+      "historical_cloud_status": "IMPLEMENTED_TARGETED",
+      "local_status": "PASS_LOCAL_ENGINEERING",
+      "evidence": [
+        "linux-frozen-gate/first-21szndqv",
+        "native-full-rust-layout-fixed-gwgv_txm",
+        "linux-final-frozen/first-gpw6sw0x",
+        "eval-held-out-frozen-20261021/hel-01-pro-candidate"
+      ],
+      "scoped_checks": [
+        "CONTINUATION"
+      ],
+      "pre_completion_status": "PARTIAL_SCOPED_LOCAL_BACKEND_TESTS",
+      "engineering_status": "COMPLETE_IN_DECLARED_LOCAL_SCOPE"
+    },
+    {
+      "id": "NX-19",
+      "phase": "NX-M2",
+      "requirement": "定时规则与 fake clock 测试",
+      "historical_cloud_status": "IMPLEMENTED_TARGETED",
+      "local_status": "PASS_LOCAL_ENGINEERING",
+      "evidence": [
+        "linux-frozen-gate/first-21szndqv",
+        "native-full-rust-layout-fixed-gwgv_txm",
+        "linux-final-frozen/first-gpw6sw0x"
+      ],
+      "scoped_checks": [
+        "CONTINUATION"
+      ],
+      "pre_completion_status": "PARTIAL_SCOPED_LOCAL_BACKEND_TESTS",
+      "engineering_status": "COMPLETE_IN_DECLARED_LOCAL_SCOPE"
+    },
+    {
+      "id": "NX-20",
+      "phase": "NX-M2",
+      "requirement": "持久化调度器与启动/关闭集成",
+      "historical_cloud_status": "IMPLEMENTED_TARGETED",
+      "local_status": "PASS_LOCAL_ENGINEERING",
+      "evidence": [
+        "linux-frozen-gate/first-21szndqv",
+        "native-full-rust-layout-fixed-gwgv_txm",
+        "linux-final-frozen/first-gpw6sw0x"
+      ],
+      "scoped_checks": [
+        "CONTINUATION"
+      ],
+      "pre_completion_status": "PARTIAL_SCOPED_LOCAL_BACKEND_TESTS",
+      "engineering_status": "COMPLETE_IN_DECLARED_LOCAL_SCOPE"
+    },
+    {
+      "id": "NX-21",
+      "phase": "NX-M2",
+      "requirement": "续跑授权、根预算和 Stop",
+      "historical_cloud_status": "IMPLEMENTED_TARGETED",
+      "local_status": "PASS_LOCAL_ENGINEERING",
+      "evidence": [
+        "linux-frozen-gate/first-21szndqv",
+        "native-full-rust-layout-fixed-gwgv_txm",
+        "linux-final-frozen/first-gpw6sw0x"
+      ],
+      "scoped_checks": [
+        "CONTINUATION"
+      ],
+      "pre_completion_status": "PARTIAL_SCOPED_LOCAL_BACKEND_TESTS",
+      "engineering_status": "COMPLETE_IN_DECLARED_LOCAL_SCOPE"
+    },
+    {
+      "id": "NX-22",
+      "phase": "NX-M2",
+      "requirement": "事件参数与模型上下文适配",
+      "historical_cloud_status": "IMPLEMENTED_TARGETED",
+      "local_status": "PASS_LOCAL_ENGINEERING",
+      "evidence": [
+        "linux-frozen-gate/first-21szndqv",
+        "native-full-rust-layout-fixed-gwgv_txm",
+        "linux-final-frozen/first-gpw6sw0x"
+      ],
+      "scoped_checks": [
+        "CONTINUATION"
+      ],
+      "pre_completion_status": "PARTIAL_SCOPED_LOCAL_BACKEND_TESTS",
+      "engineering_status": "COMPLETE_IN_DECLARED_LOCAL_SCOPE"
+    },
+    {
+      "id": "NX-23",
+      "phase": "NX-M2",
+      "requirement": "三类源恢复与崩溃窗口收口",
+      "historical_cloud_status": "IMPLEMENTED_TARGETED",
+      "local_status": "PASS_LOCAL_ENGINEERING",
+      "evidence": [
+        "native-recovery-fixed-i59ki_j4",
+        "native-canonical-checkpoint-oalhtm6t",
+        "linux-frozen-gate/first-21szndqv",
+        "native-full-rust-layout-fixed-gwgv_txm",
+        "linux-final-frozen/first-gpw6sw0x",
+        "actual-pending-job-restart-xbuq51_e",
+        "final-boundaries-effective-config-0f920lk6"
+      ],
+      "scoped_checks": [
+        "CONTINUATION"
+      ],
+      "pre_completion_status": "PARTIAL_NATIVE_RECOVERY",
+      "engineering_status": "COMPLETE_IN_DECLARED_LOCAL_SCOPE"
+    },
+    {
+      "id": "NX-24",
+      "phase": "NX-M2",
+      "requirement": "批准后接入任务等待/唤起 UI",
+      "historical_cloud_status": "INTEGRATED_PROVISIONAL",
+      "local_status": "PASS_ENGINEERING_OWNER_VISUAL_PENDING",
+      "evidence": [
+        "native-live-page-review-ready-99wj4s_e",
+        "native-full-rust-layout-fixed-gwgv_txm",
+        "linux-final-frozen/first-gpw6sw0x"
+      ],
+      "pre_completion_status": "PARTIAL_NATIVE_PRODUCTION_RENDERING",
+      "engineering_status": "COMPLETE_IN_DECLARED_LOCAL_SCOPE",
+      "owner_final_visual_signoff": "PENDING_OWNER"
+    },
+    {
+      "id": "NX-25",
+      "phase": "NX-M2",
+      "requirement": "批准后接入定时管理 UI",
+      "historical_cloud_status": "INTEGRATED_PROVISIONAL",
+      "local_status": "PASS_ENGINEERING_OWNER_VISUAL_PENDING",
+      "evidence": [
+        "native-live-page-review-ready-99wj4s_e",
+        "native-full-rust-layout-fixed-gwgv_txm",
+        "linux-final-frozen/first-gpw6sw0x"
+      ],
+      "pre_completion_status": "PARTIAL_NATIVE_PRODUCTION_RENDERING",
+      "engineering_status": "COMPLETE_IN_DECLARED_LOCAL_SCOPE",
+      "owner_final_visual_signoff": "PENDING_OWNER"
+    },
+    {
+      "id": "NX-26",
+      "phase": "NX-M2",
+      "requirement": "唤起基础完整验收",
+      "historical_cloud_status": "LOCAL_CANDIDATE_VERIFIED",
+      "local_status": "PASS_LOCAL_ENGINEERING",
+      "evidence": [
+        "linux-daemon-live-nx-transition-4wdpse3g",
+        "linux-frozen-gate/first-21szndqv",
+        "native-full-rust-layout-fixed-gwgv_txm",
+        "linux-final-frozen/first-gpw6sw0x",
+        "eval-held-out-frozen-20261021",
+        "actual-pending-job-restart-xbuq51_e"
+      ],
+      "scoped_checks": [
+        "CONTINUATION"
+      ],
+      "pre_completion_status": "PARTIAL_LIVE_JOB_SYNTHETIC_PROVIDER",
+      "engineering_status": "COMPLETE_IN_DECLARED_LOCAL_SCOPE"
+    },
+    {
+      "id": "NX-27",
+      "phase": "NX-M3",
+      "requirement": "交接记录与版本依赖清单",
+      "historical_cloud_status": "IMPLEMENTED_TARGETED",
+      "local_status": "PASS_LOCAL_ENGINEERING",
+      "evidence": [
+        "linux-frozen-gate/first-21szndqv",
+        "native-full-rust-layout-fixed-gwgv_txm",
+        "linux-final-frozen/first-gpw6sw0x"
+      ],
+      "scoped_checks": [
+        "LAUNCH"
+      ],
+      "pre_completion_status": "PARTIAL_SCOPED_LOCAL_BACKEND_TESTS",
+      "engineering_status": "COMPLETE_IN_DECLARED_LOCAL_SCOPE"
+    },
+    {
+      "id": "NX-28",
+      "phase": "NX-M3",
+      "requirement": "蓝图运行提案与具体确认",
+      "historical_cloud_status": "IMPLEMENTED_TARGETED",
+      "local_status": "PASS_LOCAL_ENGINEERING",
+      "evidence": [
+        "launch-review-binding-g5fpfc5b",
+        "linux-live-blueprint-follow-ooeig6gk",
+        "linux-live-blueprint-reload-_moki4dd",
+        "linux-frozen-gate/first-21szndqv",
+        "native-full-rust-layout-fixed-gwgv_txm",
+        "linux-final-frozen/first-gpw6sw0x"
+      ],
+      "scoped_checks": [
+        "LAUNCH"
+      ],
+      "pre_completion_status": "PARTIAL_LIVE_BLUEPRINT_SYNTHETIC_PROVIDER",
+      "engineering_status": "COMPLETE_IN_DECLARED_LOCAL_SCOPE"
+    },
+    {
+      "id": "NX-29",
+      "phase": "NX-M3",
+      "requirement": "安全 yield 后启动蓝图",
+      "historical_cloud_status": "IMPLEMENTED_TARGETED",
+      "local_status": "PASS_LOCAL_ENGINEERING",
+      "evidence": [
+        "launch-review-binding-g5fpfc5b",
+        "linux-live-blueprint-follow-ooeig6gk",
+        "linux-live-blueprint-reload-_moki4dd",
+        "linux-frozen-gate/first-21szndqv",
+        "native-full-rust-layout-fixed-gwgv_txm",
+        "linux-final-frozen/first-gpw6sw0x"
+      ],
+      "scoped_checks": [
+        "LAUNCH"
+      ],
+      "pre_completion_status": "PARTIAL_LIVE_BLUEPRINT_SYNTHETIC_PROVIDER",
+      "engineering_status": "COMPLETE_IN_DECLARED_LOCAL_SCOPE"
+    },
+    {
+      "id": "NX-30",
+      "phase": "NX-M3",
+      "requirement": "蓝图终态事件与父会话续跑",
+      "historical_cloud_status": "IMPLEMENTED_TARGETED",
+      "local_status": "PASS_LOCAL_ENGINEERING",
+      "evidence": [
+        "launch-review-binding-g5fpfc5b",
+        "linux-live-blueprint-follow-ooeig6gk",
+        "linux-live-blueprint-reload-_moki4dd",
+        "linux-frozen-gate/first-21szndqv",
+        "native-full-rust-layout-fixed-gwgv_txm",
+        "linux-final-frozen/first-gpw6sw0x"
+      ],
+      "scoped_checks": [
+        "LAUNCH"
+      ],
+      "pre_completion_status": "PARTIAL_LIVE_BLUEPRINT_SYNTHETIC_PROVIDER",
+      "engineering_status": "COMPLETE_IN_DECLARED_LOCAL_SCOPE"
+    },
+    {
+      "id": "NX-31",
+      "phase": "NX-M3",
+      "requirement": "批准后接入运行确认与交接 UI",
+      "historical_cloud_status": "INTEGRATED_PROVISIONAL",
+      "local_status": "PASS_ENGINEERING_OWNER_VISUAL_PENDING",
+      "evidence": [
+        "launch-review-binding-g5fpfc5b",
+        "linux-live-blueprint-follow-ooeig6gk",
+        "linux-live-blueprint-reload-_moki4dd",
+        "native-full-rust-layout-fixed-gwgv_txm",
+        "linux-final-frozen/first-gpw6sw0x"
+      ],
+      "pre_completion_status": "PARTIAL_LIVE_BLUEPRINT_SYNTHETIC_PROVIDER",
+      "engineering_status": "COMPLETE_IN_DECLARED_LOCAL_SCOPE",
+      "owner_final_visual_signoff": "PENDING_OWNER"
+    },
+    {
+      "id": "NX-32",
+      "phase": "NX-M3",
+      "requirement": "聊天—蓝图—聊天集成验收",
+      "historical_cloud_status": "IMPLEMENTED_TARGETED",
+      "local_status": "PASS_LOCAL_ENGINEERING",
+      "evidence": [
+        "launch-review-binding-g5fpfc5b",
+        "linux-live-blueprint-follow-ooeig6gk",
+        "linux-live-blueprint-reload-_moki4dd",
+        "linux-frozen-gate/first-21szndqv",
+        "native-full-rust-layout-fixed-gwgv_txm",
+        "linux-final-frozen/first-gpw6sw0x",
+        "full-resource-chain-5phc_4je"
+      ],
+      "scoped_checks": [
+        "LAUNCH"
+      ],
+      "pre_completion_status": "PARTIAL_LIVE_BLUEPRINT_SYNTHETIC_PROVIDER",
+      "engineering_status": "COMPLETE_IN_DECLARED_LOCAL_SCOPE"
+    },
+    {
+      "id": "NX-33",
+      "phase": "NX-M4",
+      "requirement": "选择两类实际模型与冻结任务集",
+      "historical_cloud_status": "DEFERRED_NOT_RUN",
+      "local_status": "PASS_LOCAL_ENGINEERING",
+      "evidence": [
+        "native-full-rust-layout-fixed-gwgv_txm",
+        "linux-final-frozen/first-gpw6sw0x",
+        "completion-model-report-20261021.json"
+      ],
+      "model_registration": "docs/nx-m4/model-registration.local-20261021.json",
+      "pre_completion_status": "PARTIAL_ONE_REAL_MODEL_REGISTERED_SECOND_CLASS_AND_SEEDS_PENDING",
+      "engineering_status": "COMPLETE_IN_DECLARED_LOCAL_SCOPE"
+    },
+    {
+      "id": "NX-34",
+      "phase": "NX-M4",
+      "requirement": "请求结构/缓存/用量观测",
+      "historical_cloud_status": "GENERAL_LAYER_IMPLEMENTED",
+      "local_status": "PASS_LOCAL_ENGINEERING",
+      "evidence": [
+        "fixture-e2e-owned-port-5idnbprw",
+        "linux-frozen-gate/first-21szndqv",
+        "native-full-rust-layout-fixed-gwgv_txm",
+        "linux-final-frozen/first-gpw6sw0x",
+        "actual-cache-conditions-4yr68qja",
+        "public-model-call-receipts-20261021.json"
+      ],
+      "scoped_checks": [
+        "CACHE"
+      ],
+      "pre_completion_status": "PARTIAL_BROWSER_FIXTURE",
+      "engineering_status": "COMPLETE_IN_DECLARED_LOCAL_SCOPE"
+    },
+    {
+      "id": "NX-35",
+      "phase": "NX-M4",
+      "requirement": "共享底座与模型/角色适配",
+      "historical_cloud_status": "PARTIAL_DEFERRED",
+      "local_status": "PASS_LOCAL_ENGINEERING",
+      "evidence": [
+        "native-full-rust-layout-fixed-gwgv_txm",
+        "linux-final-frozen/first-gpw6sw0x",
+        "actual-model-roles-t9ug9vxd",
+        "eval-development-paired-r2"
+      ],
+      "model_registration": "docs/nx-m4/model-registration.local-20261021.json",
+      "pre_completion_status": "PARTIAL_SHARED_CONTRACT_REAL_MODEL_ADAPTATION_EVAL_PENDING",
+      "engineering_status": "COMPLETE_IN_DECLARED_LOCAL_SCOPE"
+    },
+    {
+      "id": "NX-36",
+      "phase": "NX-M4",
+      "requirement": "必要工具增量与权限目录收口",
+      "historical_cloud_status": "IMPLEMENTED_TARGETED",
+      "local_status": "PASS_LOCAL_ENGINEERING",
+      "evidence": [
+        "linux-frozen-gate/first-21szndqv",
+        "native-full-rust-layout-fixed-gwgv_txm",
+        "linux-final-frozen/first-gpw6sw0x"
+      ],
+      "scoped_checks": [
+        "ROLE_TOOLS"
+      ],
+      "pre_completion_status": "PARTIAL_SCOPED_LOCAL_BACKEND_TESTS",
+      "engineering_status": "COMPLETE_IN_DECLARED_LOCAL_SCOPE"
+    },
+    {
+      "id": "NX-37",
+      "phase": "NX-M4",
+      "requirement": "真实模型匹配对照验收",
+      "historical_cloud_status": "DEFERRED_NOT_RUN",
+      "local_status": "PASS_LOCAL_ENGINEERING",
+      "evidence": [
+        "native-full-rust-layout-fixed-gwgv_txm",
+        "linux-final-frozen/first-gpw6sw0x",
+        "held-out-offline-regrade-20261021.json",
+        "eval-held-out-frozen-20261021"
+      ],
+      "model_registration": "docs/nx-m4/model-registration.local-20261021.json",
+      "pre_completion_status": "NOT_RUN_MATCHED_EVALUATION_SYNTHETIC_SMOKE_ONLY",
+      "engineering_status": "COMPLETE_IN_DECLARED_LOCAL_SCOPE"
+    },
+    {
+      "id": "NX-38",
+      "phase": "NX-M5",
+      "requirement": "Addon 生产取消与审批等待语义",
+      "historical_cloud_status": "IMPLEMENTED_TARGETED",
+      "local_status": "PASS_LOCAL_ENGINEERING",
+      "evidence": [
+        "linux-frozen-gate/first-21szndqv",
+        "native-full-rust-layout-fixed-gwgv_txm",
+        "linux-final-frozen/first-gpw6sw0x"
+      ],
+      "scoped_checks": [
+        "ADDON"
+      ],
+      "pre_completion_status": "PARTIAL_SCOPED_LOCAL_BACKEND_TESTS",
+      "engineering_status": "COMPLETE_IN_DECLARED_LOCAL_SCOPE"
+    },
+    {
+      "id": "NX-39",
+      "phase": "NX-M5",
+      "requirement": "页面 manifest、隔离 Bridge 与生命周期",
+      "historical_cloud_status": "IMPLEMENTED_TARGETED",
+      "local_status": "PASS_LOCAL_ENGINEERING",
+      "evidence": [
+        "linux-frozen-gate/first-21szndqv",
+        "native-full-rust-layout-fixed-gwgv_txm",
+        "linux-final-frozen/first-gpw6sw0x",
+        "installed-addon-browser-LE6lCJ"
+      ],
+      "scoped_checks": [
+        "ADDON"
+      ],
+      "pre_completion_status": "PARTIAL_SCOPED_LOCAL_BACKEND_TESTS",
+      "engineering_status": "COMPLETE_IN_DECLARED_LOCAL_SCOPE"
+    },
+    {
+      "id": "NX-40",
+      "phase": "NX-M5",
+      "requirement": "批准后接入 Addon 页面宿主 UI",
+      "historical_cloud_status": "INTEGRATED_PROVISIONAL",
+      "local_status": "PASS_ENGINEERING_OWNER_VISUAL_PENDING",
+      "evidence": [
+        "native-live-page-review-ready-99wj4s_e",
+        "native-full-rust-layout-fixed-gwgv_txm",
+        "linux-final-frozen/first-gpw6sw0x",
+        "installed-addon-browser-LE6lCJ"
+      ],
+      "pre_completion_status": "PARTIAL_NATIVE_PRODUCTION_RENDERING",
+      "engineering_status": "COMPLETE_IN_DECLARED_LOCAL_SCOPE",
+      "owner_final_visual_signoff": "PENDING_OWNER"
+    },
+    {
+      "id": "NX-41",
+      "phase": "NX-M5",
+      "requirement": "预览检查样例与独立成果验收",
+      "historical_cloud_status": "OFFLINE_RENDERER_VERIFIED",
+      "local_status": "PASS_LOCAL_ENGINEERING",
+      "evidence": [
+        "native-offline-renderer-_3bhcros",
+        "native-full-rust-layout-fixed-gwgv_txm",
+        "linux-final-frozen/first-gpw6sw0x",
+        "installed-addon-browser-LE6lCJ"
+      ],
+      "pre_completion_status": "PARTIAL_NATIVE_RENDERER_WORKER",
+      "engineering_status": "COMPLETE_IN_DECLARED_LOCAL_SCOPE"
+    },
+    {
+      "id": "NX-42",
+      "phase": "NX-M6",
+      "requirement": "冻结候选并执行全链路验收",
+      "historical_cloud_status": "LOCAL_SCOPE_VERIFIED_GLOBAL_PENDING",
+      "local_status": "PASS_ENGINEERING_OWNER_VISUAL_PENDING",
+      "evidence": [
+        "fixture-e2e-owned-port-5idnbprw",
+        "resource-chat-blueprint-regression-9ntxd8fk",
+        "native-full-rust-layout-fixed-gwgv_txm",
+        "linux-final-frozen/first-gpw6sw0x",
+        "full-resource-chain-5phc_4je",
+        "held-out-offline-regrade-20261021.json"
+      ],
+      "pre_completion_status": "PARTIAL_LOCAL_GATES_PASS_MODELS_AND_SIGNOFF_PENDING",
+      "engineering_status": "COMPLETE_IN_DECLARED_LOCAL_SCOPE",
+      "owner_final_visual_signoff": "PENDING_OWNER"
+    },
+    {
+      "id": "NX-43",
+      "phase": "NX-M6",
+      "requirement": "规模、平台与迁移回退演练",
+      "historical_cloud_status": "PARTIAL_LINUX_ONLY",
+      "local_status": "PASS_LOCAL_ENGINEERING",
+      "evidence": [
+        "native-linker-probe-7wf65372",
+        "linux-frozen-gate/first-21szndqv",
+        "native-full-rust-layout-fixed-gwgv_txm",
+        "linux-final-frozen/first-gpw6sw0x"
+      ],
+      "scoped_checks": [
+        "BOUNDED_SCALE"
+      ],
+      "pre_completion_status": "PARTIAL_SCOPED_LOCAL_BACKEND_TESTS",
+      "engineering_status": "COMPLETE_IN_DECLARED_LOCAL_SCOPE",
+      "boundary": "Controlled migrations/recovery, Windows/Linux gates and bounded scale; no multi-day soak or arbitrary old-binary read/write claim."
+    },
+    {
+      "id": "NX-44",
+      "phase": "NX-M6",
+      "requirement": "最终交付与状态审计",
+      "historical_cloud_status": "LOCAL_DELIVERY_READY",
+      "local_status": "PASS_ENGINEERING_OWNER_VISUAL_PENDING",
+      "evidence": [
+        "native-full-rust-layout-fixed-gwgv_txm",
+        "linux-final-frozen/first-gpw6sw0x",
+        "package root STATE.json and history/restore-verify.log",
+        "portable-bundled-runtime-rpc-proof-bz4l8brs",
+        "portable-demo-smoke-ajwsusqm"
+      ],
+      "pre_completion_status": "LOCAL_CANDIDATE_PACKAGE_RESTORE_VERIFIED_FINAL_ACCEPTANCE_PENDING",
+      "engineering_status": "COMPLETE_IN_DECLARED_LOCAL_SCOPE",
+      "owner_final_visual_signoff": "PENDING_OWNER",
+      "delivery_correction": "Standalone RPC bundle and deferred ready; new package supersedes old 2ada184 launcher. Prior smoke invalidated."
+    }
+  ],
+  "scenarios": [
+    {
+      "id": "BB-01",
+      "scenario": "项目隔离与归属",
+      "expected": "A 项目无法读取 B 的条目／会话引用；同名不构成相同身份。",
+      "local_status": "PASS_LOCAL_CONTRACT_AND_INTEGRATION_SCOPE",
+      "evidence": [
+        "linux-frozen-gate/first-21szndqv",
+        "native-full-rust-layout-fixed-gwgv_txm",
+        "linux-final-frozen/first-gpw6sw0x"
+      ],
+      "scoped_checks": [
+        "MEMORY"
+      ],
+      "pre_completion_status": "PARTIAL_SCOPED_LOCAL_BACKEND_TESTS"
+    },
+    {
+      "id": "BB-02",
+      "scenario": "模型笔记与用户约定",
+      "expected": "Agent 只能产生未验证笔记；提升需精确 revision 的人工确认。",
+      "local_status": "PASS_LOCAL_CONTRACT_AND_INTEGRATION_SCOPE",
+      "evidence": [
+        "linux-frozen-gate/first-21szndqv",
+        "native-full-rust-layout-fixed-gwgv_txm",
+        "linux-final-frozen/first-gpw6sw0x"
+      ],
+      "scoped_checks": [
+        "MEMORY"
+      ],
+      "pre_completion_status": "PARTIAL_SCOPED_LOCAL_BACKEND_TESTS"
+    },
+    {
+      "id": "BB-03",
+      "scenario": "约定编辑和确认失效",
+      "expected": "正文改变生成新修订，旧确认不能覆盖新内容。",
+      "local_status": "PASS_LOCAL_CONTRACT_AND_INTEGRATION_SCOPE",
+      "evidence": [
+        "linux-frozen-gate/first-21szndqv",
+        "native-full-rust-layout-fixed-gwgv_txm",
+        "linux-final-frozen/first-gpw6sw0x"
+      ],
+      "scoped_checks": [
+        "MEMORY"
+      ],
+      "pre_completion_status": "PARTIAL_SCOPED_LOCAL_BACKEND_TESTS"
+    },
+    {
+      "id": "BB-04",
+      "scenario": "事实投影防伪",
+      "expected": "普通写入不能伪造 Validator passed、来源 run 或用户身份。",
+      "local_status": "PASS_LOCAL_CONTRACT_AND_INTEGRATION_SCOPE",
+      "evidence": [
+        "linux-frozen-gate/first-21szndqv",
+        "native-full-rust-layout-fixed-gwgv_txm",
+        "linux-final-frozen/first-gpw6sw0x"
+      ],
+      "scoped_checks": [
+        "MEMORY"
+      ],
+      "pre_completion_status": "PARTIAL_SCOPED_LOCAL_BACKEND_TESTS"
+    },
+    {
+      "id": "BB-05",
+      "scenario": "文件版本失效",
+      "expected": "旧版本结论保留适用范围；变更、回滚和重试不显示成当前通过。",
+      "local_status": "PASS_LOCAL_CONTRACT_AND_INTEGRATION_SCOPE",
+      "evidence": [
+        "linux-frozen-gate/first-21szndqv",
+        "native-full-rust-layout-fixed-gwgv_txm",
+        "linux-final-frozen/first-gpw6sw0x"
+      ],
+      "scoped_checks": [
+        "MEMORY"
+      ],
+      "pre_completion_status": "PARTIAL_SCOPED_LOCAL_BACKEND_TESTS"
+    },
+    {
+      "id": "BB-06",
+      "scenario": "并发编辑／读取上限",
+      "expected": "expected_revision 冲突可诊断；查询分页、条目长度和检索预算生效。",
+      "local_status": "PASS_LOCAL_CONTRACT_AND_INTEGRATION_SCOPE",
+      "evidence": [
+        "memory-races-before-z4vx1zn1",
+        "memory-races-fixed-666mybqp",
+        "memory-snapshot-revision-hnipyak_",
+        "memory-page-revision-chkk5zw5",
+        "linux-frozen-gate/first-21szndqv",
+        "native-full-rust-layout-fixed-gwgv_txm",
+        "linux-final-frozen/first-gpw6sw0x"
+      ],
+      "limitations": "Browser editor identity/stale response checks and linked Rust revision/query-limit tests passed. Complete production UI-to-daemon workflow remains partial.",
+      "scoped_checks": [
+        "MEMORY"
+      ],
+      "pre_completion_status": "PARTIAL_BROWSER_FIXTURE"
+    },
+    {
+      "id": "BB-07",
+      "scenario": "归档删除与恢复",
+      "expected": "引用 tombstone 不指向其他记录；迁移与重复恢复幂等。",
+      "local_status": "PASS_LOCAL_CONTRACT_AND_INTEGRATION_SCOPE",
+      "evidence": [
+        "linux-frozen-gate/first-21szndqv",
+        "native-full-rust-layout-fixed-gwgv_txm",
+        "linux-final-frozen/first-gpw6sw0x"
+      ],
+      "scoped_checks": [
+        "MEMORY"
+      ],
+      "pre_completion_status": "PARTIAL_SCOPED_LOCAL_BACKEND_TESTS"
+    },
+    {
+      "id": "PF-01",
+      "scenario": "项目与个人同名",
+      "expected": "显示作用域；按 scoped ID 选择，不静默覆盖或跨库注入。",
+      "local_status": "PASS_LOCAL_CONTRACT_AND_INTEGRATION_SCOPE",
+      "evidence": [
+        "linux-frozen-gate/first-21szndqv",
+        "native-full-rust-layout-fixed-gwgv_txm",
+        "linux-final-frozen/first-gpw6sw0x"
+      ],
+      "scoped_checks": [
+        "PROMPTS"
+      ],
+      "pre_completion_status": "PARTIAL_SCOPED_LOCAL_BACKEND_TESTS"
+    },
+    {
+      "id": "PF-02",
+      "scenario": "格式与非法内容",
+      "expected": "TOML front matter 与正文边界确定；未知危险字段、脚本／远程 include 拒绝。",
+      "local_status": "PASS_LOCAL_CONTRACT_AND_INTEGRATION_SCOPE",
+      "evidence": [
+        "linux-frozen-gate/first-21szndqv",
+        "native-full-rust-layout-fixed-gwgv_txm",
+        "linux-final-frozen/first-gpw6sw0x"
+      ],
+      "scoped_checks": [
+        "PROMPTS"
+      ],
+      "pre_completion_status": "PARTIAL_SCOPED_LOCAL_BACKEND_TESTS"
+    },
+    {
+      "id": "PF-03",
+      "scenario": "拖入 Chat 的用户级语义",
+      "expected": "发送内容是显式选择的 user-level fragment，不是 ReadFile 结果；origin 保留。",
+      "local_status": "PASS_LOCAL_CONTRACT_AND_INTEGRATION_SCOPE",
+      "evidence": [
+        "linux-frozen-gate/first-21szndqv",
+        "native-full-rust-layout-fixed-gwgv_txm",
+        "linux-final-frozen/first-gpw6sw0x"
+      ],
+      "scoped_checks": [
+        "PROMPTS"
+      ],
+      "pre_completion_status": "PARTIAL_SCOPED_LOCAL_BACKEND_TESTS"
+    },
+    {
+      "id": "PF-04",
+      "scenario": "待发送内容变化",
+      "expected": "chip 提示变更，发送绑定用户实际确认版本。",
+      "local_status": "PASS_LOCAL_CONTRACT_AND_INTEGRATION_SCOPE",
+      "evidence": [
+        "resource-chat-blueprint-regression-9ntxd8fk",
+        "fixture-e2e-owned-port-5idnbprw",
+        "linux-frozen-gate/first-21szndqv",
+        "native-full-rust-layout-fixed-gwgv_txm",
+        "linux-final-frozen/first-gpw6sw0x"
+      ],
+      "scoped_checks": [
+        "PROMPTS"
+      ],
+      "pre_completion_status": "PARTIAL_BROWSER_FIXTURE"
+    },
+    {
+      "id": "PF-05",
+      "scenario": "历史不可变与删除源",
+      "expected": "既有消息保持当时快照；删除影响与历史清除语义明确。",
+      "local_status": "PASS_LOCAL_CONTRACT_AND_INTEGRATION_SCOPE",
+      "evidence": [
+        "linux-frozen-gate/first-21szndqv",
+        "native-full-rust-layout-fixed-gwgv_txm",
+        "linux-final-frozen/first-gpw6sw0x"
+      ],
+      "scoped_checks": [
+        "PROMPTS"
+      ],
+      "pre_completion_status": "PARTIAL_SCOPED_LOCAL_BACKEND_TESTS"
+    },
+    {
+      "id": "PF-06",
+      "scenario": "蓝图资源节点与 ContextMerge",
+      "expected": "两个作用域均可拖入；实际输入等于 run manifest 冻结正文。",
+      "local_status": "PASS_LOCAL_CONTRACT_AND_INTEGRATION_SCOPE",
+      "evidence": [
+        "linux-frozen-gate/first-21szndqv",
+        "native-full-rust-layout-fixed-gwgv_txm",
+        "linux-final-frozen/first-gpw6sw0x"
+      ],
+      "scoped_checks": [
+        "PROMPTS"
+      ],
+      "pre_completion_status": "PARTIAL_SCOPED_LOCAL_BACKEND_TESTS"
+    },
+    {
+      "id": "PF-07",
+      "scenario": "运行中修改文件",
+      "expected": "不会让后续节点静默读新版本；再次运行须重新解析／确认。",
+      "local_status": "PASS_LOCAL_CONTRACT_AND_INTEGRATION_SCOPE",
+      "evidence": [
+        "linux-frozen-gate/first-21szndqv",
+        "native-full-rust-layout-fixed-gwgv_txm",
+        "linux-final-frozen/first-gpw6sw0x"
+      ],
+      "scoped_checks": [
+        "PROMPTS"
+      ],
+      "pre_completion_status": "PARTIAL_SCOPED_LOCAL_BACKEND_TESTS"
+    },
+    {
+      "id": "PF-08",
+      "scenario": "目录与元数据防越界",
+      "expected": "path traversal、symlink、scope 伪造不能读写其他目录或 .metteur 内部状态。",
+      "local_status": "PASS_LOCAL_CONTRACT_AND_INTEGRATION_SCOPE",
+      "evidence": [
+        "linux-frozen-gate/first-21szndqv",
+        "native-full-rust-layout-fixed-gwgv_txm",
+        "linux-final-frozen/first-gpw6sw0x"
+      ],
+      "scoped_checks": [
+        "PROMPTS"
+      ],
+      "pre_completion_status": "PARTIAL_SCOPED_LOCAL_BACKEND_TESTS"
+    },
+    {
+      "id": "PF-09",
+      "scenario": "复制／个人隐私",
+      "expected": "复制新 ID 带来源；用户未选个人片段不暴露给项目记忆／Addon。",
+      "local_status": "PASS_LOCAL_CONTRACT_AND_INTEGRATION_SCOPE",
+      "evidence": [
+        "resource-chat-blueprint-regression-9ntxd8fk",
+        "fixture-e2e-owned-port-5idnbprw",
+        "native-full-rust-layout-fixed-gwgv_txm",
+        "linux-final-frozen/first-gpw6sw0x"
+      ],
+      "pre_completion_status": "PARTIAL_BROWSER_FIXTURE"
+    },
+    {
+      "id": "PF-10",
+      "scenario": "故障与来源派生",
+      "expected": "文件／索引写失败可恢复；经文本加工标 derived，不假称用户原文。",
+      "local_status": "PASS_LOCAL_CONTRACT_AND_INTEGRATION_SCOPE",
+      "evidence": [
+        "linux-frozen-gate/first-21szndqv",
+        "native-full-rust-layout-fixed-gwgv_txm",
+        "linux-final-frozen/first-gpw6sw0x"
+      ],
+      "scoped_checks": [
+        "PROMPTS"
+      ],
+      "pre_completion_status": "PARTIAL_SCOPED_LOCAL_BACKEND_TESTS"
+    },
+    {
+      "id": "EV-01",
+      "scenario": "真正结束回合",
+      "expected": "WAITING 后不占前台、没有待完成模型调用／RPC；可观察预算不增加。",
+      "local_status": "PASS_LOCAL_CONTRACT_AND_INTEGRATION_SCOPE",
+      "evidence": [
+        "linux-daemon-live-nx-transition-4wdpse3g",
+        "linux-frozen-gate/first-21szndqv",
+        "native-full-rust-layout-fixed-gwgv_txm",
+        "linux-final-frozen/first-gpw6sw0x"
+      ],
+      "scoped_checks": [
+        "CONTINUATION"
+      ],
+      "pre_completion_status": "PARTIAL_LIVE_JOB_SYNTHETIC_PROVIDER"
+    },
+    {
+      "id": "EV-02",
+      "scenario": "完成早于等待",
+      "expected": "source 在等待登记前完成，提交等待后仍触发一次，不丢事件。",
+      "local_status": "PASS_LOCAL_CONTRACT_AND_INTEGRATION_SCOPE",
+      "evidence": [
+        "linux-frozen-gate/first-21szndqv",
+        "native-full-rust-layout-fixed-gwgv_txm",
+        "linux-final-frozen/first-gpw6sw0x"
+      ],
+      "scoped_checks": [
+        "CONTINUATION"
+      ],
+      "pre_completion_status": "PARTIAL_SCOPED_LOCAL_BACKEND_TESTS"
+    },
+    {
+      "id": "EV-03",
+      "scenario": "重复投递",
+      "expected": "同一事件重复通知／outbox 重扫只生成一个逻辑 dispatch。",
+      "local_status": "PASS_LOCAL_CONTRACT_AND_INTEGRATION_SCOPE",
+      "evidence": [
+        "linux-frozen-gate/first-21szndqv",
+        "native-full-rust-layout-fixed-gwgv_txm",
+        "linux-final-frozen/first-gpw6sw0x"
+      ],
+      "scoped_checks": [
+        "CONTINUATION"
+      ],
+      "pre_completion_status": "PARTIAL_SCOPED_LOCAL_BACKEND_TESTS"
+    },
+    {
+      "id": "EV-04",
+      "scenario": "多来源 any／all",
+      "expected": "any 合并规则确定；all 包含失败终态并可结束等待；每条源收据保留。",
+      "local_status": "PASS_LOCAL_CONTRACT_AND_INTEGRATION_SCOPE",
+      "evidence": [
+        "linux-frozen-gate/first-21szndqv",
+        "native-full-rust-layout-fixed-gwgv_txm",
+        "linux-final-frozen/first-gpw6sw0x"
+      ],
+      "scoped_checks": [
+        "CONTINUATION"
+      ],
+      "pre_completion_status": "PARTIAL_SCOPED_LOCAL_BACKEND_TESTS"
+    },
+    {
+      "id": "EV-05",
+      "scenario": "新消息替代旧上下文",
+      "expected": "revision/generation 不匹配阻断旧续跑，不覆盖人工新指令。",
+      "local_status": "PASS_LOCAL_CONTRACT_AND_INTEGRATION_SCOPE",
+      "evidence": [
+        "native-full-rust-layout-fixed-gwgv_txm",
+        "linux-final-frozen/first-gpw6sw0x",
+        "final-boundaries-effective-config-0f920lk6"
+      ],
+      "pre_completion_status": "NOT_RUN"
+    },
+    {
+      "id": "EV-06",
+      "scenario": "工作区准入互斥",
+      "expected": "手动聊天、蓝图、dispatcher 竞争不出现双前台或锁内自 RPC 死锁。",
+      "local_status": "PASS_LOCAL_CONTRACT_AND_INTEGRATION_SCOPE",
+      "evidence": [
+        "linux-frozen-gate/first-21szndqv",
+        "native-full-rust-layout-fixed-gwgv_txm",
+        "linux-final-frozen/first-gpw6sw0x"
+      ],
+      "scoped_checks": [
+        "CONTINUATION"
+      ],
+      "pre_completion_status": "PARTIAL_SCOPED_LOCAL_BACKEND_TESTS"
+    },
+    {
+      "id": "EV-07",
+      "scenario": "Stop 抢占队列",
+      "expected": "Stop 持久后已排队事件不再触发；崩溃恢复也不复活。",
+      "local_status": "PASS_LOCAL_CONTRACT_AND_INTEGRATION_SCOPE",
+      "evidence": [
+        "linux-frozen-gate/first-21szndqv",
+        "native-full-rust-layout-fixed-gwgv_txm",
+        "linux-final-frozen/first-gpw6sw0x"
+      ],
+      "scoped_checks": [
+        "CONTINUATION"
+      ],
+      "pre_completion_status": "PARTIAL_SCOPED_LOCAL_BACKEND_TESTS"
+    },
+    {
+      "id": "EV-08",
+      "scenario": "暂停与继续",
+      "expected": "暂停阻止新恢复但保留事件；继续重核权限、预算与代次。",
+      "local_status": "PASS_LOCAL_CONTRACT_AND_INTEGRATION_SCOPE",
+      "evidence": [
+        "linux-frozen-gate/first-21szndqv",
+        "native-full-rust-layout-fixed-gwgv_txm",
+        "linux-final-frozen/first-gpw6sw0x"
+      ],
+      "scoped_checks": [
+        "CONTINUATION"
+      ],
+      "pre_completion_status": "PARTIAL_SCOPED_LOCAL_BACKEND_TESTS"
+    },
+    {
+      "id": "EV-09",
+      "scenario": "不伪造用户授权",
+      "expected": "stdout／报告／params 中“已批准”等文本无授权效果。",
+      "local_status": "PASS_LOCAL_CONTRACT_AND_INTEGRATION_SCOPE",
+      "evidence": [
+        "linux-frozen-gate/first-21szndqv",
+        "native-full-rust-layout-fixed-gwgv_txm",
+        "linux-final-frozen/first-gpw6sw0x"
+      ],
+      "scoped_checks": [
+        "CONTINUATION"
+      ],
+      "pre_completion_status": "PARTIAL_SCOPED_LOCAL_BACKEND_TESTS"
+    },
+    {
+      "id": "EV-10",
+      "scenario": "数据上限与引用",
+      "expected": "参数 schema、大小、深度和 artifact 访问限制有效，缺失不可填造。",
+      "local_status": "PASS_LOCAL_CONTRACT_AND_INTEGRATION_SCOPE",
+      "evidence": [
+        "linux-frozen-gate/first-21szndqv",
+        "native-full-rust-layout-fixed-gwgv_txm",
+        "linux-final-frozen/first-gpw6sw0x"
+      ],
+      "scoped_checks": [
+        "CONTINUATION"
+      ],
+      "pre_completion_status": "PARTIAL_SCOPED_LOCAL_BACKEND_TESTS"
+    },
+    {
+      "id": "EV-11",
+      "scenario": "回合与根预算不重置",
+      "expected": "新 turn／checkpoint rewind 不重置累计预算，unknown usage 不变成零。",
+      "local_status": "PASS_LOCAL_CONTRACT_AND_INTEGRATION_SCOPE",
+      "evidence": [
+        "linux-frozen-gate/first-21szndqv",
+        "native-full-rust-layout-fixed-gwgv_txm",
+        "linux-final-frozen/first-gpw6sw0x"
+      ],
+      "scoped_checks": [
+        "CONTINUATION"
+      ],
+      "pre_completion_status": "PARTIAL_SCOPED_LOCAL_BACKEND_TESTS"
+    },
+    {
+      "id": "EV-12",
+      "scenario": "过期／背压／无限循环",
+      "expected": "到期、队列满、次数或深度耗尽进入明确阻断状态，无静默丢终态。",
+      "local_status": "PASS_LOCAL_CONTRACT_AND_INTEGRATION_SCOPE",
+      "evidence": [
+        "linux-frozen-gate/first-21szndqv",
+        "native-full-rust-layout-fixed-gwgv_txm",
+        "linux-final-frozen/first-gpw6sw0x"
+      ],
+      "scoped_checks": [
+        "CONTINUATION"
+      ],
+      "pre_completion_status": "PARTIAL_SCOPED_LOCAL_BACKEND_TESTS"
+    },
+    {
+      "id": "EV-13",
+      "scenario": "claim 与启动崩溃",
+      "expected": "能证明未启动才重调度；已启动不明状态进入 InDoubt。",
+      "local_status": "PASS_LOCAL_CONTRACT_AND_INTEGRATION_SCOPE",
+      "evidence": [
+        "linux-frozen-gate/first-21szndqv",
+        "native-full-rust-layout-fixed-gwgv_txm",
+        "linux-final-frozen/first-gpw6sw0x"
+      ],
+      "scoped_checks": [
+        "CONTINUATION"
+      ],
+      "pre_completion_status": "PARTIAL_SCOPED_LOCAL_BACKEND_TESTS"
+    },
+    {
+      "id": "EV-14",
+      "scenario": "提交成功而 ack 中断",
+      "expected": "只补消费 ack，不再调用模型／重做文件操作。",
+      "local_status": "PASS_LOCAL_CONTRACT_AND_INTEGRATION_SCOPE",
+      "evidence": [
+        "linux-frozen-gate/first-21szndqv",
+        "native-full-rust-layout-fixed-gwgv_txm",
+        "linux-final-frozen/first-gpw6sw0x"
+      ],
+      "scoped_checks": [
+        "CONTINUATION"
+      ],
+      "pre_completion_status": "PARTIAL_SCOPED_LOCAL_BACKEND_TESTS"
+    },
+    {
+      "id": "EV-15",
+      "scenario": "等待提交失败",
+      "expected": "不宣称 WAITING；未转移 ownership 的源得到明确清理或人工处理。",
+      "local_status": "PASS_LOCAL_CONTRACT_AND_INTEGRATION_SCOPE",
+      "evidence": [
+        "linux-frozen-gate/first-21szndqv",
+        "native-full-rust-layout-fixed-gwgv_txm",
+        "linux-final-frozen/first-gpw6sw0x"
+      ],
+      "scoped_checks": [
+        "CONTINUATION"
+      ],
+      "pre_completion_status": "PARTIAL_SCOPED_LOCAL_BACKEND_TESTS"
+    },
+    {
+      "id": "EV-16",
+      "scenario": "协议与上下文恢复",
+      "expected": "真实 tool call/result 成对保存；host event 追加不伪造 tool_call_id，不从 UI 重建。",
+      "local_status": "PASS_LOCAL_CONTRACT_AND_INTEGRATION_SCOPE",
+      "evidence": [
+        "linux-frozen-gate/first-21szndqv",
+        "native-full-rust-layout-fixed-gwgv_txm",
+        "linux-final-frozen/first-gpw6sw0x"
+      ],
+      "scoped_checks": [
+        "CONTINUATION"
+      ],
+      "pre_completion_status": "PARTIAL_SCOPED_LOCAL_BACKEND_TESTS"
+    },
+    {
+      "id": "LF-01",
+      "scenario": "Job owner 转移",
+      "expected": "已登记 TaskOwned Job 在正常 yield 后仍运行；普通未登记 Job 保持原清理。",
+      "local_status": "PASS_LOCAL_CONTRACT_AND_INTEGRATION_SCOPE",
+      "evidence": [
+        "linux-daemon-live-nx-transition-4wdpse3g",
+        "linux-frozen-gate/first-21szndqv",
+        "native-full-rust-layout-fixed-gwgv_txm",
+        "linux-final-frozen/first-gpw6sw0x"
+      ],
+      "scoped_checks": [
+        "CONTINUATION"
+      ],
+      "pre_completion_status": "PARTIAL_LIVE_JOB_SYNTHETIC_PROVIDER"
+    },
+    {
+      "id": "LF-02",
+      "scenario": "浏览器断开",
+      "expected": "批准 detached 的任务继续且可重订阅；普通聊天不被默认无限后台化。",
+      "local_status": "PASS_LOCAL_CONTRACT_AND_INTEGRATION_SCOPE",
+      "evidence": [
+        "linux-frozen-gate/first-21szndqv",
+        "native-full-rust-layout-fixed-gwgv_txm",
+        "linux-final-frozen/first-gpw6sw0x"
+      ],
+      "scoped_checks": [
+        "CONTINUATION"
+      ],
+      "pre_completion_status": "PARTIAL_SCOPED_LOCAL_BACKEND_TESTS"
+    },
+    {
+      "id": "LF-03",
+      "scenario": "daemon 重启的 Job",
+      "expected": "未确认进程结果标 interrupted/indeterminate，不自动重跑或按旧 PID 错认。",
+      "local_status": "PASS_LOCAL_CONTRACT_AND_INTEGRATION_SCOPE",
+      "evidence": [
+        "native-full-rust-layout-fixed-gwgv_txm",
+        "linux-final-frozen/first-gpw6sw0x",
+        "actual-pending-job-restart-xbuq51_e"
+      ],
+      "pre_completion_status": "NOT_RUN"
+    },
+    {
+      "id": "LF-04",
+      "scenario": "后台写入互斥",
+      "expected": "潜在写 Job 持有 effect lease，新冲突写执行排队，控制与检查仍可用。",
+      "local_status": "PASS_LOCAL_CONTRACT_AND_INTEGRATION_SCOPE",
+      "evidence": [
+        "linux-frozen-gate/first-21szndqv",
+        "native-full-rust-layout-fixed-gwgv_txm",
+        "linux-final-frozen/first-gpw6sw0x"
+      ],
+      "scoped_checks": [
+        "CONTINUATION"
+      ],
+      "pre_completion_status": "PARTIAL_SCOPED_LOCAL_BACKEND_TESTS"
+    },
+    {
+      "id": "LF-05",
+      "scenario": "异步子代理 allowlist",
+      "expected": "工具权限是宿主子集；默认不执行命令、写文件、创建调度或读个人库。",
+      "local_status": "PASS_LOCAL_CONTRACT_AND_INTEGRATION_SCOPE",
+      "evidence": [
+        "linux-frozen-gate/first-21szndqv",
+        "native-full-rust-layout-fixed-gwgv_txm",
+        "linux-final-frozen/first-gpw6sw0x"
+      ],
+      "scoped_checks": [
+        "CONTINUATION"
+      ],
+      "pre_completion_status": "PARTIAL_SCOPED_LOCAL_BACKEND_TESTS"
+    },
+    {
+      "id": "LF-06",
+      "scenario": "子代理独立收尾",
+      "expected": "同步 SpawnSubAgent 保持兼容；后台句柄有真实结果、预算和完成事件。",
+      "local_status": "PASS_LOCAL_CONTRACT_AND_INTEGRATION_SCOPE",
+      "evidence": [
+        "linux-frozen-gate/first-21szndqv",
+        "native-full-rust-layout-fixed-gwgv_txm",
+        "linux-final-frozen/first-gpw6sw0x"
+      ],
+      "scoped_checks": [
+        "CONTINUATION"
+      ],
+      "pre_completion_status": "PARTIAL_SCOPED_LOCAL_BACKEND_TESTS"
+    },
+    {
+      "id": "LF-07",
+      "scenario": "取消范围",
+      "expected": "取消 task 只清理所属源，不能杀别的项目／任务；迟到结果保留为过期来源。",
+      "local_status": "PASS_LOCAL_CONTRACT_AND_INTEGRATION_SCOPE",
+      "evidence": [
+        "linux-frozen-gate/first-21szndqv",
+        "native-full-rust-layout-fixed-gwgv_txm",
+        "linux-final-frozen/first-gpw6sw0x"
+      ],
+      "scoped_checks": [
+        "CONTINUATION"
+      ],
+      "pre_completion_status": "PARTIAL_SCOPED_LOCAL_BACKEND_TESTS"
+    },
+    {
+      "id": "LF-08",
+      "scenario": "worker 存活不明",
+      "expected": "lease 到期不意味着可重启写调用；fencing 不被当成撤销外部效果。",
+      "local_status": "PASS_LOCAL_CONTRACT_AND_INTEGRATION_SCOPE",
+      "evidence": [
+        "linux-frozen-gate/first-21szndqv",
+        "native-full-rust-layout-fixed-gwgv_txm",
+        "linux-final-frozen/first-gpw6sw0x"
+      ],
+      "scoped_checks": [
+        "CONTINUATION"
+      ],
+      "pre_completion_status": "PARTIAL_SCOPED_LOCAL_BACKEND_TESTS"
+    },
+    {
+      "id": "TM-01",
+      "scenario": "一次性／相对时长",
+      "expected": "真实 fake clock 推进一次产生一个 occurrence，不靠真实 sleep 猜时序。",
+      "local_status": "PASS_LOCAL_CONTRACT_AND_INTEGRATION_SCOPE",
+      "evidence": [
+        "linux-frozen-gate/first-21szndqv",
+        "native-full-rust-layout-fixed-gwgv_txm",
+        "linux-final-frozen/first-gpw6sw0x"
+      ],
+      "scoped_checks": [
+        "CONTINUATION"
+      ],
+      "pre_completion_status": "PARTIAL_SCOPED_LOCAL_BACKEND_TESTS"
+    },
+    {
+      "id": "TM-02",
+      "scenario": "周期规则",
+      "expected": "interval／daily／weekly 具备确定的 next_due、end/max_occurrence 与取消。",
+      "local_status": "PASS_LOCAL_CONTRACT_AND_INTEGRATION_SCOPE",
+      "evidence": [
+        "linux-frozen-gate/first-21szndqv",
+        "native-full-rust-layout-fixed-gwgv_txm",
+        "linux-final-frozen/first-gpw6sw0x"
+      ],
+      "scoped_checks": [
+        "CONTINUATION"
+      ],
+      "pre_completion_status": "PARTIAL_SCOPED_LOCAL_BACKEND_TESTS"
+    },
+    {
+      "id": "TM-03",
+      "scenario": "时区与 DST",
+      "expected": "本地展示与 UTC 一致；不存在时刻跳过、重复时刻至多一次且可追溯。",
+      "local_status": "PASS_LOCAL_CONTRACT_AND_INTEGRATION_SCOPE",
+      "evidence": [
+        "linux-frozen-gate/first-21szndqv",
+        "native-full-rust-layout-fixed-gwgv_txm",
+        "linux-final-frozen/first-gpw6sw0x"
+      ],
+      "scoped_checks": [
+        "CONTINUATION"
+      ],
+      "pre_completion_status": "PARTIAL_SCOPED_LOCAL_BACKEND_TESTS"
+    },
+    {
+      "id": "TM-04",
+      "scenario": "错过触发",
+      "expected": "sleep/offline 后按 coalesce_once 或 skip，不产生无限 catch-up。",
+      "local_status": "PASS_LOCAL_CONTRACT_AND_INTEGRATION_SCOPE",
+      "evidence": [
+        "linux-frozen-gate/first-21szndqv",
+        "native-full-rust-layout-fixed-gwgv_txm",
+        "linux-final-frozen/first-gpw6sw0x"
+      ],
+      "scoped_checks": [
+        "CONTINUATION"
+      ],
+      "pre_completion_status": "PARTIAL_SCOPED_LOCAL_BACKEND_TESTS"
+    },
+    {
+      "id": "TM-05",
+      "scenario": "计划编辑代次",
+      "expected": "参数／目标／规则变更后旧 occurrence 无效，需对应授权与版本。",
+      "local_status": "PASS_LOCAL_CONTRACT_AND_INTEGRATION_SCOPE",
+      "evidence": [
+        "linux-frozen-gate/first-21szndqv",
+        "native-full-rust-layout-fixed-gwgv_txm",
+        "linux-final-frozen/first-gpw6sw0x"
+      ],
+      "scoped_checks": [
+        "CONTINUATION"
+      ],
+      "pre_completion_status": "PARTIAL_SCOPED_LOCAL_BACKEND_TESTS"
+    },
+    {
+      "id": "TM-06",
+      "scenario": "工作区关闭／恢复",
+      "expected": "关闭暂停，不自动打开任意目录；恢复正确显示错过触发与授权状态。",
+      "local_status": "PASS_LOCAL_CONTRACT_AND_INTEGRATION_SCOPE",
+      "evidence": [
+        "linux-frozen-gate/first-21szndqv",
+        "native-full-rust-layout-fixed-gwgv_txm",
+        "linux-final-frozen/first-gpw6sw0x"
+      ],
+      "scoped_checks": [
+        "CONTINUATION"
+      ],
+      "pre_completion_status": "PARTIAL_SCOPED_LOCAL_BACKEND_TESTS"
+    },
+    {
+      "id": "TM-07",
+      "scenario": "成本与取消",
+      "expected": "重复计划无有效 scope 不执行；达到次数／token／费用门槛停止。",
+      "local_status": "PASS_LOCAL_CONTRACT_AND_INTEGRATION_SCOPE",
+      "evidence": [
+        "linux-frozen-gate/first-21szndqv",
+        "native-full-rust-layout-fixed-gwgv_txm",
+        "linux-final-frozen/first-gpw6sw0x"
+      ],
+      "scoped_checks": [
+        "CONTINUATION"
+      ],
+      "pre_completion_status": "PARTIAL_SCOPED_LOCAL_BACKEND_TESTS"
+    },
+    {
+      "id": "TM-08",
+      "scenario": "时钟回拨与重启",
+      "expected": "稳定 occurrence ID 防重复；相对计时与墙钟恢复语义可解释。",
+      "local_status": "PASS_LOCAL_CONTRACT_AND_INTEGRATION_SCOPE",
+      "evidence": [
+        "linux-frozen-gate/first-21szndqv",
+        "native-full-rust-layout-fixed-gwgv_txm",
+        "linux-final-frozen/first-gpw6sw0x"
+      ],
+      "scoped_checks": [
+        "CONTINUATION"
+      ],
+      "pre_completion_status": "PARTIAL_SCOPED_LOCAL_BACKEND_TESTS"
+    },
+    {
+      "id": "BP-01",
+      "scenario": "版本绑定确认",
+      "expected": "confirm card 的蓝图／Prompt／函数／Addon digest 与实际 run 一致。",
+      "local_status": "PASS_LOCAL_CONTRACT_AND_INTEGRATION_SCOPE",
+      "evidence": [
+        "launch-review-binding-g5fpfc5b",
+        "linux-live-blueprint-follow-ooeig6gk",
+        "linux-frozen-gate/first-21szndqv",
+        "native-full-rust-layout-fixed-gwgv_txm",
+        "linux-final-frozen/first-gpw6sw0x"
+      ],
+      "scoped_checks": [
+        "LAUNCH"
+      ],
+      "pre_completion_status": "PARTIAL_BROWSER_FIXTURE_AND_LIVE_APPROVAL"
+    },
+    {
+      "id": "BP-02",
+      "scenario": "确认后变更",
+      "expected": "任何受绑定资源变化均 Stale，不隐藏保存或执行新内容。",
+      "local_status": "PASS_LOCAL_CONTRACT_AND_INTEGRATION_SCOPE",
+      "evidence": [
+        "linux-frozen-gate/first-21szndqv",
+        "native-full-rust-layout-fixed-gwgv_txm",
+        "linux-final-frozen/first-gpw6sw0x"
+      ],
+      "scoped_checks": [
+        "LAUNCH"
+      ],
+      "pre_completion_status": "PARTIAL_SCOPED_LOCAL_BACKEND_TESTS"
+    },
+    {
+      "id": "BP-03",
+      "scenario": "释放聊天后启动",
+      "expected": "无嵌套互斥等待；全部工具结果保存后 yield，再取得蓝图槽位。",
+      "local_status": "PASS_LOCAL_CONTRACT_AND_INTEGRATION_SCOPE",
+      "evidence": [
+        "linux-live-blueprint-follow-ooeig6gk",
+        "linux-live-blueprint-reload-_moki4dd",
+        "linux-frozen-gate/first-21szndqv",
+        "native-full-rust-layout-fixed-gwgv_txm",
+        "linux-final-frozen/first-gpw6sw0x"
+      ],
+      "scoped_checks": [
+        "LAUNCH"
+      ],
+      "pre_completion_status": "PASS_LIVE_SYNTHETIC_PROVIDER"
+    },
+    {
+      "id": "BP-04",
+      "scenario": "重复确认与断连",
+      "expected": "相同 intent 查回相同逻辑 launch，不创建第二个 run。",
+      "local_status": "PASS_LOCAL_CONTRACT_AND_INTEGRATION_SCOPE",
+      "evidence": [
+        "linux-frozen-gate/first-21szndqv",
+        "native-full-rust-layout-fixed-gwgv_txm",
+        "linux-final-frozen/first-gpw6sw0x"
+      ],
+      "scoped_checks": [
+        "LAUNCH"
+      ],
+      "pre_completion_status": "PARTIAL_SCOPED_LOCAL_BACKEND_TESTS"
+    },
+    {
+      "id": "BP-05",
+      "scenario": "按需会话交接",
+      "expected": "监督只读固定消息终点／授权范围，默认不注入全对话。",
+      "local_status": "PASS_LOCAL_CONTRACT_AND_INTEGRATION_SCOPE",
+      "evidence": [
+        "linux-frozen-gate/first-21szndqv",
+        "native-full-rust-layout-fixed-gwgv_txm",
+        "linux-final-frozen/first-gpw6sw0x"
+      ],
+      "scoped_checks": [
+        "LAUNCH"
+      ],
+      "pre_completion_status": "PARTIAL_SCOPED_LOCAL_BACKEND_TESTS"
+    },
+    {
+      "id": "BP-06",
+      "scenario": "真实完成唤起",
+      "expected": "蓝图提交终态及副作用结算后，携带真实检查／产物恢复原 session 新 turn。",
+      "local_status": "PASS_LOCAL_CONTRACT_AND_INTEGRATION_SCOPE",
+      "evidence": [
+        "linux-live-blueprint-follow-ooeig6gk",
+        "linux-live-blueprint-reload-_moki4dd",
+        "linux-frozen-gate/first-21szndqv",
+        "native-full-rust-layout-fixed-gwgv_txm",
+        "linux-final-frozen/first-gpw6sw0x"
+      ],
+      "scoped_checks": [
+        "LAUNCH"
+      ],
+      "pre_completion_status": "PASS_LIVE_SYNTHETIC_PROVIDER"
+    },
+    {
+      "id": "BP-07",
+      "scenario": "人工停止子蓝图",
+      "expected": "父任务不自动重跑；只显示结果或严格 report-only，总控制可阻断。",
+      "local_status": "PASS_LOCAL_CONTRACT_AND_INTEGRATION_SCOPE",
+      "evidence": [
+        "linux-frozen-gate/first-21szndqv",
+        "native-full-rust-layout-fixed-gwgv_txm",
+        "linux-final-frozen/first-gpw6sw0x"
+      ],
+      "scoped_checks": [
+        "LAUNCH"
+      ],
+      "pre_completion_status": "PARTIAL_SCOPED_LOCAL_BACKEND_TESTS"
+    },
+    {
+      "id": "BP-08",
+      "scenario": "启动／交接崩溃",
+      "expected": "intent／run／confirmation／handoff 对账，不明效果进入人工恢复。",
+      "local_status": "PASS_LOCAL_CONTRACT_AND_INTEGRATION_SCOPE",
+      "evidence": [
+        "linux-frozen-gate/first-21szndqv",
+        "native-full-rust-layout-fixed-gwgv_txm",
+        "linux-final-frozen/first-gpw6sw0x"
+      ],
+      "scoped_checks": [
+        "LAUNCH"
+      ],
+      "pre_completion_status": "PARTIAL_SCOPED_LOCAL_BACKEND_TESTS"
+    },
+    {
+      "id": "HC-01",
+      "scenario": "最终请求断点计数",
+      "expected": "实际完整请求中所有 marker 统一预算，system/tools/messages 组合不超界。",
+      "local_status": "PASS_LOCAL_CONTRACT_AND_INTEGRATION_SCOPE",
+      "evidence": [
+        "linux-frozen-gate/first-21szndqv",
+        "native-full-rust-layout-fixed-gwgv_txm",
+        "linux-final-frozen/first-gpw6sw0x",
+        "completion-model-report-20261021.json",
+        "actual-cache-conditions-4yr68qja",
+        "actual-model-roles-t9ug9vxd"
+      ],
+      "scoped_checks": [
+        "CACHE"
+      ],
+      "pre_completion_status": "PARTIAL_SCOPED_LOCAL_BACKEND_TESTS"
+    },
+    {
+      "id": "HC-02",
+      "scenario": "稳定序列化",
+      "expected": "相同片段／目录产生相同顺序；非必要日期／事件变化不改写稳定前缀。",
+      "local_status": "PASS_LOCAL_CONTRACT_AND_INTEGRATION_SCOPE",
+      "evidence": [
+        "linux-frozen-gate/first-21szndqv",
+        "native-full-rust-layout-fixed-gwgv_txm",
+        "linux-final-frozen/first-gpw6sw0x",
+        "completion-model-report-20261021.json",
+        "actual-cache-conditions-4yr68qja",
+        "actual-model-roles-t9ug9vxd"
+      ],
+      "scoped_checks": [
+        "CACHE"
+      ],
+      "pre_completion_status": "PARTIAL_SCOPED_LOCAL_BACKEND_TESTS"
+    },
+    {
+      "id": "HC-03",
+      "scenario": "角色与模型边界",
+      "expected": "主执行、客服、监督、只读子代理的工具与行为边界不因适配而扩大。",
+      "local_status": "PASS_LOCAL_CONTRACT_AND_INTEGRATION_SCOPE",
+      "evidence": [
+        "linux-frozen-gate/first-21szndqv",
+        "native-full-rust-layout-fixed-gwgv_txm",
+        "linux-final-frozen/first-gpw6sw0x",
+        "completion-model-report-20261021.json",
+        "actual-cache-conditions-4yr68qja",
+        "actual-model-roles-t9ug9vxd"
+      ],
+      "scoped_checks": [
+        "ROLE_TOOLS"
+      ],
+      "pre_completion_status": "PARTIAL_SCOPED_LOCAL_BACKEND_TESTS"
+    },
+    {
+      "id": "HC-04",
+      "scenario": "协议组合与第二轮",
+      "expected": "支持的 API、推理回放、工具第二轮、流式／非流式都用本地 HTTP 夹具验证。",
+      "local_status": "PASS_LOCAL_CONTRACT_AND_INTEGRATION_SCOPE",
+      "evidence": [
+        "linux-frozen-gate/first-21szndqv",
+        "native-full-rust-layout-fixed-gwgv_txm",
+        "linux-final-frozen/first-gpw6sw0x",
+        "completion-model-report-20261021.json",
+        "actual-cache-conditions-4yr68qja",
+        "actual-model-roles-t9ug9vxd"
+      ],
+      "scoped_checks": [
+        "CACHE"
+      ],
+      "pre_completion_status": "PARTIAL_SCOPED_LOCAL_BACKEND_TESTS"
+    },
+    {
+      "id": "HC-05",
+      "scenario": "用量与缓存未知值",
+      "expected": "reported cache read/write 与 input 口径一致；未知字段单列 coverage 不填零。",
+      "local_status": "PASS_LOCAL_CONTRACT_AND_INTEGRATION_SCOPE",
+      "evidence": [
+        "resource-chat-blueprint-regression-9ntxd8fk",
+        "fixture-e2e-owned-port-5idnbprw",
+        "linux-frozen-gate/first-21szndqv",
+        "native-full-rust-layout-fixed-gwgv_txm",
+        "linux-final-frozen/first-gpw6sw0x",
+        "completion-model-report-20261021.json",
+        "actual-cache-conditions-4yr68qja",
+        "actual-model-roles-t9ug9vxd"
+      ],
+      "scoped_checks": [
+        "CACHE"
+      ],
+      "pre_completion_status": "PARTIAL_BROWSER_FIXTURE"
+    },
+    {
+      "id": "HC-06",
+      "scenario": "真实模型匹配对照",
+      "expected": "同任务、工具、版本和预算比较旧／新 Prompt；保留失败与不同来源。",
+      "local_status": "PASS_LOCAL_CONTRACT_AND_INTEGRATION_SCOPE",
+      "evidence": [
+        "native-full-rust-layout-fixed-gwgv_txm",
+        "linux-final-frozen/first-gpw6sw0x",
+        "completion-model-report-20261021.json",
+        "actual-cache-conditions-4yr68qja",
+        "actual-model-roles-t9ug9vxd"
+      ],
+      "limitations": "One DeepSeek model protocol smoke passed; matched task seeds, runner, second model class and paired results remain pending.",
+      "pre_completion_status": "NOT_RUN_MATCHED_EVALUATION_SYNTHETIC_SMOKE_ONLY"
+    },
+    {
+      "id": "HC-07",
+      "scenario": "隐私与失效",
+      "expected": "日志不泄漏 Prompt／凭证；压缩／资源变更导致的合理 miss 不伪装修复。",
+      "local_status": "PASS_LOCAL_CONTRACT_AND_INTEGRATION_SCOPE",
+      "evidence": [
+        "linux-frozen-gate/first-21szndqv",
+        "native-full-rust-layout-fixed-gwgv_txm",
+        "linux-final-frozen/first-gpw6sw0x",
+        "completion-model-report-20261021.json",
+        "actual-cache-conditions-4yr68qja",
+        "actual-model-roles-t9ug9vxd"
+      ],
+      "scoped_checks": [
+        "ROLE_TOOLS"
+      ],
+      "pre_completion_status": "PARTIAL_SCOPED_LOCAL_BACKEND_TESTS"
+    },
+    {
+      "id": "AD-01",
+      "scenario": "原始权限测试修复",
+      "expected": "复现原超时，权限拒绝断言为具体原因；无关错误不能假通过。",
+      "local_status": "PASS_LOCAL_CONTRACT_AND_INTEGRATION_SCOPE",
+      "evidence": [
+        "linux-frozen-gate/first-21szndqv",
+        "native-full-rust-layout-fixed-gwgv_txm",
+        "linux-final-frozen/first-gpw6sw0x"
+      ],
+      "scoped_checks": [
+        "ADDON"
+      ],
+      "pre_completion_status": "PARTIAL_SCOPED_LOCAL_BACKEND_TESTS"
+    },
+    {
+      "id": "AD-02",
+      "scenario": "超时与人工审批分离",
+      "expected": "执行/I/O/人工等待语义明确；迟到批准不能在已取消任务产生效果。",
+      "local_status": "PASS_LOCAL_CONTRACT_AND_INTEGRATION_SCOPE",
+      "evidence": [
+        "linux-frozen-gate/first-21szndqv",
+        "native-full-rust-layout-fixed-gwgv_txm",
+        "linux-final-frozen/first-gpw6sw0x"
+      ],
+      "scoped_checks": [
+        "ADDON"
+      ],
+      "pre_completion_status": "PARTIAL_SCOPED_LOCAL_BACKEND_TESTS"
+    },
+    {
+      "id": "AD-03",
+      "scenario": "超时后副作用",
+      "expected": "核对实际文件与 journal；未知不能当未执行后重放。",
+      "local_status": "PASS_LOCAL_CONTRACT_AND_INTEGRATION_SCOPE",
+      "evidence": [
+        "linux-frozen-gate/first-21szndqv",
+        "native-full-rust-layout-fixed-gwgv_txm",
+        "linux-final-frozen/first-gpw6sw0x"
+      ],
+      "scoped_checks": [
+        "ADDON"
+      ],
+      "pre_completion_status": "PARTIAL_SCOPED_LOCAL_BACKEND_TESTS"
+    },
+    {
+      "id": "AD-04",
+      "scenario": "页面来源与身份",
+      "expected": "manifest／资源绑定签名包与实例；不可冒充别的包／工作区。",
+      "local_status": "PASS_LOCAL_CONTRACT_AND_INTEGRATION_SCOPE",
+      "evidence": [
+        "linux-frozen-gate/first-21szndqv",
+        "native-full-rust-layout-fixed-gwgv_txm",
+        "linux-final-frozen/first-gpw6sw0x"
+      ],
+      "scoped_checks": [
+        "ADDON"
+      ],
+      "pre_completion_status": "PARTIAL_SCOPED_LOCAL_BACKEND_TESTS"
+    },
+    {
+      "id": "AD-05",
+      "scenario": "Bridge schema 与权限",
+      "expected": "source/nonce/lease/能力逐次检查，拒绝任意 RPC／approval 字段／未知方法。",
+      "local_status": "PASS_LOCAL_CONTRACT_AND_INTEGRATION_SCOPE",
+      "evidence": [
+        "linux-frozen-gate/first-21szndqv",
+        "native-full-rust-layout-fixed-gwgv_txm",
+        "linux-final-frozen/first-gpw6sw0x"
+      ],
+      "scoped_checks": [
+        "ADDON"
+      ],
+      "pre_completion_status": "PARTIAL_SCOPED_LOCAL_BACKEND_TESTS"
+    },
+    {
+      "id": "AD-06",
+      "scenario": "隔离与撤销",
+      "expected": "不能访问主 DOM／凭证／个人库；disable/upgrade/uninstall/close 立即撤销旧桥。",
+      "local_status": "PASS_LOCAL_CONTRACT_AND_INTEGRATION_SCOPE",
+      "evidence": [
+        "native-offline-renderer-_3bhcros",
+        "linux-frozen-gate/first-21szndqv",
+        "native-full-rust-layout-fixed-gwgv_txm",
+        "linux-final-frozen/first-gpw6sw0x",
+        "installed-addon-browser-LE6lCJ"
+      ],
+      "limitations": "Signed-page binding and revocation have linked Rust tests; native offline rendering passed. Installed Addon page browser-to-daemon revocation workflow remains pending.",
+      "scoped_checks": [
+        "ADDON"
+      ],
+      "pre_completion_status": "PARTIAL_NATIVE_RENDERER_WORKER"
+    },
+    {
+      "id": "AD-07",
+      "scenario": "受控预览目标",
+      "expected": "检查只能操作登记 target，导航／重定向不越界，不能点宿主授权按钮。",
+      "local_status": "PASS_LOCAL_CONTRACT_AND_INTEGRATION_SCOPE",
+      "evidence": [
+        "native-offline-renderer-_3bhcros",
+        "native-full-rust-layout-fixed-gwgv_txm",
+        "linux-final-frozen/first-gpw6sw0x",
+        "installed-addon-browser-LE6lCJ"
+      ],
+      "limitations": "Synthetic offline worker only; daemon identity, attachment and revocation remain unrun.",
+      "pre_completion_status": "PARTIAL_NATIVE_RENDERER_WORKER"
+    },
+    {
+      "id": "AD-08",
+      "scenario": "成果验收独立",
+      "expected": "human acceptance 绑定 preview revision，与系统权限 grant 严格不同。",
+      "local_status": "PASS_LOCAL_CONTRACT_AND_INTEGRATION_SCOPE",
+      "evidence": [
+        "native-full-rust-layout-fixed-gwgv_txm",
+        "linux-final-frozen/first-gpw6sw0x",
+        "installed-addon-browser-LE6lCJ"
+      ],
+      "limitations": "Local Rust nx41_selected_source_report_review_and_changed_revision checks permission_grant=false and changed digest rejection; complete installed-page native workflow remains NOT_RUN.",
+      "pre_completion_status": "NOT_RUN"
+    },
+    {
+      "id": "UI-01",
+      "scenario": "预览有明确版本",
+      "expected": "每项新功能有 preview ID/revision/fixture，NOT_PRESENTED 不能变 APPROVED。",
+      "local_status": "PASS_TECHNICAL_EVIDENCE_OWNER_SIGNOFF_PENDING",
+      "evidence": [
+        "preview-isolation-e_qqnstl",
+        "native-full-rust-layout-fixed-gwgv_txm",
+        "linux-final-frozen/first-gpw6sw0x",
+        "frontend-full-e2e-completion-huiigsyr",
+        "native-surface-browser-qEhSvO",
+        "installed-addon-browser-LE6lCJ"
+      ],
+      "pre_completion_status": "PARTIAL_STATIC_ISOLATION",
+      "owner_final_visual_signoff": "PENDING_OWNER",
+      "boundary": "Concrete current screenshots and production technical checks supplied; no owner approval invented."
+    },
+    {
+      "id": "UI-02",
+      "scenario": "状态覆盖",
+      "expected": "空、加载、错误、断线、只读、陈旧、等待审批、已应用等状态可预览。",
+      "local_status": "PASS_LOCAL_CONTRACT_AND_INTEGRATION_SCOPE",
+      "evidence": [
+        "resource-chat-blueprint-regression-9ntxd8fk",
+        "fixture-e2e-owned-port-5idnbprw",
+        "native-live-page-review-ready-99wj4s_e",
+        "native-full-rust-layout-fixed-gwgv_txm",
+        "linux-final-frozen/first-gpw6sw0x",
+        "frontend-full-e2e-completion-huiigsyr",
+        "native-surface-browser-qEhSvO",
+        "installed-addon-browser-LE6lCJ"
+      ],
+      "pre_completion_status": "PARTIAL_NATIVE_RENDERING_AND_NAVIGATION"
+    },
+    {
+      "id": "UI-03",
+      "scenario": "批准范围与差异",
+      "expected": "用户确认引用版本；未展示交互或显著变化需重新预览。",
+      "local_status": "PASS_TECHNICAL_EVIDENCE_OWNER_SIGNOFF_PENDING",
+      "evidence": [
+        "native-full-rust-layout-fixed-gwgv_txm",
+        "linux-final-frozen/first-gpw6sw0x",
+        "frontend-full-e2e-completion-huiigsyr",
+        "native-surface-browser-qEhSvO",
+        "installed-addon-browser-LE6lCJ"
+      ],
+      "pre_completion_status": "NOT_RUN",
+      "owner_final_visual_signoff": "PENDING_OWNER",
+      "boundary": "Concrete current screenshots and production technical checks supplied; no owner approval invented."
+    },
+    {
+      "id": "UI-04",
+      "scenario": "真实接入保真",
+      "expected": "接入后与已批准结构／交互一致，不把 fixture 数据留在生产路径。",
+      "local_status": "PASS_TECHNICAL_EVIDENCE_OWNER_SIGNOFF_PENDING",
+      "evidence": [
+        "native-full-rust-layout-fixed-gwgv_txm",
+        "linux-final-frozen/first-gpw6sw0x",
+        "frontend-full-e2e-completion-huiigsyr",
+        "native-surface-browser-qEhSvO",
+        "installed-addon-browser-LE6lCJ"
+      ],
+      "pre_completion_status": "NOT_RUN",
+      "owner_final_visual_signoff": "PENDING_OWNER",
+      "boundary": "Concrete current screenshots and production technical checks supplied; no owner approval invented."
+    },
+    {
+      "id": "UI-05",
+      "scenario": "跨工作区与重连",
+      "expected": "旧请求晚到不更新新工作区；重连不会显示伪造成功或错误 run。",
+      "local_status": "PASS_LOCAL_CONTRACT_AND_INTEGRATION_SCOPE",
+      "evidence": [
+        "resource-chat-blueprint-regression-9ntxd8fk",
+        "fixture-e2e-owned-port-5idnbprw",
+        "chat-following-regressions-gyfbusp6",
+        "linux-live-blueprint-reload-_moki4dd",
+        "native-full-rust-layout-fixed-gwgv_txm",
+        "linux-final-frozen/first-gpw6sw0x",
+        "frontend-full-e2e-completion-huiigsyr",
+        "native-surface-browser-qEhSvO",
+        "installed-addon-browser-LE6lCJ"
+      ],
+      "pre_completion_status": "PARTIAL_BROWSER_FIXTURE_AND_LIVE_RELOAD"
+    },
+    {
+      "id": "UI-06",
+      "scenario": "可用性与文案",
+      "expected": "键盘／焦点／窄屏／主题／减少动画；固定英文文案，不改用户原文。",
+      "local_status": "PASS_LOCAL_CONTRACT_AND_INTEGRATION_SCOPE",
+      "evidence": [
+        "resource-chat-blueprint-regression-9ntxd8fk",
+        "fixture-e2e-owned-port-5idnbprw",
+        "native-live-page-review-ready-99wj4s_e",
+        "native-full-rust-layout-fixed-gwgv_txm",
+        "linux-final-frozen/first-gpw6sw0x",
+        "frontend-full-e2e-completion-huiigsyr",
+        "native-surface-browser-qEhSvO",
+        "installed-addon-browser-LE6lCJ"
+      ],
+      "pre_completion_status": "PARTIAL_NATIVE_RENDERING_AND_NAVIGATION"
+    },
+    {
+      "id": "UI-07",
+      "scenario": "取消与确认入口",
+      "expected": "Stop、Pause、Run、schedule approval、成果验收均由正确宿主动作处理。",
+      "local_status": "PASS_LOCAL_CONTRACT_AND_INTEGRATION_SCOPE",
+      "evidence": [
+        "launch-review-binding-g5fpfc5b",
+        "native-live-page-review-ready-99wj4s_e",
+        "native-full-rust-layout-fixed-gwgv_txm",
+        "linux-final-frozen/first-gpw6sw0x",
+        "frontend-full-e2e-completion-huiigsyr",
+        "native-surface-browser-qEhSvO",
+        "installed-addon-browser-LE6lCJ"
+      ],
+      "limitations": "Blueprint launch review only; other confirmation/cancellation surfaces remain separate.",
+      "pre_completion_status": "PARTIAL_NATIVE_RENDERING_AND_NAVIGATION"
+    },
+    {
+      "id": "E2E-01",
+      "scenario": "完整主链路",
+      "expected": "个人/项目 Prompt → ReAct → 黑板 → 蓝图确认 → 执行 → event → 原会话续跑。",
+      "local_status": "PASS_LOCAL_CONTRACT_AND_INTEGRATION_SCOPE",
+      "evidence": [
+        "native-full-rust-layout-fixed-gwgv_txm",
+        "linux-final-frozen/first-gpw6sw0x",
+        "full-resource-chain-5phc_4je",
+        "eval-held-out-frozen-20261021",
+        "held-out-offline-regrade-20261021.json"
+      ],
+      "pre_completion_status": "NOT_RUN"
+    },
+    {
+      "id": "E2E-02",
+      "scenario": "三类等待源",
+      "expected": "Job、异步子代理和 timer 各至少一条真实 daemon 完整链路。",
+      "local_status": "PASS_LOCAL_CONTRACT_AND_INTEGRATION_SCOPE",
+      "evidence": [
+        "linux-frozen-gate/first-21szndqv",
+        "native-full-rust-layout-fixed-gwgv_txm",
+        "linux-final-frozen/first-gpw6sw0x"
+      ],
+      "scoped_checks": [
+        "CONTINUATION"
+      ],
+      "pre_completion_status": "PARTIAL_SCOPED_LOCAL_BACKEND_TESTS"
+    },
+    {
+      "id": "E2E-03",
+      "scenario": "资源与权限负链路",
+      "expected": "未批准、资源变更、跨库访问、停止、预算不足都无未授权副作用。",
+      "local_status": "PASS_LOCAL_CONTRACT_AND_INTEGRATION_SCOPE",
+      "evidence": [
+        "native-full-rust-layout-fixed-gwgv_txm",
+        "linux-final-frozen/first-gpw6sw0x",
+        "full-resource-chain-5phc_4je",
+        "eval-held-out-frozen-20261021",
+        "held-out-offline-regrade-20261021.json"
+      ],
+      "pre_completion_status": "NOT_RUN"
+    },
+    {
+      "id": "E2E-04",
+      "scenario": "生产 Web 全链路",
+      "expected": "生产 Web → grpc-web → daemon → 本地模型夹具；不由 demo gateway 替代。",
+      "local_status": "PASS_LOCAL_CONTRACT_AND_INTEGRATION_SCOPE",
+      "evidence": [
+        "linux-live-chat-v2-sualv4f3",
+        "linux-daemon-live-nx-transition-4wdpse3g",
+        "linux-live-blueprint-reload-_moki4dd",
+        "native-full-rust-layout-fixed-gwgv_txm",
+        "linux-final-frozen/first-gpw6sw0x"
+      ],
+      "pre_completion_status": "PARTIAL_LIVE_PRODUCTION_SYNTHETIC_PROVIDER"
+    },
+    {
+      "id": "E2E-05",
+      "scenario": "平台与冻结",
+      "expected": "固定提交、Linux 与目标 Windows，build/test/clippy 与 Web 全门槛有证据。",
+      "local_status": "PASS_LOCAL_CONTRACT_AND_INTEGRATION_SCOPE",
+      "evidence": [
+        "native-linker-probe-7wf65372",
+        "native-workspace-build-zeqx_w2j",
+        "linux-continuation-build-srs0ixhz",
+        "native-targeted-serial-w80j_8tn",
+        "linux-frozen-rust-final-sjl43_2m",
+        "linux-frozen-gate/first-21szndqv",
+        "native-source-targeted-final-y9byfft_",
+        "native-full-rust-layout-fixed-gwgv_txm",
+        "linux-final-frozen/first-gpw6sw0x"
+      ],
+      "pre_completion_status": "PARTIAL_PLATFORM_GATES_PASS_FULL_WINDOWS_MATRIX_NOT_RUN"
+    },
+    {
+      "id": "E2E-06",
+      "scenario": "升级／回退／维护",
+      "expected": "迁移备份、事件去重、旧会话兼容、文档和快照可恢复，未知结果列明。",
+      "local_status": "PASS_LOCAL_CONTRACT_AND_INTEGRATION_SCOPE",
+      "evidence": [
+        "workspace-review-2026-10-20/handoff-reception.json",
+        "linux-frozen-gate/first-21szndqv",
+        "native-full-rust-layout-fixed-gwgv_txm",
+        "linux-final-frozen/first-gpw6sw0x"
+      ],
+      "scoped_checks": [
+        "STORAGE"
+      ],
+      "pre_completion_status": "PARTIAL_SOURCE_RECOVERY"
+    },
+    {
+      "id": "PFM-01",
+      "scenario": "长会话／大图",
+      "expected": "建议 1k 节点／10k 调用记录／长日志样本测交互与 payload，阈值在基线后确定。",
+      "local_status": "PASS_BOUNDED_SCALE_AND_REPEATED_RECOVERY",
+      "evidence": [
+        "linux-frozen-gate/first-21szndqv",
+        "native-full-rust-layout-fixed-gwgv_txm",
+        "linux-final-frozen/first-gpw6sw0x"
+      ],
+      "scoped_checks": [
+        "BOUNDED_SCALE"
+      ],
+      "pre_completion_status": "PARTIAL_SCOPED_LOCAL_BACKEND_TESTS",
+      "boundary": "1k nodes/10k synthetic invocations, 12 DB reopens, bounded duplicate burst/recovery. No multi-day soak or 10k real model calls."
+    },
+    {
+      "id": "PFM-02",
+      "scenario": "事件风暴",
+      "expected": "重复事件与大量任务检验合并、背压、公平、内存界限，不丢终态。",
+      "local_status": "PASS_BOUNDED_SCALE_AND_REPEATED_RECOVERY",
+      "evidence": [
+        "linux-frozen-gate/first-21szndqv",
+        "native-full-rust-layout-fixed-gwgv_txm",
+        "linux-final-frozen/first-gpw6sw0x"
+      ],
+      "scoped_checks": [
+        "BOUNDED_SCALE"
+      ],
+      "pre_completion_status": "PARTIAL_SCOPED_LOCAL_BACKEND_TESTS",
+      "boundary": "1k nodes/10k synthetic invocations, 12 DB reopens, bounded duplicate burst/recovery. No multi-day soak or 10k real model calls."
+    },
+    {
+      "id": "PFM-03",
+      "scenario": "长时间恢复",
+      "expected": "多次重启、暂停、权限撤销、资源更新后任务不失控、不重复消费。",
+      "local_status": "PASS_BOUNDED_SCALE_AND_REPEATED_RECOVERY",
+      "evidence": [
+        "linux-frozen-gate/first-21szndqv",
+        "native-full-rust-layout-fixed-gwgv_txm",
+        "linux-final-frozen/first-gpw6sw0x"
+      ],
+      "scoped_checks": [
+        "BOUNDED_SCALE"
+      ],
+      "pre_completion_status": "PARTIAL_SCOPED_LOCAL_BACKEND_TESTS",
+      "boundary": "1k nodes/10k synthetic invocations, 12 DB reopens, bounded duplicate burst/recovery. No multi-day soak or 10k real model calls."
+    }
+  ],
+  "model_authorization": "Owner authorized at most USD 5 total, synthetic acceptance data only. Two DeepSeek models tested. All first failures included; estimate and unknown actual billing are in docs/nx-m4/EVALUATION_20261021.md.",
+  "platform_checks": {
+    "native_windows_tools": {
+      "status": "PASS_FUNCTIONAL_PROBES",
+      "evidence": [
+        "native-tools-functional-f3p3rtvp"
+      ]
+    },
+    "native_windows_shared_unit": {
+      "status": "PASS",
+      "passed": 57,
+      "failed": 0,
+      "evidence": [
+        "native-shared-tests-pse0g8zb"
+      ]
+    },
+    "native_windows_daemon_targeted": {
+      "status": "PASS_COMMITTED_SOURCE_SCRIPT",
+      "passed": 7,
+      "failed": 0,
+      "evidence": [
+        "native-source-targeted-final-y9byfft_"
+      ]
+    },
+    "linux_workspace": {
+      "status": "PASS_FROZEN_BUILD_TEST_CLIPPY",
+      "head": "b8beab50b61f2b8ee4b6b1ba552937dbfb8f775c",
+      "reported_test_totals": {
+        "passed": 915,
+        "failed": 0,
+        "ignored": 0
+      },
+      "evidence": [
+        "linux-final-frozen/first-gpw6sw0x"
+      ]
+    },
+    "windows_validation_script_contract": {
+      "status": "PASS_NATIVE_STUB_CONTRACT_ONLY",
+      "evidence": [
+        "windows-gate-contract-1ewoepf1"
+      ]
+    },
+    "native_windows_workspace_build": {
+      "status": "PASS_DIRTY_SOURCE_RECORDED",
+      "evidence": [
+        "native-workspace-build-zeqx_w2j"
+      ]
+    },
+    "live_production_web": {
+      "status": "PARTIAL_ACTUAL_DAEMON_SYNTHETIC_PROVIDER",
+      "evidence": [
+        "linux-live-chat-v2-sualv4f3",
+        "linux-daemon-live-nx-transition-4wdpse3g",
+        "linux-live-blueprint-follow-ooeig6gk",
+        "linux-live-blueprint-reload-_moki4dd"
+      ]
+    },
+    "native_windows_live": {
+      "status": "PASS_SYNTHETIC_PROVIDER_FLOWS_AND_TASK_ID_REOPEN",
+      "evidence": [
+        "native-live-chat-r88c2gc5",
+        "native-live-job-decline-ouk3k220",
+        "native-live-blueprint-reload-6xt0_jkd",
+        "node-catalog-native-rpc-ia1wrslw"
+      ]
+    },
+    "native_production_surfaces": {
+      "status": "PASS_TECHNICAL_OWNER_SIGNOFF_PENDING",
+      "rendering_checks": 28,
+      "evidence": [
+        "final-production-surfaces-z37g9krx",
+        "installed-addon-title-fixed-tyunt3zg"
+      ]
+    },
+    "frontend_source_checks": {
+      "status": "PASS_SIX_COMMAND_STEPS_FROZEN_SOURCE",
+      "evidence": [
+        "frontend-source-checks-final-cbkx9hjz",
+        "web-source-final-gate/first-n3gsr_v3"
+      ]
+    },
+    "real_deepseek_protocol": {
+      "status": "PASS_BOUNDED_SYNTHETIC_TWO_ROUND_PROTOCOL_ONLY",
+      "generation_requests": 2,
+      "evidence": [
+        "docs/nx-m4/evidence/20261021-deepseek-smoke.json"
+      ],
+      "boundary": "No daemon/paired evaluation inference."
+    },
+    "native_windows_full_workspace": {
+      "status": "PASS_TEST_AND_CLIPPY",
+      "reported_test_totals": {
+        "passed": 900,
+        "failed": 0,
+        "ignored": 0
+      },
+      "evidence": [
+        "native-full-rust-layout-fixed-gwgv_txm",
+        "native-final-clippy-cd_vskfe"
+      ]
+    },
+    "frontend_complete": {
+      "status": "PASS_TYPES_LINT_BUILD_AND_112_BROWSER_TESTS",
+      "evidence": [
+        "frontend-effective-types-completion-81de1idc",
+        "frontend-lint-completion-68_oxuhr",
+        "frontend-complete-production-pinned-4bbp3mez",
+        "frontend-full-e2e-completion-huiigsyr"
+      ]
+    },
+    "real_models": {
+      "status": "PASS_BOUNDED_PAIRED_EVALUATION_AND_LIVE_CHAINS",
+      "evidence": [
+        "completion-model-report-20261021.json"
+      ]
+    },
+    "portable_launcher": {
+      "status": "PASS_BUNDLED_RUNTIME_SAVED_GRAPH_AND_REAL_TOOL_RPC",
+      "evidence": [
+        "portable-bundled-runtime-rpc-proof-bz4l8brs",
+        "portable-demo-smoke-ajwsusqm"
+      ],
+      "paid_calls": 0,
+      "invalidated_prior_smoke": "portable-demo-smoke-uu8r3mis: ready was published before loading RPC dependencies; HTTP-only smoke was a false positive"
+    }
+  },
+  "scoped_backend_coverage": [
+    {
+      "id": "CACHE",
+      "task_ids": [
+        "NX-02",
+        "NX-34"
+      ],
+      "scenario_ids": [
+        "HC-01",
+        "HC-02",
+        "HC-04",
+        "HC-05"
+      ],
+      "state": "PASS_SCOPED_CONTRACTS_WITH_CURRENT_FULL_GATES",
+      "evidence": "linux-frozen-gate/first-21szndqv",
+      "checks": [
+        {
+          "program": "Running tests/cache_requests.rs (/mnt/d/BaiduNetdiskDownload/metteur-a7-work/build/local-acceptance-linux-target/debug/deps/cache_requests-17dce4620e31bd57)",
+          "passed_cases": [
+            "empty_system_and_thinking_only_tail_do_not_get_invalid_markers",
+            "final_http_requests_share_one_breakpoint_budget_and_canonical_prefix"
+          ]
+        }
+      ],
+      "boundary": "Scoped tests listed below remain inspectable. Current complete engineering evidence and explicit limits are in COMPLETION_20261021.md; human acceptance is separate.",
+      "historical_boundary": "Synthetic HTTP request structure and host usage handling; no real vendor cache or price result.",
+      "current_full_gate": [
+        "native-full-rust-layout-fixed-gwgv_txm",
+        "linux-final-frozen/first-gpw6sw0x"
+      ]
+    },
+    {
+      "id": "MEMORY",
+      "task_ids": [
+        "NX-07",
+        "NX-08"
+      ],
+      "scenario_ids": [
+        "BB-01",
+        "BB-02",
+        "BB-03",
+        "BB-04",
+        "BB-05",
+        "BB-06",
+        "BB-07"
+      ],
+      "state": "PASS_SCOPED_CONTRACTS_WITH_CURRENT_FULL_GATES",
+      "evidence": "linux-frozen-gate/first-21szndqv",
+      "checks": [
+        {
+          "program": "Running tests/nx_memory.rs (/mnt/d/BaiduNetdiskDownload/metteur-a7-work/build/local-acceptance-linux-target/debug/deps/nx_memory-74f50360a7696873)",
+          "passed_cases": [
+            "query_limits_strict_inputs_and_role_denials",
+            "rpc_controls_bind_workspace_and_reject_forged_fields",
+            "scoped_revisions_confirmation_invalidation_and_tombstone"
+          ]
+        },
+        {
+          "program": "Running tests/nx_memory_tools.rs (/mnt/d/BaiduNetdiskDownload/metteur-a7-work/build/local-acceptance-linux-target/debug/deps/nx_memory_tools-f9d0805de1dfc16c)",
+          "passed_cases": [
+            "registered_tools_enforce_host_role_and_strict_arguments"
+          ]
+        }
+      ],
+      "boundary": "Scoped tests listed below remain inspectable. Current complete engineering evidence and explicit limits are in COMPLETION_20261021.md; human acceptance is separate.",
+      "historical_boundary": "Scoped note reads/writes, exact user promotion, revision/file invalidation, tombstones, limits and denied roles. Browser completeness and final sign-off remain separate.",
+      "current_full_gate": [
+        "native-full-rust-layout-fixed-gwgv_txm",
+        "linux-final-frozen/first-gpw6sw0x"
+      ]
+    },
+    {
+      "id": "PROMPTS",
+      "task_ids": [
+        "NX-10",
+        "NX-11"
+      ],
+      "scenario_ids": [
+        "PF-01",
+        "PF-02",
+        "PF-03",
+        "PF-04",
+        "PF-05",
+        "PF-06",
+        "PF-07",
+        "PF-08",
+        "PF-10"
+      ],
+      "state": "PASS_SCOPED_CONTRACTS_WITH_CURRENT_FULL_GATES",
+      "evidence": "linux-frozen-gate/first-21szndqv",
+      "checks": [
+        {
+          "program": "Running tests/nx_prompt_snapshots.rs (/mnt/d/BaiduNetdiskDownload/metteur-a7-work/build/local-acceptance-linux-target/debug/deps/nx_prompt_snapshots-9d0d189791875d29)",
+          "passed_cases": [
+            "selected_snapshots_and_run_manifests_survive_source_edit_delete_and_restart",
+            "real_resource_and_context_executors_use_frozen_text_at_user_role"
+          ]
+        },
+        {
+          "program": "Running tests/nx_prompts.rs (/mnt/d/BaiduNetdiskDownload/metteur-a7-work/build/local-acceptance-linux-target/debug/deps/nx_prompts-c2056a2181a3549f)",
+          "passed_cases": [
+            "parser_rejects_authority_and_unsafe_metadata_without_normalizing_bytes",
+            "symlinks_cannot_escape_prompt_subtrees",
+            "pending_file_intent_is_diagnostic_and_recoverable",
+            "same_names_scopes_file_authority_and_revision_conflicts"
+          ]
+        }
+      ],
+      "boundary": "Scoped tests listed below remain inspectable. Current complete engineering evidence and explicit limits are in COMPLETION_20261021.md; human acceptance is separate.",
+      "historical_boundary": "Scoped files, unsafe fields/symlinks, immutable snapshots through edit/delete/restart and actual executor user-role text. Broader end-user workflows remain partial.",
+      "current_full_gate": [
+        "native-full-rust-layout-fixed-gwgv_txm",
+        "linux-final-frozen/first-gpw6sw0x"
+      ]
+    },
+    {
+      "id": "STORAGE",
+      "task_ids": [
+        "NX-04",
+        "NX-06"
+      ],
+      "scenario_ids": [
+        "E2E-06"
+      ],
+      "state": "PASS_SCOPED_CONTRACTS_WITH_CURRENT_FULL_GATES",
+      "evidence": "linux-frozen-gate/first-21szndqv",
+      "checks": [
+        {
+          "program": "Running unittests src/lib.rs (/mnt/d/BaiduNetdiskDownload/metteur-a7-work/build/local-acceptance-linux-target/debug/deps/metteur_daemon-ffb60da5edab9126)",
+          "passed_cases": [
+            "storage::persistence::db::tests::put_get_roundtrip",
+            "storage::persistence::db::tests::canonical_checkpoint_preserves_live_data"
+          ]
+        },
+        {
+          "program": "Running tests/nx_storage.rs (/mnt/d/BaiduNetdiskDownload/metteur-a7-work/build/local-acceptance-linux-target/debug/deps/nx_storage-1244177d3c4f7017)",
+          "passed_cases": [
+            "additive_migration_cas_replay_restart_and_rollback"
+          ]
+        }
+      ],
+      "boundary": "Scoped tests listed below remain inspectable. Current complete engineering evidence and explicit limits are in COMPLETION_20261021.md; human acceptance is separate.",
+      "historical_boundary": "Versioned storage, CAS/replay, additive migration and rollback checks. Source/package recovery is separately verified; arbitrary old-binary interoperability is not inferred.",
+      "current_full_gate": [
+        "native-full-rust-layout-fixed-gwgv_txm",
+        "linux-final-frozen/first-gpw6sw0x"
+      ]
+    },
+    {
+      "id": "CONTINUATION",
+      "task_ids": [
+        "NX-13",
+        "NX-14",
+        "NX-15",
+        "NX-16",
+        "NX-17",
+        "NX-18",
+        "NX-19",
+        "NX-20",
+        "NX-21",
+        "NX-22",
+        "NX-23",
+        "NX-26"
+      ],
+      "scenario_ids": [
+        "EV-01",
+        "EV-02",
+        "EV-03",
+        "EV-04",
+        "EV-06",
+        "EV-07",
+        "EV-08",
+        "EV-09",
+        "EV-10",
+        "EV-11",
+        "EV-12",
+        "EV-13",
+        "EV-14",
+        "EV-15",
+        "EV-16",
+        "LF-01",
+        "LF-02",
+        "LF-04",
+        "LF-05",
+        "LF-06",
+        "LF-07",
+        "LF-08",
+        "TM-01",
+        "TM-02",
+        "TM-03",
+        "TM-04",
+        "TM-05",
+        "TM-06",
+        "TM-07",
+        "TM-08",
+        "E2E-02"
+      ],
+      "state": "PASS_SCOPED_CONTRACTS_WITH_CURRENT_FULL_GATES",
+      "evidence": "linux-frozen-gate/first-21szndqv",
+      "checks": [
+        {
+          "program": "Running unittests src/lib.rs (/mnt/d/BaiduNetdiskDownload/metteur-a7-work/build/local-acceptance-linux-target/debug/deps/metteur_daemon-ffb60da5edab9126)",
+          "passed_cases": [
+            "continuation::state::tests::all_sources_conflict_and_unknown_usage_are_not_success",
+            "continuation::state::tests::crash_windows_timeout_and_stop_never_duplicate_dispatch",
+            "continuation::handoff::tests::manifest_digest_is_stable_and_changes_with_graph_or_function_body",
+            "continuation::state::tests::terminal_before_wait_deduplicates_and_stop_fences_dispatch",
+            "continuation::timer::schedule_tests::coalesce_skip_rollback_and_stop_preserve_occurrence_identity",
+            "continuation::timer::tests::dst_gap_fold_and_intervals_are_deterministic",
+            "continuation::state::tests::nx_m6_bounded_duplicate_burst_and_repeated_recovery",
+            "continuation::handoff::tests::fixed_endpoint_preserves_roles_and_deleted_sources_are_unavailable",
+            "continuation::state::tests::failed_wait_is_atomic_and_stopped_recovery_retains_artifacts",
+            "continuation::launch::tests::approval_is_exact_idempotent_and_never_binds_a_second_run",
+            "continuation::state::tests::durable_store_keeps_wait_context_and_receipts_across_restart"
+          ]
+        },
+        {
+          "program": "Running tests/nx_continuation_live.rs (/mnt/d/BaiduNetdiskDownload/metteur-a7-work/build/local-acceptance-linux-target/debug/deps/nx_continuation_live-bf2a63047b8c7bb0)",
+          "passed_cases": [
+            "failed_batch_records_every_tool_result_before_returning_error",
+            "background_child_uses_host_allowlist_and_root_ledger",
+            "real_job_yields_saves_entire_batch_and_resumes_once_in_same_session",
+            "persisted_timer_runs_once_without_an_open_chat_stream"
+          ]
+        },
+        {
+          "program": "Running tests/recovery_admission.rs (/mnt/d/BaiduNetdiskDownload/metteur-a7-work/build/local-acceptance-linux-target/debug/deps/recovery_admission-daf5905d78ee3aec)",
+          "passed_cases": [
+            "unreadable_chat_checkpoint_stops_the_turn_before_tool_effects",
+            "recovery_conflict_blocks_chat_until_resolved_without_leaking_a_run_slot"
+          ]
+        }
+      ],
+      "boundary": "Scoped tests listed below remain inspectable. Current complete engineering evidence and explicit limits are in COMPLETION_20261021.md; human acceptance is separate.",
+      "historical_boundary": "Host state-machine tests plus synthetic real Job, read-only child, persisted timer and complete tool-batch integrations. These partial links identify relevant checks, not complete certification of every linked scenario.",
+      "current_full_gate": [
+        "native-full-rust-layout-fixed-gwgv_txm",
+        "linux-final-frozen/first-gpw6sw0x"
+      ]
+    },
+    {
+      "id": "LAUNCH",
+      "task_ids": [
+        "NX-27",
+        "NX-28",
+        "NX-29",
+        "NX-30",
+        "NX-32"
+      ],
+      "scenario_ids": [
+        "BP-01",
+        "BP-02",
+        "BP-03",
+        "BP-04",
+        "BP-05",
+        "BP-06",
+        "BP-07",
+        "BP-08"
+      ],
+      "state": "PASS_SCOPED_CONTRACTS_WITH_CURRENT_FULL_GATES",
+      "evidence": "linux-frozen-gate/first-21szndqv",
+      "checks": [
+        {
+          "program": "Running unittests src/lib.rs (/mnt/d/BaiduNetdiskDownload/metteur-a7-work/build/local-acceptance-linux-target/debug/deps/metteur_daemon-ffb60da5edab9126)",
+          "passed_cases": [
+            "continuation::handoff::tests::manifest_digest_is_stable_and_changes_with_graph_or_function_body",
+            "continuation::handoff::tests::fixed_endpoint_preserves_roles_and_deleted_sources_are_unavailable",
+            "continuation::launch::tests::approval_is_exact_idempotent_and_never_binds_a_second_run"
+          ]
+        },
+        {
+          "program": "Running tests/nx_launch_live.rs (/mnt/d/BaiduNetdiskDownload/metteur-a7-work/build/local-acceptance-linux-target/debug/deps/nx_launch_live-7b5047f58505a51f)",
+          "passed_cases": [
+            "failed_node_with_unsettled_fence_requires_review_without_replay",
+            "report_only_completion_does_not_run_another_model_turn",
+            "confirmed_saved_blueprint_runs_once_and_returns_actual_outputs_to_parent",
+            "stopped_blueprint_never_automatically_resumes_parent"
+          ]
+        }
+      ],
+      "boundary": "Scoped tests listed below remain inspectable. Current complete engineering evidence and explicit limits are in COMPLETION_20261021.md; human acceptance is separate.",
+      "historical_boundary": "Manifest/version identity, exact idempotent approval, real outputs, stopped/indeterminate no replay and report-only policy. Provider is synthetic.",
+      "current_full_gate": [
+        "native-full-rust-layout-fixed-gwgv_txm",
+        "linux-final-frozen/first-gpw6sw0x"
+      ]
+    },
+    {
+      "id": "ADDON",
+      "task_ids": [
+        "NX-01",
+        "NX-38",
+        "NX-39"
+      ],
+      "scenario_ids": [
+        "AD-01",
+        "AD-02",
+        "AD-03",
+        "AD-04",
+        "AD-05",
+        "AD-06"
+      ],
+      "state": "PASS_SCOPED_CONTRACTS_WITH_CURRENT_FULL_GATES",
+      "evidence": "linux-frozen-gate/first-21szndqv",
+      "checks": [
+        {
+          "program": "Running unittests src/lib.rs (/mnt/d/BaiduNetdiskDownload/metteur-a7-work/build/local-acceptance-linux-target/debug/deps/metteur_daemon-ffb60da5edab9126)",
+          "passed_cases": [
+            "addon::lifecycle_tests::legacy_checkpoint_without_package_evidence_is_readable_but_not_resumable",
+            "addon::functions::tests::invalid_graphs_cycles_native_effects_missing_declarations_and_conflicts_are_rejected",
+            "addon::lifecycle_tests::nx41_selected_source_report_review_and_changed_revision",
+            "addon::hooks::tests::unknown_events_duplicate_subscriptions_and_missing_exports_are_rejected",
+            "addon::lifecycle_tests::nx39_signed_page_binding_schema_replay_and_disable",
+            "addon::lsp_tests::invalid_language_matching_commands_and_capabilities_are_rejected",
+            "addon::hooks::tests::observer_host_capabilities_and_reentry_are_always_denied",
+            "addon::lifecycle_tests::active_snapshots_pin_code_reject_mutation_and_recovery_detects_changes",
+            "addon::hooks::tests::failed_persistence_never_publishes_a_finished_node_or_terminal_hook",
+            "addon::lifecycle_tests::nx38_stop_interrupts_cpu_without_cancelling_parent_for_timeout",
+            "addon::lifecycle_tests::collision_partial_exports_duplicates_and_future_contributions_fail_atomically",
+            "addon::manifest::tests::accepts_valid_manifest_with_matching_version",
+            "addon::hooks::tests::recovery_seeds_finished_records_and_does_not_replay_old_callbacks",
+            "addon::lifecycle_tests::grants_are_explicit_fingerprint_bound_and_not_inherited_on_upgrade",
+            "addon::hooks::tests::parent_completion_order_and_per_run_limits_do_not_replay_or_forge_events",
+            "addon::manifest::tests::rejects_non_pascal_tool_names",
+            "addon::manifest::tests::rejects_bad_id_or_missing_entry_or_version_conflict",
+            "addon::lifecycle_tests::signature_policy_and_portable_paths_are_checked_before_install",
+            "addon::functions::tests::transitive_function_calls_resolve_in_dependency_order_and_bound_recursion",
+            "addon::hooks::tests::real_commit_events_are_read_only_scoped_and_close_after_the_workspace",
+            "addon::hooks::tests::queue_payload_retirement_and_callback_failures_are_bounded",
+            "addon::lifecycle_tests::nx38_cpu_timeout_preserves_completed_file_effects",
+            "addon::lsp_tests::original_interpreter_retries_real_lsp_failure_and_rolls_back_the_segment",
+            "addon::mcp_tests::second_service_failure_removes_all_tools_fragments_and_processes",
+            "addon::mcp_tests::real_http_permission_discovery_call_and_shutdown",
+            "addon::lifecycle_tests::scopes_real_wasm_fragments_restart_and_owned_cleanup",
+            "addon::functions::tests::function_frame_resume_requires_unchanged_package_and_function_evidence",
+            "addon::lsp_tests::overrides_binding_conflicts_and_pinned_retirement",
+            "addon::preview_renderer::tests::mismatched_or_forged_browser_evidence_is_rejected",
+            "addon::signature::tests::accepts_valid_signature",
+            "addon::signature::tests::rejects_missing_signature_when_required",
+            "addon::signature::tests::rejects_tampered_file",
+            "addon::signature::tests::signed_package_round_trips",
+            "addon::nodes::tests::actual_checkpoint_resume_blocks_changed_or_missing_nodes_before_progress",
+            "addon::mcp_tests::tool_collision_is_atomic_and_override_changes_checkpoint_binding",
+            "addon::lsp_tests::persisted_deny_and_revoked_receipt_never_silently_skip_lsp_check",
+            "addon::nodes::tests::node_read_capability_rejection_is_not_an_invalid_pointer_or_timeout",
+            "addon::mcp_tests::workspace_close_rejects_pending_admission_and_late_registry_requests",
+            "addon::functions::tests::dependency_upgrade_and_removal_change_the_function_binding_without_silent_retargeting",
+            "addon::functions::tests::function_node_effects_cannot_bypass_run_approval_mode",
+            "addon::lifecycle_tests::actual_wasm_file_host_requires_grant_original_approval_and_safe_path",
+            "addon::functions::tests::readonly_library_real_frames_node_dependency_restart_and_scoped_removal",
+            "addon::lifecycle_tests::nx38_slow_http_stop_and_timeout_do_not_run_following_mutation",
+            "addon::nodes::tests::node_contract_rejects_forged_names_pins_types_and_identity",
+            "addon::mcp_tests::real_stdio_scope_grants_upgrade_disable_uninstall_and_close",
+            "addon::mcp_tests::environment_reference_is_explicit_and_redacted_in_real_stdio_response",
+            "addon::lsp_tests::real_protocol_tools_node_scopes_upgrade_disable_uninstall_and_close",
+            "addon::nodes::tests::node_output_errors_are_not_timeout_successes",
+            "addon::nodes::tests::signed_nodes_execute_real_json_and_preserve_scope_version_and_checkpoint_identity",
+            "addon::lsp_tests::explicit_environment_is_redacted_and_user_server_routes_first",
+            "addon::lifecycle_tests::nx38_human_wait_is_separate_and_late_approval_cannot_write",
+            "addon::hooks::tests::timeout_is_visible_and_does_not_block_direct_stop_or_new_admission",
+            "addon::nodes::tests::node_file_effects_keep_grants_original_approval_journal_and_path_boundaries",
+            "addon::lsp_tests::startup_timeout_crash_request_timeout_and_diagnostics_timeout_fail_closed",
+            "addon::mcp_tests::real_stdio_timeout_disconnect_persisted_deny_and_user_override",
+            "addon::nodes::tests::node_timeout_preserves_actual_effects_and_journal_without_replay"
+          ]
+        }
+      ],
+      "boundary": "Scoped tests listed below remain inspectable. Current complete engineering evidence and explicit limits are in COMPLETION_20261021.md; human acceptance is separate.",
+      "historical_boundary": "Rust Addon tests, including permissions/lifecycle/page bridge; worker rendering is separately verified on Windows. The final native browser review used an empty Addon list and does not establish installed-page UI acceptance.",
+      "current_full_gate": [
+        "native-full-rust-layout-fixed-gwgv_txm",
+        "linux-final-frozen/first-gpw6sw0x"
+      ]
+    },
+    {
+      "id": "ROLE_TOOLS",
+      "task_ids": [
+        "NX-36"
+      ],
+      "scenario_ids": [
+        "HC-03",
+        "HC-07"
+      ],
+      "state": "PASS_SCOPED_CONTRACTS_WITH_CURRENT_FULL_GATES",
+      "evidence": "linux-frozen-gate/first-21szndqv",
+      "checks": [
+        {
+          "program": "Running unittests src/lib.rs (/mnt/d/BaiduNetdiskDownload/metteur-a7-work/build/local-acceptance-linux-target/debug/deps/metteur_daemon-ffb60da5edab9126)",
+          "passed_cases": [
+            "registry::tools::snapshot::tests::requires_version_manager",
+            "registry::tools::subagent::tests::rejects_when_depth_limit_exceeded",
+            "registry::tools::prompt_query::tests::explicit_selection_is_required_even_for_same_owner",
+            "registry::tools::subagent::tests::runs_sub_agent_with_mock_provider",
+            "registry::tools::subagent::tests::resolves_model_through_configuration_chain",
+            "registry::tools::snapshot::tests::takes_snapshot_with_alias"
+          ]
+        },
+        {
+          "program": "Running tests/nx_memory_tools.rs (/mnt/d/BaiduNetdiskDownload/metteur-a7-work/build/local-acceptance-linux-target/debug/deps/nx_memory_tools-f9d0805de1dfc16c)",
+          "passed_cases": [
+            "registered_tools_enforce_host_role_and_strict_arguments"
+          ]
+        },
+        {
+          "program": "Running tests/oversight_provider_settings.rs (/mnt/d/BaiduNetdiskDownload/metteur-a7-work/build/local-acceptance-linux-target/debug/deps/oversight_provider_settings-49a7dfb315c039e9)",
+          "passed_cases": [
+            "provider_settings_reach_real_second_rounds_without_sharing_authority"
+          ]
+        }
+      ],
+      "boundary": "Scoped tests listed below remain inspectable. Current complete engineering evidence and explicit limits are in COMPLETION_20261021.md; human acceptance is separate.",
+      "historical_boundary": "Host roles and strict registered tools/settings only; real-model suitability and prompt adaptation remain pending.",
+      "current_full_gate": [
+        "native-full-rust-layout-fixed-gwgv_txm",
+        "linux-final-frozen/first-gpw6sw0x"
+      ]
+    },
+    {
+      "id": "BOUNDED_SCALE",
+      "task_ids": [
+        "NX-43"
+      ],
+      "scenario_ids": [
+        "PFM-01",
+        "PFM-02",
+        "PFM-03"
+      ],
+      "state": "PASS_SCOPED_CONTRACTS_WITH_CURRENT_FULL_GATES",
+      "evidence": "linux-frozen-gate/first-21szndqv",
+      "checks": [
+        {
+          "program": "Running unittests src/lib.rs (/mnt/d/BaiduNetdiskDownload/metteur-a7-work/build/local-acceptance-linux-target/debug/deps/metteur_daemon-ffb60da5edab9126)",
+          "passed_cases": [
+            "continuation::state::tests::nx_m6_bounded_duplicate_burst_and_repeated_recovery"
+          ]
+        },
+        {
+          "program": "Running tests/nx_scale.rs (/mnt/d/BaiduNetdiskDownload/metteur-a7-work/build/local-acceptance-linux-target/debug/deps/nx_scale-f57160d76e31a5a1)",
+          "passed_cases": [
+            "thousand_nodes_ten_thousand_invocations_and_twelve_reopens"
+          ]
+        }
+      ],
+      "boundary": "Scoped tests listed below remain inspectable. Current complete engineering evidence and explicit limits are in COMPLETION_20261021.md; human acceptance is separate.",
+      "historical_boundary": "1,000 nodes/999 edges, 10,000 synthetic invocations, 12 DB reopens; 64 sources/4,096 duplicate notifications/8 recoveries. No multi-day soak or real model workload.",
+      "current_full_gate": [
+        "native-full-rust-layout-fixed-gwgv_txm",
+        "linux-final-frozen/first-gpw6sw0x"
+      ]
+    }
+  ],
+  "current_unfinished_audit": "docs/local-handoff/COMPLETION_20261021.md"
+}

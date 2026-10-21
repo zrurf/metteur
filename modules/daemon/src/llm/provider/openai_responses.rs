@@ -86,7 +86,7 @@ impl OpenAiResponsesClient {
         if !status.is_success() {
             return Err(DaemonError::LlmStatus {
                 status: status.as_u16(),
-                message: text,
+                message: super::super::client::safe_provider_error(&text),
             });
         }
         let parsed: Json = serde_json::from_str(&text)
@@ -103,6 +103,12 @@ impl LlmClient for OpenAiResponsesClient {
 
     fn model(&self) -> &str {
         &self.model
+    }
+
+    fn diagnostics(&self,ctx:&ContextManager,params:&GenerationParams,tools:&[ToolDefinition],stream:bool)->Json {
+        let mut body=self.build_body(ctx,params,tools);
+        if stream {body["stream"]=json!(true);}
+        crate::llm::diagnostics::request(&self.base_url,&body,ctx)
     }
 
     async fn complete(
@@ -139,7 +145,7 @@ impl LlmClient for OpenAiResponsesClient {
                 resp.text().await.map_err(|e| http_error("openai responses stream response", e))?;
             return Err(DaemonError::LlmStatus {
                 status: status.as_u16(),
-                message: text,
+                message: super::super::client::safe_provider_error(&text),
             });
         }
 
@@ -404,7 +410,8 @@ fn parse_usage(u: &Json) -> Usage {
         reasoning_tokens: reasoning,
         total_tokens: input + output,
         cached_input_tokens: cached,
-        cache_write_input_tokens: 0,
+        cache_write_reported: u.pointer("/input_tokens_details/cache_write_tokens").and_then(|v|v.as_u64()).is_some(),
+        cache_write_input_tokens: u.pointer("/input_tokens_details/cache_write_tokens").and_then(|v|v.as_u64()).unwrap_or(0),
     }
 }
 
@@ -521,6 +528,18 @@ mod tests {
         raw["input_tokens_details"] = json!({"cached_tokens": 0});
         assert_eq!(parse_usage(&raw).cache_hit_rate(), Some(0.0));
         assert_eq!(parse_usage(&json!({})).cache_hit_rate(), None);
+    }
+
+    #[test]
+    fn nx_m4_cache_write_presence_and_normalization() {
+        let mut raw=json!({"input_tokens":100,"output_tokens":10,"input_tokens_details":{"cached_tokens":20}});
+        assert!(!parse_usage(&raw).cache_write_reported);
+        raw["input_tokens_details"]["cache_write_tokens"]=json!(30);
+        let usage=parse_usage(&raw);
+        assert!(usage.cache_write_reported);
+        assert_eq!(usage.cache_write_input_tokens,30);
+        assert_eq!(usage.uncached_input_tokens(),50);
+        assert_eq!(usage.total_tokens,110);
     }
 
 }

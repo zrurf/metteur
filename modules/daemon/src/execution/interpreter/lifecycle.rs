@@ -230,6 +230,8 @@ impl Interpreter {
             ctx.config = Some(config.clone());
         }
         ctx.user = self.user.clone();
+        ctx.continuation = self.continuation.clone();
+        ctx.handoff_ref = self.handoff_ref;
         ctx.interrupts = interrupts;
         ctx.pause_requested = pause_requested;
         ctx.cancel_requested = cancel_requested;

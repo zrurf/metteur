@@ -9,6 +9,8 @@ async function openWorkspace(page: Page) {
 
 for (const failure of ['file-result', 'file-throw', 'mirror-result', 'mirror-throw']) {
   test(`${failure} stays visible, preserves the draft and blocks Run until retry`, async ({ page }) => {
+    const reactiveComponentWarnings: string[] = []
+    page.on('console', message => { if (message.text().includes('Component that was made a reactive object')) reactiveComponentWarnings.push(message.text()) })
     await openWorkspace(page)
     await page.evaluate(async (failureMode) => {
       const corePath = '/src/core/index.ts', routePath = '/src/router.ts', filePath = '/src/lib/file-token.ts'
@@ -40,6 +42,7 @@ for (const failure of ['file-result', 'file-throw', 'mirror-result', 'mirror-thr
       await router.push(fileRoute('save.blueprint'))
     }, failure)
     await expect(page.locator('.vue-flow__node')).toHaveCount(2)
+    expect(reactiveComponentWarnings).toEqual([])
     await page.getByRole('button', { name: 'Run', exact: true }).click()
     await expect(page.getByTestId('blueprint-save-error')).toContainText(failure.startsWith('file') ? 'File save failed' : 'daemon mirror is not synchronized')
     const failed = await page.evaluate(async () => {

@@ -19,6 +19,7 @@ import type { ChatUsage } from '@/core'
  * reasoning block, not duplicated above the composer.
  */
 const props = defineProps<{
+  waitingForApproval?: boolean
   phase: ChatPhase
   lastEventAt: number
   usage: ChatUsage | null
@@ -30,7 +31,7 @@ const now = ref(Date.now())
 const timer = setInterval(() => (now.value = Date.now()), 1000)
 onBeforeUnmount(() => clearInterval(timer))
 
-const active = computed(() => props.phase !== 'idle' || props.pendingTool !== null)
+const active = computed(() => props.waitingForApproval || props.phase !== 'idle' || props.pendingTool !== null)
 const sinceLastEvent = computed(() => now.value - props.lastEventAt)
 const shown = computed(() =>
   props.pendingTool ? 'generating' : effectivePhase(props.phase, sinceLastEvent.value),
@@ -43,7 +44,7 @@ const pendingLabel = computed(() => {
   const size = kb < 1 ? `${pending.bytes} B` : `${kb.toFixed(1)} KB`
   return `Preparing ${pending.name || 'a tool call'} · ${size}`
 })
-const slow = computed(() => active.value && isSlow(sinceLastEvent.value))
+const slow = computed(() => active.value && !props.waitingForApproval && isSlow(sinceLastEvent.value))
 
 const tokens = computed(() => {
   const usage = props.usage
@@ -65,7 +66,7 @@ watch(active, () => (now.value = Date.now()))
   <div v-if="active || tokens" class="chat-status" role="status">
     <template v-if="active">
       <Loader2 class="h-3 w-3 shrink-0 animate-spin text-status-running" />
-      <span class="chat-status-label">{{ pendingLabel || phaseLabel(shown) }}</span>
+      <span class="chat-status-label">{{ waitingForApproval ? 'Waiting for your approval' : pendingLabel || phaseLabel(shown) }}</span>
       <span v-if="slow" class="text-subtle">· still working, the model is slow</span>
     </template>
     <span v-if="tokens" class="ml-auto font-mono tabular-nums text-subtle">{{ tokens }}</span>

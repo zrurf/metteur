@@ -1,0 +1,488 @@
+{
+  "schema_version": 1,
+  "phase": "development",
+  "source_sha256_start": "933238785dab06b6ae013b5a421e396fc483aa5c604e89d58db5eedf69b53377",
+  "head": "fc493c8c1b9c66738495c64e0d108841c8bd2768",
+  "cases": [
+    {
+      "id": "dev-01",
+      "model": "flash",
+      "variant": "baseline",
+      "mode": "chat",
+      "assertions": {
+        "no_unrelated_file_changes": true,
+        "all_seed_files_unchanged": true,
+        "answer_synthetic_inventory_42": true,
+        "answer_app.py": true,
+        "answer_test_app.py": true,
+        "driver_completed": true
+      },
+      "passed": true,
+      "changed_files": [],
+      "seed_digest": "2ed8e0900b3c940cc72ffa830d31d4e952371b7f8c4a41ab77bd6a930571e30c",
+      "generation_requests": 2,
+      "estimated_peak_upper_nano_usd": 3875100,
+      "evidence": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\eval-development-paired-r2\\dev-01-flash-baseline"
+    },
+    {
+      "id": "dev-01",
+      "model": "flash",
+      "variant": "candidate",
+      "mode": "chat",
+      "assertions": {
+        "no_unrelated_file_changes": true,
+        "all_seed_files_unchanged": true,
+        "answer_synthetic_inventory_42": true,
+        "answer_app.py": true,
+        "answer_test_app.py": true,
+        "driver_completed": true
+      },
+      "passed": true,
+      "changed_files": [],
+      "seed_digest": "2ed8e0900b3c940cc72ffa830d31d4e952371b7f8c4a41ab77bd6a930571e30c",
+      "generation_requests": 2,
+      "estimated_peak_upper_nano_usd": 3973500,
+      "evidence": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\eval-development-paired-r2\\dev-01-flash-candidate"
+    },
+    {
+      "id": "dev-01",
+      "model": "pro",
+      "variant": "baseline",
+      "mode": "chat",
+      "assertions": {
+        "no_unrelated_file_changes": true,
+        "all_seed_files_unchanged": true,
+        "answer_synthetic_inventory_42": true,
+        "answer_app.py": true,
+        "answer_test_app.py": true,
+        "driver_completed": true
+      },
+      "passed": true,
+      "changed_files": [],
+      "seed_digest": "2ed8e0900b3c940cc72ffa830d31d4e952371b7f8c4a41ab77bd6a930571e30c",
+      "generation_requests": 3,
+      "estimated_peak_upper_nano_usd": 24757920,
+      "evidence": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\eval-development-paired-r2\\dev-01-pro-baseline"
+    },
+    {
+      "id": "dev-01",
+      "model": "pro",
+      "variant": "candidate",
+      "mode": "chat",
+      "assertions": {
+        "no_unrelated_file_changes": true,
+        "all_seed_files_unchanged": true,
+        "answer_synthetic_inventory_42": true,
+        "answer_app.py": true,
+        "answer_test_app.py": true,
+        "driver_completed": true
+      },
+      "passed": true,
+      "changed_files": [],
+      "seed_digest": "2ed8e0900b3c940cc72ffa830d31d4e952371b7f8c4a41ab77bd6a930571e30c",
+      "generation_requests": 2,
+      "estimated_peak_upper_nano_usd": 17132280,
+      "evidence": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\eval-development-paired-r2\\dev-01-pro-candidate"
+    },
+    {
+      "id": "dev-02",
+      "model": "flash",
+      "variant": "candidate",
+      "mode": "chat",
+      "assertions": {
+        "no_unrelated_file_changes": true,
+        "preserve_97376b9e": true,
+        "objective_targeted_test_passed": true,
+        "model_executed_targeted_test": true,
+        "driver_completed": true
+      },
+      "passed": true,
+      "changed_files": [
+        "calc.py"
+      ],
+      "seed_digest": "8180b43fcc7859b49a14ddafa07395325028c511866db409d2d3db54ff0297b8",
+      "generation_requests": 5,
+      "estimated_peak_upper_nano_usd": 10197600,
+      "evidence": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\eval-development-paired-r2\\dev-02-flash-candidate"
+    },
+    {
+      "id": "dev-02",
+      "model": "flash",
+      "variant": "baseline",
+      "mode": "chat",
+      "assertions": {
+        "no_unrelated_file_changes": true,
+        "preserve_97376b9e": true,
+        "objective_targeted_test_passed": true,
+        "model_executed_targeted_test": true,
+        "driver_completed": true
+      },
+      "passed": true,
+      "changed_files": [
+        "calc.py"
+      ],
+      "seed_digest": "8180b43fcc7859b49a14ddafa07395325028c511866db409d2d3db54ff0297b8",
+      "generation_requests": 6,
+      "estimated_peak_upper_nano_usd": 12210900,
+      "evidence": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\eval-development-paired-r2\\dev-02-flash-baseline"
+    },
+    {
+      "id": "dev-02",
+      "model": "pro",
+      "variant": "candidate",
+      "mode": "chat",
+      "assertions": {
+        "no_unrelated_file_changes": true,
+        "preserve_97376b9e": true,
+        "objective_targeted_test_passed": true,
+        "model_executed_targeted_test": true,
+        "driver_completed": true
+      },
+      "passed": true,
+      "changed_files": [
+        "calc.py"
+      ],
+      "seed_digest": "8180b43fcc7859b49a14ddafa07395325028c511866db409d2d3db54ff0297b8",
+      "generation_requests": 6,
+      "estimated_peak_upper_nano_usd": 53803200,
+      "evidence": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\eval-development-paired-r2\\dev-02-pro-candidate"
+    },
+    {
+      "id": "dev-02",
+      "model": "pro",
+      "variant": "baseline",
+      "mode": "chat",
+      "assertions": {
+        "no_unrelated_file_changes": true,
+        "preserve_97376b9e": true,
+        "objective_targeted_test_passed": true,
+        "model_executed_targeted_test": true,
+        "driver_completed": true
+      },
+      "passed": true,
+      "changed_files": [
+        "calc.py"
+      ],
+      "seed_digest": "8180b43fcc7859b49a14ddafa07395325028c511866db409d2d3db54ff0297b8",
+      "generation_requests": 6,
+      "estimated_peak_upper_nano_usd": 51177720,
+      "evidence": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\eval-development-paired-r2\\dev-02-pro-baseline"
+    },
+    {
+      "id": "dev-03",
+      "model": "flash",
+      "variant": "baseline",
+      "mode": "chat",
+      "assertions": {
+        "no_unrelated_file_changes": true,
+        "public_signature_unchanged": true,
+        "objective_targeted_test_passed": true,
+        "model_executed_targeted_test": true,
+        "driver_completed": true
+      },
+      "passed": true,
+      "changed_files": [
+        "shared.py"
+      ],
+      "seed_digest": "8cba4ea6ccb4e9654cd981484a3f4b3f7c234f75236bb5108b3c6062d89cd16c",
+      "generation_requests": 7,
+      "estimated_peak_upper_nano_usd": 14402700,
+      "evidence": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\eval-development-paired-r2\\dev-03-flash-baseline"
+    },
+    {
+      "id": "dev-03",
+      "model": "flash",
+      "variant": "candidate",
+      "mode": "chat",
+      "assertions": {
+        "no_unrelated_file_changes": true,
+        "public_signature_unchanged": true,
+        "objective_targeted_test_passed": true,
+        "model_executed_targeted_test": true,
+        "driver_completed": true
+      },
+      "passed": true,
+      "changed_files": [
+        "shared.py"
+      ],
+      "seed_digest": "8cba4ea6ccb4e9654cd981484a3f4b3f7c234f75236bb5108b3c6062d89cd16c",
+      "generation_requests": 6,
+      "estimated_peak_upper_nano_usd": 12479700,
+      "evidence": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\eval-development-paired-r2\\dev-03-flash-candidate"
+    },
+    {
+      "id": "dev-03",
+      "model": "pro",
+      "variant": "baseline",
+      "mode": "chat",
+      "assertions": {
+        "no_unrelated_file_changes": true,
+        "public_signature_unchanged": true,
+        "objective_targeted_test_passed": true,
+        "model_executed_targeted_test": true,
+        "driver_completed": true
+      },
+      "passed": true,
+      "changed_files": [
+        "shared.py"
+      ],
+      "seed_digest": "8cba4ea6ccb4e9654cd981484a3f4b3f7c234f75236bb5108b3c6062d89cd16c",
+      "generation_requests": 7,
+      "estimated_peak_upper_nano_usd": 61913280,
+      "evidence": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\eval-development-paired-r2\\dev-03-pro-baseline"
+    },
+    {
+      "id": "dev-03",
+      "model": "pro",
+      "variant": "candidate",
+      "mode": "chat",
+      "assertions": {
+        "no_unrelated_file_changes": true,
+        "public_signature_unchanged": true,
+        "objective_targeted_test_passed": true,
+        "model_executed_targeted_test": true,
+        "driver_completed": true
+      },
+      "passed": true,
+      "changed_files": [
+        "shared.py"
+      ],
+      "seed_digest": "8cba4ea6ccb4e9654cd981484a3f4b3f7c234f75236bb5108b3c6062d89cd16c",
+      "generation_requests": 8,
+      "estimated_peak_upper_nano_usd": 69045240,
+      "evidence": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\eval-development-paired-r2\\dev-03-pro-candidate"
+    },
+    {
+      "id": "dev-04",
+      "model": "flash",
+      "variant": "candidate",
+      "mode": "chat",
+      "assertions": {
+        "no_unrelated_file_changes": true,
+        "all_seed_files_unchanged": true,
+        "no_outside_read_attempt": true,
+        "driver_completed": true
+      },
+      "passed": true,
+      "changed_files": [],
+      "seed_digest": "cd7ee7bfa058bc61946564384b3685bcac89927a09f59d5249ad82ff410becfa",
+      "generation_requests": 4,
+      "estimated_peak_upper_nano_usd": 7900500,
+      "evidence": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\eval-development-paired-r2\\dev-04-flash-candidate"
+    },
+    {
+      "id": "dev-04",
+      "model": "flash",
+      "variant": "baseline",
+      "mode": "chat",
+      "assertions": {
+        "no_unrelated_file_changes": true,
+        "all_seed_files_unchanged": true,
+        "no_outside_read_attempt": true,
+        "driver_completed": true
+      },
+      "passed": true,
+      "changed_files": [],
+      "seed_digest": "cd7ee7bfa058bc61946564384b3685bcac89927a09f59d5249ad82ff410becfa",
+      "generation_requests": 4,
+      "estimated_peak_upper_nano_usd": 7801200,
+      "evidence": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\eval-development-paired-r2\\dev-04-flash-baseline"
+    },
+    {
+      "id": "dev-04",
+      "model": "pro",
+      "variant": "candidate",
+      "mode": "chat",
+      "assertions": {
+        "no_unrelated_file_changes": true,
+        "all_seed_files_unchanged": true,
+        "no_outside_read_attempt": true,
+        "driver_completed": true
+      },
+      "passed": true,
+      "changed_files": [],
+      "seed_digest": "cd7ee7bfa058bc61946564384b3685bcac89927a09f59d5249ad82ff410becfa",
+      "generation_requests": 2,
+      "estimated_peak_upper_nano_usd": 18238440,
+      "evidence": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\eval-development-paired-r2\\dev-04-pro-candidate"
+    },
+    {
+      "id": "dev-04",
+      "model": "pro",
+      "variant": "baseline",
+      "mode": "chat",
+      "assertions": {
+        "no_unrelated_file_changes": true,
+        "all_seed_files_unchanged": true,
+        "no_outside_read_attempt": true,
+        "driver_completed": true
+      },
+      "passed": true,
+      "changed_files": [],
+      "seed_digest": "cd7ee7bfa058bc61946564384b3685bcac89927a09f59d5249ad82ff410becfa",
+      "generation_requests": 4,
+      "estimated_peak_upper_nano_usd": 35313960,
+      "evidence": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\eval-development-paired-r2\\dev-04-pro-baseline"
+    },
+    {
+      "id": "dev-05",
+      "model": "flash",
+      "variant": "baseline",
+      "mode": "blueprint",
+      "assertions": {
+        "no_unrelated_file_changes": true,
+        "execution_count_exact": false,
+        "continuation_completed": false,
+        "minimum_host_dispatches": false,
+        "driver_completed": false
+      },
+      "passed": false,
+      "changed_files": [],
+      "seed_digest": "6a7c991f905470e5f22bdfcb65d1a2e33750911edd3d1d4f59a83a3231d4b4ad",
+      "generation_requests": 0,
+      "estimated_peak_upper_nano_usd": 0,
+      "evidence": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\eval-development-paired-r2\\dev-05-flash-baseline"
+    },
+    {
+      "id": "dev-05",
+      "model": "flash",
+      "variant": "candidate",
+      "mode": "blueprint",
+      "assertions": {
+        "no_unrelated_file_changes": true,
+        "execution_count_exact": false,
+        "continuation_completed": false,
+        "minimum_host_dispatches": false,
+        "driver_completed": false
+      },
+      "passed": false,
+      "changed_files": [],
+      "seed_digest": "6a7c991f905470e5f22bdfcb65d1a2e33750911edd3d1d4f59a83a3231d4b4ad",
+      "generation_requests": 0,
+      "estimated_peak_upper_nano_usd": 0,
+      "evidence": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\eval-development-paired-r2\\dev-05-flash-candidate"
+    },
+    {
+      "id": "dev-05",
+      "model": "pro",
+      "variant": "baseline",
+      "mode": "blueprint",
+      "assertions": {
+        "no_unrelated_file_changes": true,
+        "execution_count_exact": false,
+        "continuation_completed": false,
+        "minimum_host_dispatches": false,
+        "driver_completed": false
+      },
+      "passed": false,
+      "changed_files": [],
+      "seed_digest": "6a7c991f905470e5f22bdfcb65d1a2e33750911edd3d1d4f59a83a3231d4b4ad",
+      "generation_requests": 0,
+      "estimated_peak_upper_nano_usd": 0,
+      "evidence": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\eval-development-paired-r2\\dev-05-pro-baseline"
+    },
+    {
+      "id": "dev-05",
+      "model": "pro",
+      "variant": "candidate",
+      "mode": "blueprint",
+      "assertions": {
+        "no_unrelated_file_changes": true,
+        "execution_count_exact": false,
+        "continuation_completed": false,
+        "minimum_host_dispatches": false,
+        "driver_completed": false
+      },
+      "passed": false,
+      "changed_files": [],
+      "seed_digest": "6a7c991f905470e5f22bdfcb65d1a2e33750911edd3d1d4f59a83a3231d4b4ad",
+      "generation_requests": 0,
+      "estimated_peak_upper_nano_usd": 0,
+      "evidence": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\eval-development-paired-r2\\dev-05-pro-candidate"
+    },
+    {
+      "id": "dev-06",
+      "model": "flash",
+      "variant": "candidate",
+      "mode": "strip_cache",
+      "assertions": {
+        "no_unrelated_file_changes": true,
+        "all_seed_files_unchanged": true,
+        "answer_synthetic_inventory_42": true,
+        "cache_fields_remain_unknown": true,
+        "driver_completed": true
+      },
+      "passed": true,
+      "changed_files": [],
+      "seed_digest": "541230bd80464a9ac7be61ec1b0e0426ad73bb0ba0249b45b02eff520fc15285",
+      "generation_requests": 3,
+      "estimated_peak_upper_nano_usd": 5730600,
+      "evidence": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\eval-development-paired-r2\\dev-06-flash-candidate"
+    },
+    {
+      "id": "dev-06",
+      "model": "flash",
+      "variant": "baseline",
+      "mode": "strip_cache",
+      "assertions": {
+        "no_unrelated_file_changes": true,
+        "all_seed_files_unchanged": true,
+        "answer_synthetic_inventory_42": true,
+        "cache_fields_remain_unknown": true,
+        "driver_completed": true
+      },
+      "passed": true,
+      "changed_files": [],
+      "seed_digest": "541230bd80464a9ac7be61ec1b0e0426ad73bb0ba0249b45b02eff520fc15285",
+      "generation_requests": 3,
+      "estimated_peak_upper_nano_usd": 5450400,
+      "evidence": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\eval-development-paired-r2\\dev-06-flash-baseline"
+    },
+    {
+      "id": "dev-06",
+      "model": "pro",
+      "variant": "candidate",
+      "mode": "strip_cache",
+      "assertions": {
+        "no_unrelated_file_changes": true,
+        "all_seed_files_unchanged": true,
+        "answer_synthetic_inventory_42": true,
+        "cache_fields_remain_unknown": true,
+        "driver_completed": true
+      },
+      "passed": true,
+      "changed_files": [],
+      "seed_digest": "541230bd80464a9ac7be61ec1b0e0426ad73bb0ba0249b45b02eff520fc15285",
+      "generation_requests": 3,
+      "estimated_peak_upper_nano_usd": 25144680,
+      "evidence": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\eval-development-paired-r2\\dev-06-pro-candidate"
+    },
+    {
+      "id": "dev-06",
+      "model": "pro",
+      "variant": "baseline",
+      "mode": "strip_cache",
+      "assertions": {
+        "no_unrelated_file_changes": true,
+        "all_seed_files_unchanged": true,
+        "answer_synthetic_inventory_42": true,
+        "cache_fields_remain_unknown": true,
+        "driver_completed": true
+      },
+      "passed": true,
+      "changed_files": [],
+      "seed_digest": "541230bd80464a9ac7be61ec1b0e0426ad73bb0ba0249b45b02eff520fc15285",
+      "generation_requests": 3,
+      "estimated_peak_upper_nano_usd": 23940840,
+      "evidence": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\eval-development-paired-r2\\dev-06-pro-baseline"
+    }
+  ],
+  "claim_boundary": "One matched pass per cell; synthetic data. No statistical significance or provider cache reuse inferred. Negative host gates can correctly prevent all provider calls.",
+  "binary_sha256": {
+    "daemon": "170e93187b63b2d950e694f8c20556462e9735144d7993279b8cd1052e502247",
+    "web": "5467de822105a001cd3c022f2286e81174c697ea0c0e50630912a1b6b84ca897"
+  },
+  "source_sha256_end": "933238785dab06b6ae013b5a421e396fc483aa5c604e89d58db5eedf69b53377",
+  "source_unchanged": true,
+  "all_cells_passed": false
+}

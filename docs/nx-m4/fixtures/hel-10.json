@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "id": "hel-10",
+  "split": "held_out",
+  "mode": "blueprint",
+  "files": {
+    "evidence.txt": "synthetic_blueprint_evidence_42\n"
+  },
+  "goal": "Call RequestBlueprintRun once for blueprint {blueprint_id}, goal \"Review synthetic evidence\", summary \"Read evidence.txt with the saved graph\", constraints [\"Keep all existing files\"], resume_on_completion true, allow_source_read false. Wait for the host decision. After completion use ReadTaskSource to report the actual result in the original session. If rejected, end without proposing it again.",
+  "checks": {
+    "launch": "report_only",
+    "continuation": true,
+    "executions": 1,
+    "max_dispatches": 0
+  },
+  "limits": {
+    "max_iterations": 7,
+    "max_tokens": 1024,
+    "max_turns": 4,
+    "token_limit": 300000
+  },
+  "seed_digest": "714c0d4cc52cd2d12f78680fab4dfc64e5196850a4aa70c49dfbf1882e0d1a0f"
+}

@@ -52,6 +52,7 @@ fn sections_render_in_priority_order() {
         vec![
             "harness.identity",
             "harness.tools",
+            "harness.runtime_contract",
             "harness.coding",
             "harness.plan",
             "harness.verify",

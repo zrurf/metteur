@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "id": "dev-06",
+  "split": "development",
+  "mode": "strip_cache",
+  "files": {
+    "app.py": "ROLE = \"application\"\nMARKER = \"synthetic_inventory_42\"\n",
+    "test_app.py": "ROLE = \"test\"\n"
+  },
+  "goal": "Read app.py and report its MARKER. Do not change files or claim a cache hit.",
+  "checks": {
+    "unchanged": true,
+    "cache_unknown": true,
+    "answer_contains": [
+      "synthetic_inventory_42"
+    ]
+  },
+  "limits": {
+    "max_iterations": 7,
+    "max_tokens": 1024,
+    "max_turns": 4,
+    "token_limit": 300000
+  },
+  "seed_digest": "541230bd80464a9ac7be61ec1b0e0426ad73bb0ba0249b45b02eff520fc15285"
+}

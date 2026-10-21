@@ -47,6 +47,27 @@ test('a short conversation shows no jump button', async ({ page }) => {
   await expect(page.getByText('New messages')).toHaveCount(0)
 })
 
+test('hover and keyboard focus preserve an iframe accessible title', async ({ page }) => {
+  await openChat(page)
+  await page.clock.install()
+  await page.evaluate(() => {
+    const frame = document.createElement('iframe')
+    frame.id = 'accessible-frame-probe'
+    frame.title = 'Synthetic preview frame'
+    frame.tabIndex = 0
+    frame.srcdoc = '<button>Sample content</button>'
+    frame.style.cssText = 'position:fixed;left:180px;top:180px;width:300px;height:90px;z-index:1000'
+    document.body.appendChild(frame)
+  })
+  const frame = page.locator('#accessible-frame-probe')
+  await frame.hover()
+  await page.clock.runFor(500)
+  await expect(frame).toHaveAttribute('title', 'Synthetic preview frame')
+  await frame.focus()
+  await expect(frame).toHaveAttribute('title', 'Synthetic preview frame')
+  await expect(frame).not.toHaveAttribute('data-tip-title')
+})
+
 test('the header keeps session controls and leaves the model to the composer', async ({ page }) => {
   await openChat(page)
   const header = page.locator('.chat-header')

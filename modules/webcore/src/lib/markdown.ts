@@ -224,7 +224,9 @@ function renderFence(code: string, tag: string): string {
   }
 }
 
-function createRenderer(highlight: boolean): MarkdownIt {
+type MarkdownRenderer = ReturnType<typeof MarkdownIt>
+
+function createRenderer(highlight: boolean): MarkdownRenderer {
   const md = new MarkdownIt({
     html: false,
     linkify: true,
@@ -248,9 +250,9 @@ function createRenderer(highlight: boolean): MarkdownIt {
   return md
 }
 
-let renderer: MarkdownIt | null = null
+let renderer: MarkdownRenderer | null = null
 /** Renderer used for messages that are still streaming (no highlighting). */
-let plainRenderer: MarkdownIt | null = null
+let plainRenderer: MarkdownRenderer | null = null
 
 /**
  * Renders markdown to sanitized HTML.

@@ -301,6 +301,7 @@ pub struct JobManager {
     notify: Arc<Notify>,
     /// Lifecycle and output notices for subscribers (the web UI's job panel).
     notices: tokio::sync::broadcast::Sender<JobNotice>,
+    task_owners: std::sync::Mutex<HashMap<String, (uuid::Uuid, u64)>>,
 }
 
 impl JobManager {
@@ -308,6 +309,7 @@ impl JobManager {
     pub fn new(root: PathBuf) -> Self {
         Self {
             root,
+            task_owners: std::sync::Mutex::new(HashMap::new()),
             jobs: std::sync::Mutex::new(HashMap::new()),
             notify: Arc::new(Notify::new()),
             notices: tokio::sync::broadcast::channel(NOTICE_BUFFER).0,
@@ -353,6 +355,16 @@ impl JobManager {
         owner: uuid::Uuid,
         output_cap: usize,
     ) -> DaemonResult<String> {
+        self.start_registered(command, cwd, owner, output_cap, |_| Ok(()))
+    }
+
+    /// Persist the source identity before starting any operating-system effect.
+    pub fn start_registered(
+        &self, command: &str, cwd: &Path, owner: uuid::Uuid, output_cap: usize,
+        register: impl FnOnce(&str) -> DaemonResult<()>,
+    ) -> DaemonResult<String> {
+        let id = new_job_id();
+        register(&id)?;
         let mut cmd = build_shell_command(command);
         // A command that forks (shell scripts, build tools) must be killable as
         // a whole; on Unix the child leads its own process group for that.
@@ -368,7 +380,6 @@ impl JobManager {
 
         let stdout = child.stdout.take();
         let stderr = child.stderr.take();
-        let id = new_job_id();
         let entry = Arc::new(JobEntry {
             snapshot: std::sync::Mutex::new(JobSnapshot {
                 id: id.clone(),
@@ -603,9 +614,25 @@ impl JobManager {
     pub fn kill_owned_by(&self, owner: uuid::Uuid) -> usize {
         self.list(Some(owner))
             .into_iter()
+            .filter(|job| !self.task_owners.lock().unwrap().contains_key(&job.id))
             .filter(|job| job.state.is_running())
             .filter(|job| self.kill(&job.id))
             .count()
+    }
+
+    /// Called only after the durable wait commit. Ordinary turn cleanup stays intact.
+    pub fn transfer_to_task(&self, ids: &[String], turn: uuid::Uuid, task: uuid::Uuid, generation: u64) -> DaemonResult<()> {
+        let jobs = self.jobs.lock().unwrap();
+        if ids.iter().any(|id| jobs.get(id).is_none_or(|j| j.view().owner != turn)) {
+            return Err(DaemonError::Execution("Job ownership mismatch".into()));
+        }
+        let mut owners = self.task_owners.lock().unwrap();
+        for id in ids { owners.insert(id.clone(), (task, generation)); }
+        Ok(())
+    }
+    pub fn kill_task(&self, task: uuid::Uuid) -> usize {
+        let ids: Vec<_> = self.task_owners.lock().unwrap().iter().filter(|(_, (owner, _))| *owner == task).map(|(id, _)| id.clone()).collect();
+        ids.into_iter().filter(|id| self.kill(id)).count()
     }
 
     /// Number of tracked jobs (running or finished).

@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "status": "BLOCKED_AUTH",
+  "authorization": {
+    "paid_calls_allowed": false,
+    "spending_limit": 0,
+    "currency": "USD",
+    "approved_provider": null,
+    "approved_task_data_scope": null,
+    "approval_reference": null
+  },
+  "models": [
+    {
+      "slot": "A",
+      "configuration_alias": null,
+      "actual_model_id_and_version": null,
+      "api_type": null,
+      "redacted_endpoint": null,
+      "credentials": "User configures locally; never put a key in this manifest.",
+      "context_input_limit": null,
+      "context_output_limit": null,
+      "generation_parameters": {},
+      "pricing_source_and_date": null,
+      "provider_usage_fields_verified": false,
+      "status": "WAITING_USER_SELECTION"
+    },
+    {
+      "slot": "B",
+      "configuration_alias": null,
+      "actual_model_id_and_version": null,
+      "api_type": null,
+      "redacted_endpoint": null,
+      "credentials": "User configures locally; never put a key in this manifest.",
+      "context_input_limit": null,
+      "context_output_limit": null,
+      "generation_parameters": {},
+      "pricing_source_and_date": null,
+      "provider_usage_fields_verified": false,
+      "status": "WAITING_USER_SELECTION"
+    }
+  ]
+}

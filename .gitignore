@@ -17,3 +17,7 @@ modules/webcore/.tmp/
 .pnpm-store/
 
 /dev-notes/
+
+# Local Python acceptance helpers.
+__pycache__/
+*.py[cod]

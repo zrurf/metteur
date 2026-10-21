@@ -201,6 +201,7 @@ impl DaemonService {
             addon_fragments,
             Some(ws.version_manager.clone()),
             ws.jobs(),
+            None,
         )
         .await?;
 

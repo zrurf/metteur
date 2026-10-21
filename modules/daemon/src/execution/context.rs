@@ -237,6 +237,8 @@ pub struct ExecutionContext {
     pub pause_requested: Arc<std::sync::atomic::AtomicBool>,
     /// Set when execution should cancel (shared with the control RPCs).
     pub cancel_requested: Arc<std::sync::atomic::AtomicBool>,
+    /// Per-call clock for separating human approval waits from active execution.
+    pub approval_wait_clock: Option<Arc<crate::sandbox::approval::ApprovalWaitClock>>,
     /// The workspace audit writer, if audit logging is enabled.
     pub audit: Option<AuditWriter>,
     /// The id of the current execution run.
@@ -258,6 +260,8 @@ pub struct ExecutionContext {
     /// The workspace database (persistent sandbox grants).
     pub workspace_db: Option<Db>,
     /// Host-selected memory role; never deserialized from model arguments.
+    pub selected_prompts: Vec<metteur_shared::resources::PromptSnapshot>,
+    pub read_only_tools: bool,
     pub memory_role: metteur_shared::resources::ResourceRole,
     /// The global database (global grants).
     pub global_db: Option<Db>,
@@ -318,6 +322,16 @@ pub struct ExecutionContext {
     /// The caller's conversation, present only while a tool that declares
     /// interest in it (`SpawnSubAgent`) is running.
     pub parent_context: Option<metteur_shared::llm::ContextManager>,
+    /// Host enables this only for a durable, user-authorized continuation task.
+    pub allow_deferred_wait: bool,
+    pub continuation: Option<crate::continuation::store::TaskHandle>,
+    /// Set only by the host chat/blueprint boundary, never by model arguments.
+    pub chat_session: Option<uuid::Uuid>,
+    pub chat_model_options: serde_json::Value,
+    pub handoff_ref: Option<uuid::Uuid>,
+    pub pending_launch: Option<uuid::Uuid>,
+    /// Applied only after all tool results in the current batch are recorded.
+    pub deferred_wait: Option<crate::chat::wait::WaitIntent>,
     /// Paths mutated by tools since the last drain; the ReAct loop drains them
     /// to invalidate earlier reads of the same files.
     pub mutated_paths: Vec<std::path::PathBuf>,
@@ -347,6 +361,9 @@ impl ExecutionContext {
         bytes: &[u8],
         expected: Option<&[u8]>,
     ) -> crate::error::DaemonResult<()> {
+        if self.cancel_requested.load(std::sync::atomic::Ordering::SeqCst) {
+            return Err(crate::error::DaemonError::Interrupted("File write cancelled before mutation".into()));
+        }
         self.attach_file_journal();
         self.transaction_log.mutate_file(
             &self.workspace_root,
@@ -379,6 +396,7 @@ impl ExecutionContext {
             pending_normal: VecDeque::new(),
             pause_requested: Arc::new(std::sync::atomic::AtomicBool::new(false)),
             cancel_requested: Arc::new(std::sync::atomic::AtomicBool::new(false)),
+            approval_wait_clock: None,
             audit: None,
             run_id: uuid::Uuid::nil(),
             started_at: 0,
@@ -389,6 +407,8 @@ impl ExecutionContext {
             approvals: None,
             events: None,
             workspace_db: None,
+            selected_prompts: Vec::new(),
+            read_only_tools: false,
             memory_role: metteur_shared::resources::ResourceRole::MainAgent,
             global_db: None,
             depth: 0,
@@ -409,6 +429,13 @@ impl ExecutionContext {
             progress: None,
             in_react_loop: false,
             parent_context: None,
+            allow_deferred_wait: false,
+            continuation: None,
+            chat_session: None,
+            chat_model_options: serde_json::Value::Null,
+            handoff_ref: None,
+            pending_launch: None,
+            deferred_wait: None,
             mutated_paths: Vec::new(),
             todos: Vec::new(),
         }
@@ -489,11 +516,13 @@ impl ExecutionContext {
         let mut child =
             Self::new(self.registry.clone(), self.llm_factory.clone(), self.workspace_root.clone());
         child.config = self.config.clone();
+        child.continuation = self.continuation.clone();
         child.interrupts = self.interrupts.clone();
         child.approvals = self.approvals.clone();
         child.events = self.events.clone();
         child.pause_requested = self.pause_requested.clone();
         child.cancel_requested = self.cancel_requested.clone();
+        child.approval_wait_clock = self.approval_wait_clock.clone();
         child.user = self.user.clone();
         child.audit = self.audit.clone();
         child.run_id = self.run_id;
@@ -502,6 +531,7 @@ impl ExecutionContext {
         child.transaction_log = self.transaction_log.clone();
         child.file_attempt = self.file_attempt;
         child.workspace_db = self.workspace_db.clone();
+        child.read_only_tools=self.read_only_tools;
         child.memory_role = metteur_shared::resources::ResourceRole::ReadOnlyAgent;
         child.global_db = self.global_db.clone();
         child.metrics = self.metrics.clone();

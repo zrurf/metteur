@@ -9,9 +9,13 @@ import {
   Loader2,
   Terminal,
   History,
+  CalendarClock,
+  Puzzle,
+  ListTodo,
+  BookOpen,
+  FileText,
   MessageSquare,
   Moon,
-  Settings,
   Sun,
   WifiOff,
   Workflow,
@@ -21,7 +25,6 @@ import type { Component } from 'vue'
 import { useWorkspaceStore } from '@/stores/workspace'
 import { useConfigStore } from '@/stores/config'
 import { useThemeStore } from '@/stores/theme'
-import { useChatStore } from '@/stores/chat'
 import { usePanelStore } from '@/stores/panel'
 import { useRightPanelStore } from '@/stores/right-panel'
 import { useTabsStore } from '@/stores/tabs'
@@ -31,6 +34,7 @@ import { gateway } from '@/core'
 import { projectName } from '@/lib/path'
 import { rootRoute } from '@/lib/workspace-url'
 import { pendingRoute } from '@/router'
+import ActivityRail from '@/components/navigation/ActivityRail.vue'
 import AppLogo from '@/components/AppLogo.vue'
 import EditorPane from '@/views/EditorPane.vue'
 import JobsPanel from '@/components/JobsPanel.vue'
@@ -49,7 +53,6 @@ const router = useRouter()
 const workspace = useWorkspaceStore()
 const configStore = useConfigStore()
 const theme = useThemeStore()
-const chat = useChatStore()
 const panel = usePanelStore()
 const rightPanel = useRightPanelStore()
 const tabs = useTabsStore()
@@ -61,25 +64,31 @@ const { openSurface } = useSurfaceNavigation()
 /* Activity rail                                                        */
 
 interface Activity {
-  key: 'explorer' | 'chat' | 'version' | 'execution' | 'execution-preview' | 'memory' | 'prompts'
+  key: 'addon-pages' | 'explorer' | 'chat' | 'version' | 'execution' | 'execution-preview' | 'memory' | 'prompts' | 'tasks' | 'schedules'
   label: string
   icon: Component
 }
 
 const activities: Activity[] = [
-  { key: 'prompts', label: 'Prompt resources', icon: Files },
-  { key: 'memory', label: 'Project memory', icon: Files },
+  { key: 'chat', label: 'Chat', icon: MessageSquare },
   { key: 'explorer', label: 'Explorer', icon: Files },
   { key: 'execution', label: 'Execution', icon: Workflow },
+  { key: 'tasks', label: 'Task continuation', icon: ListTodo },
+  { key: 'memory', label: 'Project memory', icon: BookOpen },
+  { key: 'prompts', label: 'Prompt resources', icon: FileText },
+  { key: 'schedules', label: 'Schedules', icon: CalendarClock },
+  { key: 'version', label: 'Version Flow', icon: History },
+  { key: 'addon-pages', label: 'Addon pages', icon: Puzzle },
   ...(import.meta.env.DEV && import.meta.env.VITE_MOCK === '1'
     ? [{ key: 'execution-preview' as const, label: 'Execution preview', icon: Workflow }] : []),
-  { key: 'chat', label: 'Chat', icon: MessageSquare },
-  { key: 'version', label: 'Version Flow', icon: History },
 ]
 
 /** Route → which activity it belongs to (drives rail highlight when no panel
  *  owns the sidebar). `route.name` may be undefined before mount. */
 function routeActivity(name: string | symbol | null | undefined): Activity['key'] | null {
+  if (name === 'addon-pages') return 'addon-pages'
+  if (name === 'tasks') return 'tasks'
+  if (name === 'schedules') return 'schedules'
   if (name === 'prompts') return 'prompts'
   if (name === 'memory') return 'memory'
   if (name === 'execution') return 'execution'
@@ -101,7 +110,7 @@ function toggleExplorer() {
  *  asserted centrally in {@link openSurface} (lib/surface), mirrored by the
  *  tab bar, so both entry points restore the correct rail. */
 function openActivity(a: Activity['key']) {
-  if (a === 'prompts' || a === 'memory' || a === 'execution-preview' || a === 'execution') {
+  if (a === 'addon-pages' || a === 'tasks' || a === 'schedules' || a === 'prompts' || a === 'memory' || a === 'execution-preview' || a === 'execution') {
     openSurface(a)
     return
   }
@@ -121,7 +130,7 @@ function openSettings() {
  *  otherwise an open panel wins, falling back to the route. */
 const activeKey = computed<Activity['key'] | null>(() => {
   const r = routeActivity(route.name)
-  if (r === 'chat' || r === 'execution-preview' || r === 'execution') return r
+  if (r === 'addon-pages' || r === 'chat' || r === 'execution-preview' || r === 'execution' || r === 'tasks' || r === 'schedules' || r === 'prompts' || r === 'memory') return r
   const owner = panel.open ? panel.owner : null
   return owner === 'explorer' || owner === 'version' ? owner : r
 })
@@ -133,10 +142,16 @@ const settingsActive = computed(() => route.name === 'settings')
 watch(
   () => workspace.hasActive,
   (on) => {
-    if (on && !panel.open) panel.show('explorer', FileTree, 'Explorer')
+    if (on && !panel.open && !['addon-pages','tasks','schedules','prompts','memory'].includes(String(route.name))) panel.show('explorer', FileTree, 'Explorer')
   },
   { immediate: true },
 )
+
+// Route restoration can finish after workspace activation. Assert the full-page
+// surface again so a reload cannot leave the default Explorer beside it.
+watch(() => route.name, name => {
+  if (['addon-pages', 'tasks', 'schedules', 'prompts', 'memory'].includes(String(name))) panel.clear()
+}, {immediate: true})
 
 /** Keep the fs-watch and job subscriptions tied to the open workspace. */
 watch(
@@ -404,45 +419,8 @@ function onRightResizeStart(e: MouseEvent) {
       <div class="flex min-h-0 flex-1">
         <!-- Activity rail: workspace features on top, Settings pinned to the
              bottom of the same rail (item 14). -->
-        <nav class="flex w-12 shrink-0 flex-col items-center border-r border-divider bg-sidebar py-1.5">
-          <button
-            v-for="a in activities"
-            :key="a.key"
-            class="relative flex h-10 w-10 items-center justify-center rounded-lg p-0 text-muted-foreground transition-colors duration-150 hover:bg-hover hover:text-foreground"
-            :class="activeKey === a.key ? 'bg-primary-soft! text-primary!' : ''"
-            type="button"
-            :title="a.label"
-            :aria-label="a.label"
-            @click="openActivity(a.key)"
-          >
-            <span
-              v-if="activeKey === a.key"
-              class="absolute left-0 top-1/2 h-5 w-0.5 -translate-y-1/2 rounded-full"
-              style="background: var(--primary)"
-            />
-            <component :is="a.icon" class="h-4.5 w-4.5" />
-          </button>
-
-          <div class="min-h-2 flex-1" />
-
-          <div class="flex w-full flex-col items-center gap-1 border-t border-divider py-1.5">
-            <button
-              class="relative flex h-10 w-10 items-center justify-center rounded-lg p-0 text-muted-foreground transition-colors duration-150 hover:bg-hover hover:text-foreground"
-              :class="settingsActive ? 'bg-primary-soft! text-primary!' : ''"
-              type="button"
-              title="Settings"
-              :aria-label="'Settings'"
-              @click="openSettings"
-            >
-              <span
-                v-if="settingsActive"
-                class="absolute left-0 top-1/2 h-5 w-0.5 -translate-y-1/2 rounded-full"
-                style="background: var(--primary)"
-              />
-              <Settings class="h-4.5 w-4.5" />
-            </button>
-          </div>
-        </nav>
+        <ActivityRail :items="activities" :active="activeKey" :settings-active="settingsActive"
+          @select="key => openActivity(key as Activity['key'])" @settings="openSettings" />
         <aside
           v-if="panel.open"
           class="workspace-file-panel relative flex shrink-0 flex-col bg-sidebar"

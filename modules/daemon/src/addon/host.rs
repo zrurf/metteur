@@ -62,6 +62,7 @@ pub struct AddonHost {
     lifecycle: Arc<AsyncRwLock<()>>,
     services: Arc<Mutex<super::services::Services>>,
     hooks: Arc<super::hooks::Bus>,
+    pages: parking_lot::Mutex<super::ui::PageStore>,
 }
 fn failure(message: impl Into<String>) -> DaemonError {
     DaemonError::Addon(message.into())
@@ -94,6 +95,7 @@ impl AddonHost {
             fallback_timeout_ms: timeout,
             signature: Policy::from_config(config),
             loaded: Default::default(),
+            pages: Default::default(),
             errors: Default::default(),
             roots: Default::default(),
             closed_roots: Default::default(),
@@ -327,6 +329,7 @@ impl AddonHost {
                 }
             }
         }
+        self.pages.lock().prune(&loaded.iter().map(|(key,value)|(key.clone(),value.package.identity.fingerprint.clone())).collect());
         *self.loaded.write() = loaded;
         *self.errors.write() = errors;
     }
@@ -376,6 +379,7 @@ impl AddonHost {
         self.services.lock().await.close(root).await;
         self.roots.write().remove(root);
         self.closed_roots.write().insert(root.to_path_buf());
+        self.pages.lock().revoke_workspace(&root.to_string_lossy());
         self.hooks.workspace(root, false);
         Ok(())
     }
@@ -924,4 +928,70 @@ fn write_receipt(path: &Path, receipt: &Receipt) -> DaemonResult<()> {
         std::fs::remove_file(backup)?;
     }
     Ok(())
+}
+
+impl AddonHost {
+    pub(crate) async fn page_request(&self, root: &Path, subject: &str, request: super::ui::PageRequest) -> DaemonResult<serde_json::Value> {
+        let inspection = match &request {
+            super::ui::PageRequest::Message { instance_id, nonce, message } if message.method == "inspect_selected" => Some((*instance_id, *nonce)),
+            _ => None,
+        };
+        let mut response = self.page_request_local(root, subject, request).await?;
+        if let Some((id, nonce)) = inspection {
+            let root = workspace_root(root)?;
+            let workspace = root.to_string_lossy().into_owned();
+            let report_id = response["result"]["id"].as_str().ok_or_else(||failure("Missing report identity"))?.to_owned();
+            let snapshot = self.pages.lock().inspection_snapshot(id, nonce, &workspace, subject, &report_id)?;
+            // Never hold lifecycle/page locks while launching the isolated browser.
+            let evidence = super::preview_renderer::render(&snapshot).await;
+            // Revalidate after rendering before starting the separately enabled
+            // paid worker. Revocation or a changed revision cannot start a new review.
+            {
+                let _maintenance = self.maintenance.lock().await;
+                if self.closed_roots.read().contains(&root) { return Err(failure("Workspace closed during inspection")); }
+                let loaded = self.loaded.read();
+                let mut pages = self.pages.lock();
+                pages.prune(&loaded.iter().map(|(key,value)|(key.clone(),value.package.identity.fingerprint.clone())).collect());
+                pages.inspection_snapshot(id, nonce, &workspace, subject, &report_id)?;
+            }
+            let opinion = super::preview_model::review(&snapshot).await;
+            let _maintenance = self.maintenance.lock().await;
+            if self.closed_roots.read().contains(&root) { return Err(failure("Workspace closed during inspection")); }
+            let loaded = self.loaded.read();
+            let mut pages = self.pages.lock();
+            pages.prune(&loaded.iter().map(|(key,value)|(key.clone(),value.package.identity.fingerprint.clone())).collect());
+            response["result"] = pages.attach_evidence(id, nonce, &workspace, subject, &report_id, evidence, &self.state_dir.join("inspection-reports"))?;
+            if opinion["model_status"] != "not_configured" {
+                response["result"] = pages.attach_model_opinion((id, nonce), &workspace, subject, &report_id, opinion, &self.state_dir.join("inspection-reports"))?;
+            }
+        }
+        Ok(response)
+    }
+    async fn page_request_local(&self,root:&Path,subject:&str,request:super::ui::PageRequest)->DaemonResult<serde_json::Value>{
+        let root=workspace_root(root)?;
+        let _maintenance=self.maintenance.lock().await;
+        if self.closed_roots.read().contains(&root){return Err(failure("Workspace closed"));}
+        let workspace=root.to_string_lossy().into_owned();
+        let loaded=self.loaded.read();
+        let mut packages=BTreeMap::new();
+        for entry in loaded.values().filter(|e|e.package.identity.scope=="global") {packages.insert(entry.package.identity.id.clone(),entry.package.clone());}
+        for entry in loaded.values().filter(|e|e.package.identity.scope==workspace) {packages.insert(entry.package.identity.id.clone(),entry.package.clone());}
+        let mut pages=self.pages.lock();
+        pages.prune(&loaded.iter().map(|(key,value)|(key.clone(),value.package.identity.fingerprint.clone())).collect());
+        use super::ui::PageRequest;
+        match request {
+            PageRequest::Heartbeat{instance_id,nonce}=>pages.heartbeat(instance_id,nonce,&workspace,subject),
+            PageRequest::Targets=>Ok(serde_json::json!({"targets":super::preview_targets::list(&root)?})),
+            PageRequest::SelectTarget{instance_id,nonce,target_id}=>pages.select_target(instance_id,nonce,&workspace,subject,&target_id),
+            PageRequest::Review{instance_id,nonce,report_id,expected_digest,accepted}=>pages.review(instance_id,nonce,&workspace,subject,report_id,&expected_digest,accepted,&self.state_dir.join("inspection-reports")),
+            PageRequest::List=>Ok(serde_json::json!({"pages":packages.values().flat_map(|p|p.manifest.pages.iter().map(|page|serde_json::json!({"package":p.identity,"page":page}))).collect::<Vec<_>>()})),
+            PageRequest::Open{package_id,page_id,expected_digest}=>{
+                let package=packages.get(&package_id).ok_or_else(||failure("Package unavailable"))?;
+                if package.identity.fingerprint!=expected_digest{return Err(failure("Package changed; refresh before opening"));}
+                Ok(serde_json::to_value(pages.open(package,&page_id,&workspace,subject)?).map_err(|_|failure("Cannot serialize page"))?)
+            },
+            PageRequest::Close{instance_id,nonce}=>{pages.close(instance_id,nonce,&workspace,subject)?;Ok(serde_json::json!({"closed":true}))},
+            PageRequest::Message{instance_id,nonce,message}=>pages.message(instance_id,nonce,&workspace,subject,message,&self.state_dir.join("inspection-reports")),
+        }
+    }
 }

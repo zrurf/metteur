@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "id": "hel-08",
+  "split": "held_out",
+  "mode": "job",
+  "files": {
+    "evidence.txt": "synthetic_duplicate_event\n"
+  },
+  "goal": "Use StartCommand with command {delay_command}. Then call AwaitEvents for its job_id/source with mode any and a deadline 60 seconds from now. Do not poll using commands or sleeps. After the host resumes this same conversation, report the actual source result once. Do not start another job.",
+  "checks": {
+    "continuation": true,
+    "min_dispatches": 1,
+    "max_dispatches": 1,
+    "unchanged": true,
+    "duplicate_event_contract": true
+  },
+  "limits": {
+    "max_iterations": 7,
+    "max_tokens": 1024,
+    "max_turns": 4,
+    "token_limit": 300000
+  },
+  "seed_digest": "2e998bcae42f7c124497c61293b2b5e2e784fd63eae9b6244a7499f835aa5308"
+}

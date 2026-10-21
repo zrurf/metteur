@@ -6,7 +6,6 @@ import ConciergePanel from '@/components/execution/ConciergePanel.vue'
 import { gateway } from '@/core'
 import { useExecutionStore } from '@/stores/execution'
 import { useChatStore } from '@/stores/chat'
-import { useWorkspaceStore } from '@/stores/workspace'
 import { useConfigStore } from '@/stores/config'
 import { useTabsStore } from '@/stores/tabs'
 import { useFeedbackStore } from '@/stores/feedback'
@@ -37,7 +36,6 @@ async function pollRuntime() {
 }
 onMounted(() => { void pollRuntime() })
 onBeforeUnmount(() => { runtimeDisposed = true; clearTimeout(runtimeTimer) })
-const workspace = useWorkspaceStore()
 const config = useConfigStore()
 const tabs = useTabsStore()
 const feedback = useFeedbackStore()
@@ -59,7 +57,7 @@ const modelKeys = computed(() => {
 const hasModel = computed(() => modelKeys.value.length > 0)
 
 const model = ref('')
-const reasoning = ref<ChatOptions['reasoning_effort']>('medium')
+const reasoning = ref<NonNullable<ChatOptions['reasoning_effort']>>('medium')
 const temperature = ref(0.7)
 const topP = ref(0.9)
 const maxTokens = ref(4096)
@@ -288,6 +286,7 @@ const starterPrompts = [
     <div class="chat-composer-dock shrink-0">
       <div class="chat-column chat-column-composer">
         <ChatStatusBar
+          :waiting-for-approval="!!chat.approval"
           :phase="chat.phase"
           :last-event-at="chat.lastEventAt"
           :usage="chat.lastUsage"

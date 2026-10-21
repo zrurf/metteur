@@ -57,6 +57,7 @@ pub async fn start(ctx: &ExecutionContext) -> Option<Runtime> {
         None
     };
     let mut actions = ctx.child_nested();
+    actions.handoff_ref = ctx.handoff_ref;
     let worker = {
         let db = db.clone();
         let run = ctx.run_id;

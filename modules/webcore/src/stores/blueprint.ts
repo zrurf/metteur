@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import { gateway } from '@/core'
+import { nativeBlueprint, type NativeGraph } from '@/core/execution-view'
 import { pinsFor } from '@/lib/blueprint'
 import { inlineValue, valueText, nodeConfiguration } from '@/core/node-catalog'
 import type { Blueprint, BlueprintEdge, BlueprintNode, BlueprintPin, FunctionItem, NodeKindInfo } from '@/core'
@@ -292,23 +293,23 @@ export const useBlueprintStore = defineStore('blueprint', () => {
     } else {
       const file = await gateway.readFile(path, filePath)
       let graph = seedGraph(signatures.value)
+      if (!file.ok) { saveErrors.value[filePath] = file.error; return }
       if (file.ok && file.data.content.trim()) {
         try {
           let parsed = JSON.parse(file.data.content) as Blueprint & { entry_node_id?: string }
-          // Native daemon/CLI files carry pins and snake_case fields. Resolve
-          // through the existing protobuf adapter before editing their canvas.
-          if (parsed.entry_node_id) {
-            const native = await gateway.loadBlueprint(path, parsed.id)
-            if (!native.ok) { saveErrors.value[filePath] = native.error; return }
-            parsed = native.data
-          }
+          // The authoritative file must load even after copying/restoring it
+          // into a workspace with no matching database mirror.
+          if (parsed.entry_node_id) parsed = nativeBlueprint(parsed as unknown as NativeGraph)
           if (Array.isArray(parsed.nodes) && Array.isArray(parsed.edges)) {
             graph = { id: parsed.id || crypto.randomUUID(), nodes: parsed.nodes, edges: parsed.edges }
           }
-        } catch {
-          // Corrupt files fall back to a fresh graph.
+          else throw new Error('Blueprint must contain nodes and edges')
+        } catch (error) {
+          saveErrors.value[filePath] = `Cannot read blueprint: ${String(error)}`
+          return // Never replace a corrupt source with a fresh graph.
         }
       }
+      delete saveErrors.value[filePath]
       graph = migrateIds(graph, signatures.value)
       graphs.value[filePath] = graph
       ids.value[filePath] = graph.id

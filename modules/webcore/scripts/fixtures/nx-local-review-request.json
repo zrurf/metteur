@@ -1,0 +1,316 @@
+{
+  "workspace_path": "",
+  "blueprint": {
+    "id": "5726e3bf-35c8-5e17-8942-78756af9c2cc",
+    "name": "Local review",
+    "entry_node_id": "3484f47d-037f-55d8-bfe1-0ea30df4d9a3",
+    "edges": [
+      {
+        "id": "96d35a9e-7b95-54e1-a4db-bf5762458749",
+        "source_node": "3484f47d-037f-55d8-bfe1-0ea30df4d9a3",
+        "source_pin": "f0b6c348-7916-5284-83ae-64ff8480048c",
+        "target_node": "d3415e2c-b7b3-5ebd-a5af-437d9d298799",
+        "target_pin": "5de4790d-58b0-535e-a4d3-f2b6f0e2242d"
+      },
+      {
+        "id": "e822ce7f-8782-5ee2-b37b-6acb4eec63e2",
+        "source_node": "d3415e2c-b7b3-5ebd-a5af-437d9d298799",
+        "source_pin": "bd04f244-ba22-5d48-9914-e80d9195baa9",
+        "target_node": "afe5e619-db69-5e25-9e97-0680d833a1f5",
+        "target_pin": "f5f96154-6df2-55ed-957d-18cb6f97c42d"
+      }
+    ],
+    "nodes": [
+      {
+        "id": "afe5e619-db69-5e25-9e97-0680d833a1f5",
+        "kind": "CallLLM",
+        "node_type": "Function",
+        "pos_x": 520.0,
+        "pos_y": 0.0,
+        "data_json": "{\"max_tokens\": 256, \"model\": \"fixture\", \"prompt\": \"BLUEPRINT_NODE\"}",
+        "pins": [
+          {
+            "id": "f5f96154-6df2-55ed-957d-18cb6f97c42d",
+            "name": "x-in",
+            "pin_type": "ExecInput",
+            "data_type": "void",
+            "optional": false,
+            "choices": [],
+            "default_json": "",
+            "description": "",
+            "key": ""
+          },
+          {
+            "id": "5b401196-a966-5d0a-a84d-93e062a742c4",
+            "name": "x-out",
+            "pin_type": "ExecOutput",
+            "data_type": "void",
+            "optional": false,
+            "choices": [],
+            "default_json": "",
+            "description": "",
+            "key": ""
+          },
+          {
+            "id": "6d2af806-0c2d-5a97-a947-5b658b81c028",
+            "name": "Result",
+            "pin_type": "DataOutput",
+            "data_type": "string",
+            "optional": false,
+            "choices": [],
+            "default_json": "",
+            "description": "",
+            "key": "result"
+          },
+          {
+            "id": "f4486152-6d03-5562-8fb7-f23c243b46d2",
+            "name": "Context",
+            "pin_type": "DataOutput",
+            "data_type": "context",
+            "optional": false,
+            "choices": [],
+            "default_json": "",
+            "description": "",
+            "key": "context"
+          },
+          {
+            "id": "bc46db40-525e-56fd-bc7a-64c3e4c8d3c3",
+            "name": "Context",
+            "pin_type": "DataInput",
+            "data_type": "context",
+            "optional": true,
+            "choices": [],
+            "default_json": "",
+            "description": "Context input; inline values use node.data[context] (name and pin id are also accepted).",
+            "key": "context"
+          },
+          {
+            "id": "09e0bcf8-b0d9-5b7a-a835-1241b4327afa",
+            "name": "ReasoningEffort",
+            "pin_type": "DataInput",
+            "data_type": "choice",
+            "optional": true,
+            "choices": [
+              "none",
+              "low",
+              "medium",
+              "high"
+            ],
+            "default_json": "",
+            "description": "ReasoningEffort input; inline values use node.data[reasoning_effort] (name and pin id are also accepted).",
+            "key": "reasoning_effort"
+          },
+          {
+            "id": "1ce9f15a-e22d-599d-8a77-4748ca547e8f",
+            "name": "Model",
+            "pin_type": "DataInput",
+            "data_type": "string",
+            "optional": true,
+            "choices": [],
+            "default_json": "",
+            "description": "Model input; inline values use node.data[model] (name and pin id are also accepted).",
+            "key": "model"
+          },
+          {
+            "id": "37d3d86e-42f6-5538-b7aa-a94c595ae345",
+            "name": "Prompt",
+            "pin_type": "DataInput",
+            "data_type": "string",
+            "optional": true,
+            "choices": [],
+            "default_json": "",
+            "description": "Prompt input; inline values use node.data[prompt] (name and pin id are also accepted).",
+            "key": "prompt"
+          },
+          {
+            "id": "71abdce1-5360-5e86-9816-9a6c74c98178",
+            "name": "System",
+            "pin_type": "DataInput",
+            "data_type": "string",
+            "optional": true,
+            "choices": [],
+            "default_json": "",
+            "description": "System input; inline values use node.data[system] (name and pin id are also accepted).",
+            "key": "system"
+          },
+          {
+            "id": "abad93ab-d440-528e-bed3-0b38ad4022f6",
+            "name": "Temperature",
+            "pin_type": "DataInput",
+            "data_type": "float",
+            "optional": true,
+            "choices": [],
+            "default_json": "",
+            "description": "Temperature input; inline values use node.data[temperature] (name and pin id are also accepted).",
+            "key": "temperature"
+          },
+          {
+            "id": "0be9e530-54fe-55fb-9fd1-a5ff86c370f3",
+            "name": "TopP",
+            "pin_type": "DataInput",
+            "data_type": "float",
+            "optional": true,
+            "choices": [],
+            "default_json": "",
+            "description": "TopP input; inline values use node.data[top_p] (name and pin id are also accepted).",
+            "key": "top_p"
+          },
+          {
+            "id": "ec810610-f934-5c93-b158-618e1b2c13ca",
+            "name": "MaxTokens",
+            "pin_type": "DataInput",
+            "data_type": "int",
+            "optional": true,
+            "choices": [],
+            "default_json": "",
+            "description": "MaxTokens input; inline values use node.data[max_tokens] (name and pin id are also accepted).",
+            "key": "max_tokens"
+          },
+          {
+            "id": "8825e3a7-eca3-5c7c-83c6-b6070e6a6ab9",
+            "name": "MaxIterations",
+            "pin_type": "DataInput",
+            "data_type": "int",
+            "optional": true,
+            "choices": [],
+            "default_json": "",
+            "description": "MaxIterations input; inline values use node.data[max_iterations] (name and pin id are also accepted).",
+            "key": "max_iterations"
+          },
+          {
+            "id": "c1a82fb4-bf20-575d-b1c9-d2567883faf6",
+            "name": "Seed",
+            "pin_type": "DataInput",
+            "data_type": "int",
+            "optional": true,
+            "choices": [],
+            "default_json": "",
+            "description": "Seed input; inline values use node.data[seed] (name and pin id are also accepted).",
+            "key": "seed"
+          }
+        ]
+      },
+      {
+        "id": "d3415e2c-b7b3-5ebd-a5af-437d9d298799",
+        "kind": "Tool",
+        "node_type": "Function",
+        "pos_x": 260.0,
+        "pos_y": 0.0,
+        "data_json": "{\"path\": \"evidence.txt\", \"tool_name\": \"ReadFile\"}",
+        "pins": [
+          {
+            "id": "5de4790d-58b0-535e-a4d3-f2b6f0e2242d",
+            "name": "x-in",
+            "pin_type": "ExecInput",
+            "data_type": "void",
+            "optional": false,
+            "choices": [],
+            "default_json": "",
+            "description": "",
+            "key": ""
+          },
+          {
+            "id": "bd04f244-ba22-5d48-9914-e80d9195baa9",
+            "name": "x-out",
+            "pin_type": "ExecOutput",
+            "data_type": "void",
+            "optional": false,
+            "choices": [],
+            "default_json": "",
+            "description": "",
+            "key": ""
+          },
+          {
+            "id": "43e27ca4-283c-5aa9-b830-424a786dae34",
+            "name": "Result",
+            "pin_type": "DataOutput",
+            "data_type": "string",
+            "optional": false,
+            "choices": [],
+            "default_json": "",
+            "description": "",
+            "key": "result"
+          },
+          {
+            "id": "a19094d0-014f-5a1e-842b-729669d73745",
+            "name": "limit",
+            "pin_type": "DataInput",
+            "data_type": "int",
+            "optional": true,
+            "choices": [],
+            "default_json": "",
+            "description": "Maximum number of lines to read.",
+            "key": "limit"
+          },
+          {
+            "id": "ac15b700-4c96-5614-8032-a43e98d52500",
+            "name": "line_numbers",
+            "pin_type": "DataInput",
+            "data_type": "bool",
+            "optional": true,
+            "choices": [],
+            "default_json": "",
+            "description": "Prefix each line with its number and append a summary (default true).",
+            "key": "line_numbers"
+          },
+          {
+            "id": "e52f2337-2e60-589e-806f-0cae663dfc18",
+            "name": "offset",
+            "pin_type": "DataInput",
+            "data_type": "int",
+            "optional": true,
+            "choices": [],
+            "default_json": "",
+            "description": "First line to read (1-based, default 1).",
+            "key": "offset"
+          },
+          {
+            "id": "673db77d-eb33-5cf3-acf7-a72e3d714f7e",
+            "name": "path",
+            "pin_type": "DataInput",
+            "data_type": "string",
+            "optional": false,
+            "choices": [],
+            "default_json": "",
+            "description": "Path to the file.",
+            "key": "path"
+          }
+        ]
+      },
+      {
+        "id": "3484f47d-037f-55d8-bfe1-0ea30df4d9a3",
+        "kind": "Start",
+        "node_type": "Event",
+        "pos_x": 0.0,
+        "pos_y": 0.0,
+        "data_json": "{}",
+        "pins": [
+          {
+            "id": "f0b6c348-7916-5284-83ae-64ff8480048c",
+            "name": "x-out",
+            "pin_type": "ExecOutput",
+            "data_type": "void",
+            "optional": false,
+            "choices": [],
+            "default_json": "",
+            "description": "",
+            "key": ""
+          },
+          {
+            "id": "5fa44b4e-2199-52e4-ac00-c5e0aff51070",
+            "name": "Context",
+            "pin_type": "DataOutput",
+            "data_type": "context",
+            "optional": false,
+            "choices": [],
+            "default_json": "",
+            "description": "",
+            "key": "context"
+          }
+        ]
+      }
+    ]
+  },
+  "file_path": "blueprints/review.blueprint",
+  "file_json": "{\"edges\": [{\"id\": \"96d35a9e-7b95-54e1-a4db-bf5762458749\", \"source_node\": \"3484f47d-037f-55d8-bfe1-0ea30df4d9a3\", \"source_pin\": \"f0b6c348-7916-5284-83ae-64ff8480048c\", \"target_node\": \"d3415e2c-b7b3-5ebd-a5af-437d9d298799\", \"target_pin\": \"5de4790d-58b0-535e-a4d3-f2b6f0e2242d\"}, {\"id\": \"e822ce7f-8782-5ee2-b37b-6acb4eec63e2\", \"source_node\": \"d3415e2c-b7b3-5ebd-a5af-437d9d298799\", \"source_pin\": \"bd04f244-ba22-5d48-9914-e80d9195baa9\", \"target_node\": \"afe5e619-db69-5e25-9e97-0680d833a1f5\", \"target_pin\": \"f5f96154-6df2-55ed-957d-18cb6f97c42d\"}], \"entry_node_id\": \"3484f47d-037f-55d8-bfe1-0ea30df4d9a3\", \"id\": \"5726e3bf-35c8-5e17-8942-78756af9c2cc\", \"name\": \"Local review\", \"nodes\": [{\"data\": {\"max_tokens\": 256, \"model\": \"fixture\", \"prompt\": \"BLUEPRINT_NODE\"}, \"id\": \"afe5e619-db69-5e25-9e97-0680d833a1f5\", \"kind\": \"CallLLM\", \"node_type\": \"Function\", \"pins\": [{\"choices\": [], \"data_type\": \"void\", \"default\": null, \"description\": null, \"id\": \"f5f96154-6df2-55ed-957d-18cb6f97c42d\", \"name\": \"x-in\", \"optional\": false, \"pin_type\": \"ExecInput\"}, {\"choices\": [], \"data_type\": \"void\", \"default\": null, \"description\": null, \"id\": \"5b401196-a966-5d0a-a84d-93e062a742c4\", \"name\": \"x-out\", \"optional\": false, \"pin_type\": \"ExecOutput\"}, {\"choices\": [], \"data_type\": \"string\", \"default\": null, \"description\": null, \"id\": \"6d2af806-0c2d-5a97-a947-5b658b81c028\", \"key\": \"result\", \"name\": \"Result\", \"optional\": false, \"pin_type\": \"DataOutput\"}, {\"choices\": [], \"data_type\": \"context\", \"default\": null, \"description\": null, \"id\": \"f4486152-6d03-5562-8fb7-f23c243b46d2\", \"key\": \"context\", \"name\": \"Context\", \"optional\": false, \"pin_type\": \"DataOutput\"}, {\"choices\": [], \"data_type\": \"context\", \"default\": null, \"description\": \"Context input; inline values use node.data[context] (name and pin id are also accepted).\", \"id\": \"bc46db40-525e-56fd-bc7a-64c3e4c8d3c3\", \"key\": \"context\", \"name\": \"Context\", \"optional\": true, \"pin_type\": \"DataInput\"}, {\"choices\": [\"none\", \"low\", \"medium\", \"high\"], \"data_type\": \"choice\", \"default\": null, \"description\": \"ReasoningEffort input; inline values use node.data[reasoning_effort] (name and pin id are also accepted).\", \"id\": \"09e0bcf8-b0d9-5b7a-a835-1241b4327afa\", \"key\": \"reasoning_effort\", \"name\": \"ReasoningEffort\", \"optional\": true, \"pin_type\": \"DataInput\"}, {\"choices\": [], \"data_type\": \"string\", \"default\": null, \"description\": \"Model input; inline values use node.data[model] (name and pin id are also accepted).\", \"id\": \"1ce9f15a-e22d-599d-8a77-4748ca547e8f\", \"key\": \"model\", \"name\": \"Model\", \"optional\": true, \"pin_type\": \"DataInput\"}, {\"choices\": [], \"data_type\": \"string\", \"default\": null, \"description\": \"Prompt input; inline values use node.data[prompt] (name and pin id are also accepted).\", \"id\": \"37d3d86e-42f6-5538-b7aa-a94c595ae345\", \"key\": \"prompt\", \"name\": \"Prompt\", \"optional\": true, \"pin_type\": \"DataInput\"}, {\"choices\": [], \"data_type\": \"string\", \"default\": null, \"description\": \"System input; inline values use node.data[system] (name and pin id are also accepted).\", \"id\": \"71abdce1-5360-5e86-9816-9a6c74c98178\", \"key\": \"system\", \"name\": \"System\", \"optional\": true, \"pin_type\": \"DataInput\"}, {\"choices\": [], \"data_type\": \"float\", \"default\": null, \"description\": \"Temperature input; inline values use node.data[temperature] (name and pin id are also accepted).\", \"id\": \"abad93ab-d440-528e-bed3-0b38ad4022f6\", \"key\": \"temperature\", \"name\": \"Temperature\", \"optional\": true, \"pin_type\": \"DataInput\"}, {\"choices\": [], \"data_type\": \"float\", \"default\": null, \"description\": \"TopP input; inline values use node.data[top_p] (name and pin id are also accepted).\", \"id\": \"0be9e530-54fe-55fb-9fd1-a5ff86c370f3\", \"key\": \"top_p\", \"name\": \"TopP\", \"optional\": true, \"pin_type\": \"DataInput\"}, {\"choices\": [], \"data_type\": \"int\", \"default\": null, \"description\": \"MaxTokens input; inline values use node.data[max_tokens] (name and pin id are also accepted).\", \"id\": \"ec810610-f934-5c93-b158-618e1b2c13ca\", \"key\": \"max_tokens\", \"name\": \"MaxTokens\", \"optional\": true, \"pin_type\": \"DataInput\"}, {\"choices\": [], \"data_type\": \"int\", \"default\": null, \"description\": \"MaxIterations input; inline values use node.data[max_iterations] (name and pin id are also accepted).\", \"id\": \"8825e3a7-eca3-5c7c-83c6-b6070e6a6ab9\", \"key\": \"max_iterations\", \"name\": \"MaxIterations\", \"optional\": true, \"pin_type\": \"DataInput\"}, {\"choices\": [], \"data_type\": \"int\", \"default\": null, \"description\": \"Seed input; inline values use node.data[seed] (name and pin id are also accepted).\", \"id\": \"c1a82fb4-bf20-575d-b1c9-d2567883faf6\", \"key\": \"seed\", \"name\": \"Seed\", \"optional\": true, \"pin_type\": \"DataInput\"}], \"position\": [520.0, 0.0]}, {\"data\": {\"path\": \"evidence.txt\", \"tool_name\": \"ReadFile\"}, \"id\": \"d3415e2c-b7b3-5ebd-a5af-437d9d298799\", \"kind\": \"Tool\", \"node_type\": \"Function\", \"pins\": [{\"choices\": [], \"data_type\": \"void\", \"default\": null, \"description\": null, \"id\": \"5de4790d-58b0-535e-a4d3-f2b6f0e2242d\", \"name\": \"x-in\", \"optional\": false, \"pin_type\": \"ExecInput\"}, {\"choices\": [], \"data_type\": \"void\", \"default\": null, \"description\": null, \"id\": \"bd04f244-ba22-5d48-9914-e80d9195baa9\", \"name\": \"x-out\", \"optional\": false, \"pin_type\": \"ExecOutput\"}, {\"choices\": [], \"data_type\": \"string\", \"default\": null, \"description\": null, \"id\": \"43e27ca4-283c-5aa9-b830-424a786dae34\", \"key\": \"result\", \"name\": \"Result\", \"optional\": false, \"pin_type\": \"DataOutput\"}, {\"choices\": [], \"data_type\": \"int\", \"default\": null, \"description\": \"Maximum number of lines to read.\", \"id\": \"a19094d0-014f-5a1e-842b-729669d73745\", \"key\": \"limit\", \"name\": \"limit\", \"optional\": true, \"pin_type\": \"DataInput\"}, {\"choices\": [], \"data_type\": \"bool\", \"default\": null, \"description\": \"Prefix each line with its number and append a summary (default true).\", \"id\": \"ac15b700-4c96-5614-8032-a43e98d52500\", \"key\": \"line_numbers\", \"name\": \"line_numbers\", \"optional\": true, \"pin_type\": \"DataInput\"}, {\"choices\": [], \"data_type\": \"int\", \"default\": null, \"description\": \"First line to read (1-based, default 1).\", \"id\": \"e52f2337-2e60-589e-806f-0cae663dfc18\", \"key\": \"offset\", \"name\": \"offset\", \"optional\": true, \"pin_type\": \"DataInput\"}, {\"choices\": [], \"data_type\": \"string\", \"default\": null, \"description\": \"Path to the file.\", \"id\": \"673db77d-eb33-5cf3-acf7-a72e3d714f7e\", \"key\": \"path\", \"name\": \"path\", \"optional\": false, \"pin_type\": \"DataInput\"}], \"position\": [260.0, 0.0]}, {\"data\": {}, \"id\": \"3484f47d-037f-55d8-bfe1-0ea30df4d9a3\", \"kind\": \"Start\", \"node_type\": \"Event\", \"pins\": [{\"choices\": [], \"data_type\": \"void\", \"default\": null, \"description\": null, \"id\": \"f0b6c348-7916-5284-83ae-64ff8480048c\", \"name\": \"x-out\", \"optional\": false, \"pin_type\": \"ExecOutput\"}, {\"choices\": [], \"data_type\": \"context\", \"default\": null, \"description\": null, \"id\": \"5fa44b4e-2199-52e4-ac00-c5e0aff51070\", \"key\": \"context\", \"name\": \"Context\", \"optional\": false, \"pin_type\": \"DataOutput\"}], \"position\": [0.0, 0.0]}]}"
+}

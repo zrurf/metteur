@@ -20,6 +20,7 @@ import type {
   DaemonConfig,
   ConfigState,
   ExecStatus,
+  ExecTreeData,
   ExecutionEvent,
   ExecutionInfo,
   FileContent,
@@ -647,9 +648,18 @@ export class MockGateway implements DaemonGateway {
       exitCode: -1,
       summary: `${id} | running | 0.0s | 0 bytes | pnpm build`,
     })
+    const stopped = () => {
+      if (signal?.aborted) return true
+      const job = this.jobs.get(id)
+      if (job?.state !== 'killed') return false
+      push({ jobId: id, kind: 'finished', chunk: '', state: 'killed', exitCode: -1,
+        summary: `${id} | killed | ${job.tail.length} bytes | pnpm build` })
+      return true
+    }
     for (const line of script) {
-      if (signal?.aborted) return ok(undefined)
+      if (stopped()) return ok(undefined)
       await delay(900)
+      if (stopped()) return ok(undefined)
       push({
         jobId: id,
         kind: 'output',
@@ -661,7 +671,7 @@ export class MockGateway implements DaemonGateway {
       })
     }
     await delay(600)
-    if (signal?.aborted) return ok(undefined)
+    if (stopped()) return ok(undefined)
     const job = this.jobs.get(id)
     if (job) {
       job.finishedAt = Date.now()
@@ -691,7 +701,6 @@ export class MockGateway implements DaemonGateway {
       job.exitCode = -1
       job.finishedAt = Date.now()
       // The streaming loop notices the state change and stops.
-      void this.jobKillers
     }
     return ok({ killed, state: job.state })
   }

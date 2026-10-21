@@ -1,0 +1,10 @@
+id = "com.metteur.preview"
+version = "0.1.0"
+name = "Preview inspector"
+description = "Bounded source checks for an explicitly selected local preview"
+[[pages]]
+id = "inspector"
+title = "Preview inspector"
+entry = "page.html"
+bridge_version = 1
+capabilities = ["theme", "resize", "selected-preview", "inspect-preview", "own-reports"]

@@ -312,7 +312,7 @@ onBeforeUnmount(() => { clearInterval(timer); graphObserver?.disconnect(); colum
         <ChatThread v-if="rightTab === 'Chat'" ref="chatThread" :messages="scene === 'ready' ? [] : transcript" :on-open-file="() => { editorPreview = true }" :on-copy="copyMessage" :on-edit="editMessage" :on-retry="retryMessage" :on-restore="() => {}">
           <template #empty><div class="empty-message"><MessageSquare :size="24" /><h3>Stay in the loop</h3><p>Start a blueprint to ask about progress, clarify a requirement, or review a proposed change.</p></div></template>
           <template #footer>
-            <ExecutionProposalPreview v-if="scene !== 'ready'" :state="proposal" :readonly="runClosed || scene === 'ready'" @approve="approve" @reject="reject" @inspect="inspectValidation" />
+            <ExecutionProposalPreview v-if="scene !== 'ready'" :state="proposal" :readonly="runClosed" @approve="approve" @reject="reject" @inspect="inspectValidation" />
             <p v-if="runClosed" class="chat-notice">Run {{ scene === 'finished' ? 'completed' : 'stopped' }}. Conversation and requests are read-only.</p>
           </template>
         </ChatThread>

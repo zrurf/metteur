@@ -38,3 +38,5 @@ pub use workspace::WorkspaceManager;
 pub use addon::signer;
 pub use startup::{autostart, service};
 pub use tls::cert;
+
+pub mod continuation;

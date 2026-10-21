@@ -2976,6 +2976,25 @@
     {
       "description": "Connected data inputs override inline node.data values, then pin defaults.",
       "dynamicPins": false,
+      "kind": "PromptResource",
+      "nodeType": "Pure",
+      "pins": [
+        {
+          "choices": [],
+          "dataType": "string",
+          "defaultJson": "",
+          "description": "",
+          "id": "",
+          "key": "text",
+          "name": "Text",
+          "optional": false,
+          "pinType": "DataOutput"
+        }
+      ]
+    },
+    {
+      "description": "Connected data inputs override inline node.data values, then pin defaults.",
+      "dynamicPins": false,
       "kind": "Replace",
       "nodeType": "Pure",
       "pins": [
@@ -4110,6 +4129,7 @@
     "OversightCheckpoint",
     "ParseJson",
     "Power",
+    "PromptResource",
     "Replace",
     "RequestApproval",
     "Round",

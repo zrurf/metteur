@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "id": "dev-02",
+  "split": "development",
+  "mode": "chat",
+  "files": {
+    "calc.py": "def within(value, limit):\n    return value < limit\n\nUNCHANGED = \"keep-me\"\n",
+    "test_calc.py": "import unittest\nfrom calc import within\nclass Boundary(unittest.TestCase):\n    def test_inclusive(self):\n        self.assertTrue(within(3, 3))\n        self.assertFalse(within(4, 3))\nif __name__ == \"__main__\": unittest.main()\n"
+  },
+  "goal": "Fix only within in calc.py so the limit is inclusive. Keep its signature and UNCHANGED constant. Read the test, run {test_command:test_calc.py}, and report its real exit status.",
+  "checks": {
+    "test": "test_calc.py",
+    "modified": [
+      "calc.py"
+    ],
+    "preserve": [
+      "UNCHANGED = \"keep-me\""
+    ]
+  },
+  "limits": {
+    "max_iterations": 7,
+    "max_tokens": 1024,
+    "max_turns": 4,
+    "token_limit": 300000
+  },
+  "seed_digest": "8180b43fcc7859b49a14ddafa07395325028c511866db409d2d3db54ff0297b8"
+}

@@ -30,7 +30,7 @@ use crate::{Cli, ForwardService, sse};
 /// stylesheet (e.g. after a rebuild) never surfaces as a `text/html` CSS.
 pub fn build_router(client: DaemonClient<Channel>, static_dir: PathBuf) -> Router {
     let grpc_web = tonic_web::GrpcWebLayer::new()
-        .layer(DaemonServer::new(ForwardService::new(client.clone())));
+        .layer(DaemonServer::new(ForwardService::new(client.clone())).max_decoding_message_size(metteur_proto::MAX_RPC_MESSAGE_BYTES).max_encoding_message_size(metteur_proto::MAX_RPC_MESSAGE_BYTES));
     let static_dir = Arc::new(static_dir);
     Router::new()
         .route_service(
@@ -74,6 +74,7 @@ async fn serve_index(static_dir: &Path) -> Response {
     match tokio::fs::read(static_dir.join("index.html")).await {
         Ok(bytes) => Response::builder()
             .header(header::CONTENT_TYPE, "text/html; charset=utf-8")
+            .header(header::CONTENT_SECURITY_POLICY, "frame-src 'none';")
             // The HTML points at hashed assets. Do not let an already-open
             // browser keep an old entry point after a Retry fix is deployed.
             .header(header::CACHE_CONTROL, "no-store")

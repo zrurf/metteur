@@ -146,6 +146,7 @@ export interface ChatUsage {
 
 /** Sampling parameters for a ReAct chat turn, adjustable from the chat panel. */
 export interface ChatOptions {
+  continuation_policy?: {detached:boolean;max_turns:number;token_limit:number;expires_ms:number;purpose:string}
   prompt_snapshots?: string[]
   model?: string
   system?: string
@@ -488,6 +489,8 @@ export interface ModelPricing {
 
 /** LLM-related settings. */
 export interface LlmSettings {
+  /** Ordered project instruction filenames, matching the daemon configuration. */
+  project_instruction_files?: string[]
   /** Default model identifier. */
   default_model?: string | null
   /** Default temperature. */
@@ -637,6 +640,8 @@ export interface LspLanguageSettings {
 
 /** LSP-related settings. */
 export interface LspSettings {
+  /** File-change debounce in milliseconds. */
+  debounce_ms?: number
   /** Whether LSP integration is enabled. */
   enabled?: boolean
   /** Language server definitions. */

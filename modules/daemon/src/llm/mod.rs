@@ -16,3 +16,5 @@ pub use client::{
 };
 pub use mock::{MockClient, MockStep};
 pub use retry::RetryPolicy;
+
+pub mod diagnostics;

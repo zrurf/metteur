@@ -1,0 +1,97 @@
+{
+  "started_at_utc": "2026-10-20T17:09:32.082020+00:00",
+  "scope": "synthetic two-round Chat Completions protocol smoke, not daemon or paired evaluation",
+  "model_alias": "commandcode-flash",
+  "requested_model": "deepseek/deepseek-v4.1-flash",
+  "authorized_total_usd": 5,
+  "reserved_for_this_smoke_usd": 0.05,
+  "max_generation_requests": 2,
+  "max_request_bytes": 16000,
+  "max_output_tokens_per_request": 512,
+  "rates_usd_per_million_conservative_peak": {
+    "input": 0.3,
+    "output": 1.2
+  },
+  "rate_source": "https://commandcode.ai/models/deepseek-v4-1-flash",
+  "rate_verified_date": "2026-10-21 Asia/Shanghai",
+  "provider_reported_cost_usd": null,
+  "attempts": [
+    {
+      "round": 1,
+      "request_bytes": 795,
+      "reservation_usd": 0.025,
+      "state": "RECEIVED",
+      "http_status": 200,
+      "duration_seconds": 2.328,
+      "usage": {
+        "prompt_tokens": 353,
+        "completion_tokens": 49,
+        "total_tokens": 402,
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 0,
+          "cache_write_tokens": 0,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0,
+          "text_tokens": 0,
+          "image_tokens": 0,
+          "video_tokens": 0
+        },
+        "completion_tokens_details": {
+          "audio_tokens": 0,
+          "reasoning_tokens": 8,
+          "accepted_prediction_tokens": 0,
+          "rejected_prediction_tokens": 0,
+          "text_tokens": 0,
+          "image_tokens": 0,
+          "video_tokens": 0
+        }
+      },
+      "finish_reason": "tool_calls",
+      "returned_model": "deepseek/deepseek-v4.1-flash",
+      "estimated_usd_upper_at_published_peak_rates": 0.0001647
+    },
+    {
+      "round": 2,
+      "request_bytes": 793,
+      "reservation_usd": 0.025,
+      "state": "RECEIVED",
+      "http_status": 200,
+      "duration_seconds": 1.5,
+      "usage": {
+        "prompt_tokens": 156,
+        "completion_tokens": 42,
+        "total_tokens": 198,
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 0,
+          "cache_write_tokens": 0,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0,
+          "text_tokens": 0,
+          "image_tokens": 0,
+          "video_tokens": 0
+        },
+        "completion_tokens_details": {
+          "audio_tokens": 0,
+          "reasoning_tokens": 15,
+          "accepted_prediction_tokens": 0,
+          "rejected_prediction_tokens": 0,
+          "text_tokens": 0,
+          "image_tokens": 0,
+          "video_tokens": 0
+        }
+      },
+      "finish_reason": "stop",
+      "returned_model": "deepseek/deepseek-v4.1-flash",
+      "estimated_usd_upper_at_published_peak_rates": 9.72e-05
+    }
+  ],
+  "status": "PASS_SYNTHETIC_PROVIDER_PROTOCOL_ONLY",
+  "single_expected_tool_call": true,
+  "reasoning_content_present_round_one": true,
+  "exact_synthetic_marker_returned": true,
+  "estimated_usd_upper_at_published_peak_rates": 0.0002619,
+  "generation_request_attempts": 2,
+  "finished_at_utc": "2026-10-20T17:09:35.931922+00:00"
+}

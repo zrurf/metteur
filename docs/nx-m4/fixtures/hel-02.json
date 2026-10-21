@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "id": "hel-02",
+  "split": "held_out",
+  "mode": "chat",
+  "files": {
+    "calc.py": "def target(value):\n    return value * 2\n\ndef target_backup(value):\n    return value * 2\n",
+    "test_calc.py": "import unittest\nfrom calc import target, target_backup\nclass Exact(unittest.TestCase):\n    def test_exact(self):\n        self.assertEqual(target(4), 12)\n        self.assertEqual(target_backup(4), 8)\nif __name__ == \"__main__\": unittest.main()\n"
+  },
+  "goal": "Change only target in calc.py to multiply by 3. Preserve target_backup exactly. Run {test_command:test_calc.py} and report the actual outcome.",
+  "checks": {
+    "test": "test_calc.py",
+    "modified": [
+      "calc.py"
+    ],
+    "preserve": [
+      "def target_backup(value):\n    return value * 2"
+    ]
+  },
+  "limits": {
+    "max_iterations": 7,
+    "max_tokens": 1024,
+    "max_turns": 4,
+    "token_limit": 300000
+  },
+  "seed_digest": "4f7308af813fef657290a3ce6a0c3085764da6183574e20fbd7a9c45f33f6420"
+}

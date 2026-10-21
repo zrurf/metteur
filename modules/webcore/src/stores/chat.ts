@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { ref, watch } from 'vue'
+import { onScopeDispose, ref, watch } from 'vue'
 import { gateway } from '@/core'
 import type {
   AddonInfo,
@@ -13,6 +13,7 @@ import type {
 } from '@/core'
 import type { ChatPhase } from '@/lib/chat/liveness'
 import { useWorkspaceStore } from './workspace'
+import type { TaskRecord } from '@/core/continuations'
 import { usePromptResourcesStore } from './prompt-resources'
 
 /** A message typed while a turn was running, waiting to be injected. */
@@ -81,6 +82,68 @@ export const useChatStore = defineStore('chat', () => {
   const addonsLoading = ref(false)
   /** Files queued in the composer (chips) but not yet sent as a turn. */
   const pendingFiles = ref<FileTreeNode[]>([])
+  const following = ref<{ workspace: string; session: string; task: string } | null>(null)
+  let followTimer: ReturnType<typeof setTimeout> | undefined
+  let followEpoch = 0, conversationEpoch = 0
+  function cancelFollowTimer() {
+    followEpoch++
+    clearTimeout(followTimer)
+    followTimer = undefined
+  }
+  function followTask(task: unknown) {
+    if (typeof task === 'string' && task && workspace.active?.path && sessionId.value)
+      following.value = { workspace: workspace.active.path, session: sessionId.value, task }
+  }
+  async function refreshContinuation(epoch: number) {
+    const target = following.value
+    if (!target) return
+    const current = () => epoch === followEpoch && following.value === target &&
+      workspace.active?.path === target.workspace && sessionId.value === target.session &&
+      !streaming.value && !busy.value && !rewinding.value && !retrying.value && !queued.value.length
+    try {
+      const result = await gateway.resourceRequest('queryContinuations', target.workspace, { operation: 'read', id: target.task })
+      if (!current() || !result.ok) return
+      const record = result.data as TaskRecord
+      if (record.task.id !== target.task || record.task.session !== target.session) { following.value = null; return }
+      const snapshot = await gateway.getChatSession(target.workspace, target.session)
+      if (!current() || !snapshot.ok || snapshot.data.sessionId !== target.session) return
+      const remote = snapshot.data.transcript.length ? snapshot.data.transcript : snapshot.data.history
+      messages.value = remote.filter(message => message.detail?.continuation_task !== target.task)
+      todos.value = snapshot.data.todos ?? []
+      // Session snapshots do not carry the resumed turn's usage/context receipt.
+      lastUsage.value = null
+      contextStats.value = null
+      const state = record.task.state
+      if (state !== 'completed') {
+        const status: Record<string, string> = {
+          waiting: 'Task is waiting. Automatic continuation follows its saved policy; manage it in Task continuation.',
+          wait_preparing: 'Task is preparing its saved wait.',
+          ready: 'Task is ready for its authorized continuation.',
+          dispatching: 'Task is continuing from its owned result.',
+          active: 'Task is continuing from its owned result.',
+          paused: 'Task is paused. Manage it in Task continuation.',
+          stopped: 'Task is stopped. No automatic replay will occur.',
+          needs_attention: 'Task needs attention. Review it in Task continuation.',
+        }
+        messages.value.push({ id: `waiting-${target.task}`, role: 'notice', createdAt: Date.now(),
+          content: status[state] ?? 'Task status requires review in Task continuation.', detail: { continuation_task: target.task } })
+      }
+      if (!['waiting', 'wait_preparing', 'ready', 'dispatching', 'active', 'paused', 'needs_attention'].includes(state)) following.value = null
+    } finally {
+      if (current()) followTimer = setTimeout(() => { void refreshContinuation(epoch) }, 2000)
+    }
+  }
+  watch([following, streaming, busy, rewinding, retrying, () => queued.value.length,
+    () => workspace.active?.path, sessionId, () => gateway.connected.value], () => {
+    cancelFollowTimer()
+    const target = following.value
+    if (target && target.workspace === workspace.active?.path && target.session === sessionId.value &&
+      gateway.connected.value && !streaming.value && !busy.value && !rewinding.value && !retrying.value && !queued.value.length) {
+      const epoch = followEpoch
+      followTimer = setTimeout(() => { void refreshContinuation(epoch) }, 1000)
+    }
+  }, { flush: 'sync' })
+  onScopeDispose(cancelFollowTimer)
 
   // Switching workspaces resets the surface and restores the new session.
   // Immediate so a store created after the workspace was already opened still
@@ -88,6 +151,8 @@ export const useChatStore = defineStore('chat', () => {
   watch(
     () => workspace.active?.path,
     async () => {
+      conversationEpoch++
+      following.value = null
       messages.value = []
       streaming.value = false
       busy.value = false
@@ -103,7 +168,7 @@ export const useChatStore = defineStore('chat', () => {
       pendingTool.value = null
       if (workspace.active?.path) await restore()
     },
-    { immediate: true },
+    { immediate: true, flush: 'sync' },
   )
 
   /** Reload the persisted conversation of the active workspace, if any. */
@@ -111,7 +176,9 @@ export const useChatStore = defineStore('chat', () => {
     const ws = workspace.active
     if (!ws) return
     const target = ws.path
+    const epoch = conversationEpoch
     const sessions = await gateway.listChatSessions(target)
+    if (workspace.active?.path !== target || epoch !== conversationEpoch) return
     if (!sessions.ok || sessions.data.length === 0) {
       threads.value = []
       return
@@ -126,7 +193,7 @@ export const useChatStore = defineStore('chat', () => {
     const ws = workspace.active
     if (!ws) return
     const sessions = await gateway.listChatSessions(ws.path)
-    if (sessions.ok) threads.value = sessions.data
+    if (workspace.active?.path === ws.path && sessions.ok) threads.value = sessions.data
   }
 
   /** Switch the surface to an existing thread. */
@@ -138,10 +205,12 @@ export const useChatStore = defineStore('chat', () => {
 
   /** Load one thread into the surface (empty history on failure). */
   async function openThread(wsPath: string, id: string, title: string): Promise<void> {
+    const epoch = ++conversationEpoch
+    following.value = null
     if (streaming.value) await abort()
     const snap = await gateway.getChatSession(wsPath, id)
     // The user may have switched workspaces while loading; discard stale data.
-    if (workspace.active?.path !== wsPath) return
+    if (workspace.active?.path !== wsPath || epoch !== conversationEpoch) return
     sessionId.value = id
     if (snap.ok) {
       // The transcript is the displayed conversation; the history is the
@@ -150,6 +219,7 @@ export const useChatStore = defineStore('chat', () => {
       messages.value = snap.data.transcript.length ? snap.data.transcript : snap.data.history
       sessionId.value = snap.data.sessionId
       todos.value = snap.data.todos ?? []
+      followTask(messages.value.findLast(message => typeof message.detail?.continuation_task === 'string')?.detail?.continuation_task)
     } else {
       messages.value = []
       todos.value = []
@@ -212,12 +282,20 @@ export const useChatStore = defineStore('chat', () => {
    */
   async function send(content: string, options?: ChatOptions, mode: 'normal' | 'retry' = 'normal'): Promise<boolean> {
     const prompts=usePromptResourcesStore()
-    if(mode!=='retry' && !(await prompts.validateChat())) return false
     const selected=mode==='retry'?[]:prompts.selections.map(item=>item.snapshot.id)
+    if(mode!=='retry') {
+      if(!(await prompts.validateChat())) return false
+      if(selected.length!==prompts.selections.length||selected.some((id,index)=>prompts.selections[index]?.snapshot.id!==id)) {
+        prompts.error='Prompt selections changed. Review them and send again.'
+        return false
+      }
+    }
     options={...options,prompt_snapshots:selected}
     const ws = workspace.active
     const text = content.trim()
     if (!ws || !text || streaming.value || busy.value || rewinding.value || (retrying.value && mode !== 'retry')) return false
+    conversationEpoch++
+    following.value = null
     // File references travel with the turn: the daemon learns about the
     // attached files from the message text, and the transcript shows the same
     // lines the model receives.
@@ -480,6 +558,7 @@ export const useChatStore = defineStore('chat', () => {
 
   /** Insert a message, appending deltas to an open bubble of the same id. */
   function upsert(m: ChatMessage) {
+    if (m.role === 'notice') followTask(m.detail?.continuation_task)
     lastEventAt.value = Date.now()
     if (m.role === 'tool' || (m.role === 'assistant' && !m.reasoningPending)) {
       settleReasoningStream()
@@ -543,6 +622,8 @@ export const useChatStore = defineStore('chat', () => {
    * The prior thread stays on disk and reappears in the session list; deleting
    * one is an explicit action (`deleteThread`). */
   async function clear() {
+    conversationEpoch++
+    following.value = null
     if (streaming.value) await abort()
     messages.value = []
     sessionId.value = ''

@@ -1,3 +1,14 @@
+# CodeMirror extensions must share one state/view identity in types and runtime.
+overrides:
+  '@codemirror/state': 6.7.5
+  '@codemirror/view': 6.43.12
+
+# Scripts must not silently rewrite dependencies while another check is running.
+# Install the frozen lockfile explicitly; stale dependencies produce an error.
+verifyDepsBeforeRun: error
+# Keep the same dependency layout in interactive shells and CI.
+enableGlobalVirtualStore: false
+
 allowBuilds:
   '@playwright/browser-chromium': true
   esbuild: true

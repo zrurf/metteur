@@ -27,6 +27,8 @@ async fn setup() -> (DaemonService, Arc<AppState>, Arc<crate::workspace::manager
     state.running.write().await.insert(
         ws.root.clone(),
         super::super::RunningExecution {
+            approval_details: Default::default(),
+            continuation_task: None,
             blueprint_id: Uuid::new_v4(),
             run_id: run,
             interrupt_bus: None,

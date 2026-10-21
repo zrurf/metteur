@@ -1,90 +1,87 @@
 //! Workspace session locking.
 
-use std::fs;
-use std::path::{Path, PathBuf};
+use crate::error::{DaemonError, DaemonResult};
+use std::fs::{self, File, OpenOptions};
+use std::io::{Read, Seek, Write};
+use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use crate::error::{DaemonError, DaemonResult};
-
-/// The name of the session lock file inside the metadata directory.
 pub const LOCK_FILE: &str = "session.lock";
-
-/// A held workspace session lock.
-///
-/// The lock is released when dropped.
+/// Kernel-owned exclusive lock: process exit releases ownership, PID reuse does not
+/// imply ownership. Keep the inode in place; unlinking a held lock admits two owners.
 pub struct SessionLock {
-    path: PathBuf,
+    _file: File,
 }
-
 impl SessionLock {
-    /// Acquires the lock for the given metadata directory.
-    ///
-    /// If a stale lock exists (its PID is no longer alive) it is cleared
-    /// before acquiring. Returns an error if the lock is held by a live
-    /// process.
     pub fn acquire(metadata_dir: &Path) -> DaemonResult<Self> {
         fs::create_dir_all(metadata_dir)?;
         let path = metadata_dir.join(LOCK_FILE);
-
-        if path.exists() {
-            if let Some(pid) = read_pid(&path)
-                && process_alive(pid)
-            {
-                return Err(DaemonError::Locked(format!("workspace is locked by pid {pid}")));
+        // Never truncate before locking. Do not delete the lock on release.
+        let mut file =
+            OpenOptions::new().read(true).write(true).create(true).truncate(false).open(path)?;
+        file.try_lock()
+            .map_err(|e| DaemonError::Locked(format!("workspace lock unavailable: {e}")))?;
+        let mut previous = String::new();
+        (&mut file).take(256).read_to_string(&mut previous)?;
+        // Older releases used a PID-only marker. Do not open beside a still
+        // running legacy daemon during rolling upgrade. Unknown probe = busy.
+        if !previous.starts_with("kernel-v1:") {
+            if let Some(pid) = previous.split(':').next().and_then(|p| p.parse::<u32>().ok()) {
+                if legacy_process_alive(pid) {
+                    return Err(DaemonError::Locked(
+                        "Legacy daemon may still own this workspace; stop it before upgrading"
+                            .into(),
+                    ));
+                }
             }
-            // Stale lock: clear it.
-            fs::remove_file(&path)?;
         }
-
-        let content = format!("{}:{}", std::process::id(), now_millis());
-        fs::write(&path, content)?;
+        file.rewind()?;
+        file.set_len(0)?;
+        write!(file, "kernel-v1:{}:{}", std::process::id(), now_millis())?;
+        file.sync_data()?;
         Ok(Self {
-            path,
+            _file: file,
         })
     }
 }
 
 impl Drop for SessionLock {
     fn drop(&mut self) {
-        let _ = fs::remove_file(&self.path);
+        // Explicit unlock also releases an fd transiently inherited by a
+        // concurrently spawning child before exec closes it.
+        let _ = self._file.unlock();
     }
 }
 
-/// Reads the PID from a lock file, if it is well-formed.
-fn read_pid(path: &Path) -> Option<u32> {
-    let content = fs::read_to_string(path).ok()?;
-    let pid = content.split(':').next()?;
-    pid.parse().ok()
-}
-
-/// Returns whether a process with the given PID is alive.
-fn process_alive(pid: u32) -> bool {
-    #[cfg(windows)]
+fn legacy_process_alive(pid: u32) -> bool {
+    if pid == 0 {
+        return true;
+    }
+    #[cfg(unix)]
     {
-        // On Windows, query the process list to check for existence.
-        let status = std::process::Command::new("tasklist")
-            .args(["/FI", &format!("PID eq {pid}"), "/NH"])
-            .output();
-        match status {
-            Ok(out) => String::from_utf8_lossy(&out.stdout).contains(&pid.to_string()),
-            Err(_) => true,
+        unsafe {
+            libc::kill(pid as i32, 0) == 0
+                || std::io::Error::last_os_error().raw_os_error() != Some(libc::ESRCH)
         }
     }
-    #[cfg(not(windows))]
+    #[cfg(windows)]
     {
-        // Sending signal 0 checks for process existence without delivering a
-        // signal.
-        libc_kill(pid, 0) == 0
+        match std::process::Command::new("tasklist.exe")
+            .args(["/FI", &format!("PID eq {pid}"), "/NH", "/FO", "CSV"])
+            .output()
+        {
+            Ok(out) if out.status.success() => {
+                String::from_utf8_lossy(&out.stdout).lines().any(|l| {
+                    l.split(',').nth(1).is_some_and(|s| s.trim_matches('"') == pid.to_string())
+                })
+            }
+            _ => true,
+        }
     }
-}
-
-#[cfg(not(windows))]
-fn libc_kill(pid: u32, sig: i32) -> i32 {
-    // Minimal libc binding to avoid an extra dependency.
-    unsafe extern "C" {
-        fn kill(pid: i32, sig: i32) -> i32;
+    #[cfg(not(any(unix, windows)))]
+    {
+        true
     }
-    unsafe { kill(pid as i32, sig) }
 }
 
 /// Returns the current time in milliseconds since the Unix epoch.
@@ -105,7 +102,8 @@ mod tests {
             assert!(dir.join(LOCK_FILE).exists());
             drop(lock);
         }
-        assert!(!dir.join(LOCK_FILE).exists());
+        assert!(dir.join(LOCK_FILE).exists(), "lock inode must remain stable");
+        let _reopened = SessionLock::acquire(&dir).unwrap();
     }
 
     #[test]
@@ -117,5 +115,55 @@ mod tests {
         let lock = SessionLock::acquire(&dir).unwrap();
         assert!(dir.join(LOCK_FILE).exists());
         drop(lock);
+    }
+    #[test]
+    fn concurrent_owner_and_reused_pid_cannot_steal_lock() {
+        let dir = std::env::temp_dir().join(format!("metteur-lock-{}", uuid::Uuid::new_v4()));
+        fs::create_dir_all(&dir).unwrap();
+        // A stale diagnostic PID, even our own live PID, is not kernel ownership.
+        fs::write(dir.join(LOCK_FILE), format!("kernel-v1:{}:0", std::process::id())).unwrap();
+        let held = SessionLock::acquire(&dir).unwrap();
+        std::thread::scope(|scope| {
+            for _ in 0..16 {
+                let dir = &dir;
+                scope.spawn(move || assert!(SessionLock::acquire(dir).is_err()));
+            }
+        });
+        drop(held);
+        assert!(SessionLock::acquire(&dir).is_ok());
+    }
+
+    #[test]
+    fn lock_child_process() {
+        let Some(dir) = std::env::var_os("METTEUR_LOCK_CHILD_TEST") else {
+            return;
+        };
+        let dir = std::path::PathBuf::from(dir);
+        let _lock = SessionLock::acquire(&dir).unwrap();
+        fs::write(dir.join("child-ready"), "ready").unwrap();
+        std::thread::sleep(std::time::Duration::from_secs(30));
+    }
+    #[test]
+    fn abrupt_exit_releases_kernel_ownership() {
+        let dir = std::env::temp_dir().join(format!("metteur-lock-crash-{}", uuid::Uuid::new_v4()));
+        fs::create_dir_all(&dir).unwrap();
+        let mut child = std::process::Command::new(std::env::current_exe().unwrap())
+            .args(["--exact", "workspace::lock::tests::lock_child_process", "--nocapture"])
+            .env("METTEUR_LOCK_CHILD_TEST", &dir)
+            .stdout(std::process::Stdio::null())
+            .spawn()
+            .unwrap();
+        let start = std::time::Instant::now();
+        while !dir.join("child-ready").exists()
+            && start.elapsed() < std::time::Duration::from_secs(5)
+        {
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
+        let ready = dir.join("child-ready").exists();
+        let blocked = ready && SessionLock::acquire(&dir).is_err();
+        child.kill().unwrap();
+        child.wait().unwrap();
+        assert!(ready && blocked, "second process must not steal the workspace");
+        let _recovered = SessionLock::acquire(&dir).unwrap();
     }
 }

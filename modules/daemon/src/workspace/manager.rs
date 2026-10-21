@@ -45,6 +45,16 @@ pub struct Workspace {
 impl Workspace {
     /// Admission holds activity_gate and verifies that no run is active first.
     pub fn reconcile_files(&self) -> DaemonResult<()> {
+        let store=crate::continuation::store::ContinuationStore::new(self.db.clone(),self.root())?;
+        let mut after=None;
+        loop {let page=store.list(after)?;if page.is_empty(){break;}
+            for r in page {after=Some(r.task.id);
+                if r.task.sources.values().any(|s|s.may_write && (s.terminal.is_none() || matches!(s.terminal,Some(crate::continuation::state::Terminal::Indeterminate|crate::continuation::state::Terminal::Interrupted|crate::continuation::state::Terminal::Cancelled)))) {
+                    return Err(DaemonError::Execution("Workspace has unresolved background write effects".into()));
+                }
+            }
+        }
+
         crate::oversight::recovery::recover(&self.db)?;
         crate::execution::file_journal::FileJournal::new(
             self.root.clone(),

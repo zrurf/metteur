@@ -1,0 +1,1568 @@
+{
+  "status": "PASS_BOUNDED_ENGINEERING_EVALUATION",
+  "authorization": {
+    "limit_usd": 5,
+    "synthetic_only": true,
+    "automatic_generation_retries": 0
+  },
+  "generation_attempts_including_first_failures_and_smoke": 379,
+  "settled_evaluator_calls": 377,
+  "imported_smoke_calls": 2,
+  "estimated_peak_upper_usd": 1.82139858,
+  "remaining_against_peak_estimate_usd": 3.17860142,
+  "provider_actual_bill_usd": null,
+  "cache_discount_assumed": false,
+  "input_tokens_all_attempts": 2159084,
+  "output_tokens_all_attempts": 54578,
+  "cache_read_field_coverage_calls": 377,
+  "cache_read_unknown_calls": 0,
+  "paired_groups": [
+    {
+      "phase": "development",
+      "model": "flash",
+      "variant": "baseline",
+      "cells": 6,
+      "passed": 6,
+      "generation_requests": 27,
+      "mean_requests_per_cell": 4.5,
+      "input_tokens": 168456,
+      "output_tokens": 3229,
+      "median_cell_wall_ms": 10143.0,
+      "median_gateway_chunk_ttft_ms": 1407,
+      "estimated_peak_upper_usd": 0.0544116
+    },
+    {
+      "phase": "development",
+      "model": "flash",
+      "variant": "candidate",
+      "cells": 6,
+      "passed": 6,
+      "generation_requests": 26,
+      "mean_requests_per_cell": 4.333,
+      "input_tokens": 169704,
+      "output_tokens": 2868,
+      "median_cell_wall_ms": 8578.5,
+      "median_gateway_chunk_ttft_ms": 1453.0,
+      "estimated_peak_upper_usd": 0.0543528
+    },
+    {
+      "phase": "development",
+      "model": "pro",
+      "variant": "baseline",
+      "cells": 6,
+      "passed": 6,
+      "generation_requests": 29,
+      "mean_requests_per_cell": 4.833,
+      "input_tokens": 181362,
+      "output_tokens": 3063,
+      "median_cell_wall_ms": 14265.5,
+      "median_gateway_chunk_ttft_ms": 1804.5,
+      "estimated_peak_upper_usd": 0.25152732
+    },
+    {
+      "phase": "development",
+      "model": "pro",
+      "variant": "candidate",
+      "cells": 6,
+      "passed": 6,
+      "generation_requests": 26,
+      "mean_requests_per_cell": 4.333,
+      "input_tokens": 166514,
+      "output_tokens": 2917,
+      "median_cell_wall_ms": 10981.0,
+      "median_gateway_chunk_ttft_ms": 1961.5,
+      "estimated_peak_upper_usd": 0.2313498
+    },
+    {
+      "phase": "held_out",
+      "model": "flash",
+      "variant": "baseline",
+      "cells": 12,
+      "passed": 12,
+      "generation_requests": 45,
+      "mean_requests_per_cell": 3.75,
+      "input_tokens": 274419,
+      "output_tokens": 6538,
+      "median_cell_wall_ms": 8784.5,
+      "median_gateway_chunk_ttft_ms": 1436,
+      "estimated_peak_upper_usd": 0.0901713
+    },
+    {
+      "phase": "held_out",
+      "model": "flash",
+      "variant": "candidate",
+      "cells": 12,
+      "passed": 12,
+      "generation_requests": 47,
+      "mean_requests_per_cell": 3.917,
+      "input_tokens": 301143,
+      "output_tokens": 6736,
+      "median_cell_wall_ms": 12906.5,
+      "median_gateway_chunk_ttft_ms": 1414.0,
+      "estimated_peak_upper_usd": 0.0984261
+    },
+    {
+      "phase": "held_out",
+      "model": "pro",
+      "variant": "baseline",
+      "cells": 12,
+      "passed": 12,
+      "generation_requests": 44,
+      "mean_requests_per_cell": 3.667,
+      "input_tokens": 263371,
+      "output_tokens": 4980,
+      "median_cell_wall_ms": 7404.5,
+      "median_gateway_chunk_ttft_ms": 1797,
+      "estimated_peak_upper_usd": 0.36737052
+    },
+    {
+      "phase": "held_out",
+      "model": "pro",
+      "variant": "candidate",
+      "cells": 12,
+      "passed": 12,
+      "generation_requests": 43,
+      "mean_requests_per_cell": 3.583,
+      "input_tokens": 274508,
+      "output_tokens": 5598,
+      "median_cell_wall_ms": 9483.5,
+      "median_gateway_chunk_ttft_ms": 1843.0,
+      "estimated_peak_upper_usd": 0.38451864
+    }
+  ],
+  "paired_cells": [
+    {
+      "phase": "development",
+      "id": "dev-01",
+      "model": "flash",
+      "variant": "baseline",
+      "passed": true,
+      "requests": 2,
+      "wall_ms": 5128,
+      "input_tokens": 11729,
+      "output_tokens": 297,
+      "elapsed_gateway_ms": 4843,
+      "ttft_gateway_chunk_ms": [
+        2266,
+        1468
+      ],
+      "estimated_peak_upper_usd": 0.0038751,
+      "evidence": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\eval-development-paired-r2\\dev-01-flash-baseline"
+    },
+    {
+      "phase": "development",
+      "id": "dev-01",
+      "model": "flash",
+      "variant": "candidate",
+      "passed": true,
+      "requests": 2,
+      "wall_ms": 4121,
+      "input_tokens": 12337,
+      "output_tokens": 227,
+      "elapsed_gateway_ms": 3827,
+      "ttft_gateway_chunk_ms": [
+        1531,
+        1452
+      ],
+      "estimated_peak_upper_usd": 0.0039735,
+      "evidence": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\eval-development-paired-r2\\dev-01-flash-candidate"
+    },
+    {
+      "phase": "development",
+      "id": "dev-01",
+      "model": "pro",
+      "variant": "baseline",
+      "passed": true,
+      "requests": 3,
+      "wall_ms": 7499,
+      "input_tokens": 17907,
+      "output_tokens": 283,
+      "elapsed_gateway_ms": 7156,
+      "ttft_gateway_chunk_ms": [
+        2563,
+        1750,
+        1764
+      ],
+      "estimated_peak_upper_usd": 0.02475792,
+      "evidence": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\eval-development-paired-r2\\dev-01-pro-baseline"
+    },
+    {
+      "phase": "development",
+      "id": "dev-01",
+      "model": "pro",
+      "variant": "candidate",
+      "passed": true,
+      "requests": 2,
+      "wall_ms": 4323,
+      "input_tokens": 12463,
+      "output_tokens": 172,
+      "elapsed_gateway_ms": 4047,
+      "ttft_gateway_chunk_ms": [
+        1907,
+        1516
+      ],
+      "estimated_peak_upper_usd": 0.01713228,
+      "evidence": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\eval-development-paired-r2\\dev-01-pro-candidate"
+    },
+    {
+      "phase": "development",
+      "id": "dev-02",
+      "model": "flash",
+      "variant": "candidate",
+      "passed": true,
+      "requests": 5,
+      "wall_ms": 9816,
+      "input_tokens": 32464,
+      "output_tokens": 382,
+      "elapsed_gateway_ms": 9188,
+      "ttft_gateway_chunk_ms": [
+        1468,
+        2281,
+        1375,
+        1421,
+        1343
+      ],
+      "estimated_peak_upper_usd": 0.0101976,
+      "evidence": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\eval-development-paired-r2\\dev-02-flash-candidate"
+    },
+    {
+      "phase": "development",
+      "id": "dev-02",
+      "model": "flash",
+      "variant": "baseline",
+      "passed": true,
+      "requests": 6,
+      "wall_ms": 11753,
+      "input_tokens": 37919,
+      "output_tokens": 696,
+      "elapsed_gateway_ms": 11136,
+      "ttft_gateway_chunk_ms": [
+        1500,
+        1327,
+        1295,
+        1407,
+        1390,
+        1827
+      ],
+      "estimated_peak_upper_usd": 0.0122109,
+      "evidence": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\eval-development-paired-r2\\dev-02-flash-baseline"
+    },
+    {
+      "phase": "development",
+      "id": "dev-02",
+      "model": "pro",
+      "variant": "candidate",
+      "passed": true,
+      "requests": 6,
+      "wall_ms": 16300,
+      "input_tokens": 39392,
+      "output_tokens": 456,
+      "elapsed_gateway_ms": 15372,
+      "ttft_gateway_chunk_ms": [
+        4327,
+        1983,
+        1688,
+        2063,
+        1827,
+        1969
+      ],
+      "estimated_peak_upper_usd": 0.0538032,
+      "evidence": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\eval-development-paired-r2\\dev-02-pro-candidate"
+    },
+    {
+      "phase": "development",
+      "id": "dev-02",
+      "model": "pro",
+      "variant": "baseline",
+      "passed": true,
+      "requests": 6,
+      "wall_ms": 13948,
+      "input_tokens": 37544,
+      "output_tokens": 409,
+      "elapsed_gateway_ms": 12512,
+      "ttft_gateway_chunk_ms": [
+        2452,
+        1827,
+        1608,
+        1563,
+        1671,
+        1952
+      ],
+      "estimated_peak_upper_usd": 0.05117772,
+      "evidence": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\eval-development-paired-r2\\dev-02-pro-baseline"
+    },
+    {
+      "phase": "development",
+      "id": "dev-03",
+      "model": "flash",
+      "variant": "baseline",
+      "passed": true,
+      "requests": 7,
+      "wall_ms": 14179,
+      "input_tokens": 44785,
+      "output_tokens": 806,
+      "elapsed_gateway_ms": 12917,
+      "ttft_gateway_chunk_ms": [
+        1438,
+        1531,
+        1313,
+        1625,
+        1311,
+        1327,
+        1327
+      ],
+      "estimated_peak_upper_usd": 0.0144027,
+      "evidence": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\eval-development-paired-r2\\dev-03-flash-baseline"
+    },
+    {
+      "phase": "development",
+      "id": "dev-03",
+      "model": "flash",
+      "variant": "candidate",
+      "passed": true,
+      "requests": 6,
+      "wall_ms": 12681,
+      "input_tokens": 39455,
+      "output_tokens": 536,
+      "elapsed_gateway_ms": 10982,
+      "ttft_gateway_chunk_ms": [
+        2265,
+        1375,
+        1734,
+        1389,
+        1219,
+        1188
+      ],
+      "estimated_peak_upper_usd": 0.0124797,
+      "evidence": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\eval-development-paired-r2\\dev-03-flash-candidate"
+    },
+    {
+      "phase": "development",
+      "id": "dev-03",
+      "model": "pro",
+      "variant": "baseline",
+      "passed": true,
+      "requests": 7,
+      "wall_ms": 15040,
+      "input_tokens": 45053,
+      "output_tokens": 617,
+      "elapsed_gateway_ms": 13420,
+      "ttft_gateway_chunk_ms": [
+        1405,
+        1766,
+        1358,
+        1422,
+        1500,
+        1781,
+        1782
+      ],
+      "estimated_peak_upper_usd": 0.06191328,
+      "evidence": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\eval-development-paired-r2\\dev-03-pro-baseline"
+    },
+    {
+      "phase": "development",
+      "id": "dev-03",
+      "model": "pro",
+      "variant": "candidate",
+      "passed": true,
+      "requests": 8,
+      "wall_ms": 19763,
+      "input_tokens": 49469,
+      "output_tokens": 946,
+      "elapsed_gateway_ms": 18324,
+      "ttft_gateway_chunk_ms": [
+        1954,
+        1608,
+        2327,
+        2547,
+        2157,
+        2218,
+        1375,
+        1312
+      ],
+      "estimated_peak_upper_usd": 0.06904524,
+      "evidence": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\eval-development-paired-r2\\dev-03-pro-candidate"
+    },
+    {
+      "phase": "development",
+      "id": "dev-04",
+      "model": "flash",
+      "variant": "candidate",
+      "passed": true,
+      "requests": 4,
+      "wall_ms": 7341,
+      "input_tokens": 25047,
+      "output_tokens": 322,
+      "elapsed_gateway_ms": 6965,
+      "ttft_gateway_chunk_ms": [
+        1295,
+        1484,
+        1468,
+        1389
+      ],
+      "estimated_peak_upper_usd": 0.0079005,
+      "evidence": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\eval-development-paired-r2\\dev-04-flash-candidate"
+    },
+    {
+      "phase": "development",
+      "id": "dev-04",
+      "model": "flash",
+      "variant": "baseline",
+      "passed": true,
+      "requests": 4,
+      "wall_ms": 8533,
+      "input_tokens": 23924,
+      "output_tokens": 520,
+      "elapsed_gateway_ms": 8188,
+      "ttft_gateway_chunk_ms": [
+        1359,
+        1312,
+        1656,
+        1390
+      ],
+      "estimated_peak_upper_usd": 0.0078012,
+      "evidence": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\eval-development-paired-r2\\dev-04-flash-baseline"
+    },
+    {
+      "phase": "development",
+      "id": "dev-04",
+      "model": "pro",
+      "variant": "candidate",
+      "passed": true,
+      "requests": 2,
+      "wall_ms": 7727,
+      "input_tokens": 12419,
+      "output_tokens": 466,
+      "elapsed_gateway_ms": 7452,
+      "ttft_gateway_chunk_ms": [
+        2561,
+        2687
+      ],
+      "estimated_peak_upper_usd": 0.01823844,
+      "evidence": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\eval-development-paired-r2\\dev-04-pro-candidate"
+    },
+    {
+      "phase": "development",
+      "id": "dev-04",
+      "model": "pro",
+      "variant": "baseline",
+      "passed": true,
+      "requests": 4,
+      "wall_ms": 14583,
+      "input_tokens": 24308,
+      "output_tokens": 815,
+      "elapsed_gateway_ms": 14153,
+      "ttft_gateway_chunk_ms": [
+        2625,
+        3031,
+        2218,
+        3108
+      ],
+      "estimated_peak_upper_usd": 0.03531396,
+      "evidence": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\eval-development-paired-r2\\dev-04-pro-baseline"
+    },
+    {
+      "phase": "development",
+      "id": "dev-06",
+      "model": "flash",
+      "variant": "candidate",
+      "passed": true,
+      "requests": 3,
+      "wall_ms": 5276,
+      "input_tokens": 18494,
+      "output_tokens": 152,
+      "elapsed_gateway_ms": 4871,
+      "ttft_gateway_chunk_ms": [
+        1297,
+        1483,
+        1561
+      ],
+      "estimated_peak_upper_usd": 0.0057306,
+      "evidence": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\eval-development-paired-r2\\dev-06-flash-candidate"
+    },
+    {
+      "phase": "development",
+      "id": "dev-06",
+      "model": "flash",
+      "variant": "baseline",
+      "passed": true,
+      "requests": 3,
+      "wall_ms": 6279,
+      "input_tokens": 17580,
+      "output_tokens": 147,
+      "elapsed_gateway_ms": 5985,
+      "ttft_gateway_chunk_ms": [
+        1547,
+        2733,
+        1297
+      ],
+      "estimated_peak_upper_usd": 0.0054504,
+      "evidence": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\eval-development-paired-r2\\dev-06-flash-baseline"
+    },
+    {
+      "phase": "development",
+      "id": "dev-06",
+      "model": "pro",
+      "variant": "candidate",
+      "passed": true,
+      "requests": 3,
+      "wall_ms": 6578,
+      "input_tokens": 18653,
+      "output_tokens": 132,
+      "elapsed_gateway_ms": 6216,
+      "ttft_gateway_chunk_ms": [
+        2186,
+        1936,
+        1733
+      ],
+      "estimated_peak_upper_usd": 0.02514468,
+      "evidence": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\eval-development-paired-r2\\dev-06-pro-candidate"
+    },
+    {
+      "phase": "development",
+      "id": "dev-06",
+      "model": "pro",
+      "variant": "baseline",
+      "passed": true,
+      "requests": 3,
+      "wall_ms": 6235,
+      "input_tokens": 17741,
+      "output_tokens": 132,
+      "elapsed_gateway_ms": 5904,
+      "ttft_gateway_chunk_ms": [
+        1842,
+        1639,
+        1907
+      ],
+      "estimated_peak_upper_usd": 0.02394084,
+      "evidence": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\eval-development-paired-r2\\dev-06-pro-baseline"
+    },
+    {
+      "phase": "development",
+      "id": "dev-05",
+      "model": "flash",
+      "variant": "baseline",
+      "passed": true,
+      "requests": 5,
+      "wall_ms": 12715,
+      "input_tokens": 32519,
+      "output_tokens": 763,
+      "elapsed_gateway_ms": 10904,
+      "ttft_gateway_chunk_ms": [
+        1593,
+        1436,
+        1359
+      ],
+      "estimated_peak_upper_usd": 0.0106713,
+      "evidence": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\eval-development-launch-r3\\dev-05-flash-baseline"
+    },
+    {
+      "phase": "development",
+      "id": "dev-05",
+      "model": "flash",
+      "variant": "candidate",
+      "passed": true,
+      "requests": 6,
+      "wall_ms": 17516,
+      "input_tokens": 41907,
+      "output_tokens": 1249,
+      "elapsed_gateway_ms": 15922,
+      "ttft_gateway_chunk_ms": [
+        1454,
+        1391,
+        2031,
+        1750
+      ],
+      "estimated_peak_upper_usd": 0.0140709,
+      "evidence": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\eval-development-launch-r3\\dev-05-flash-candidate"
+    },
+    {
+      "phase": "development",
+      "id": "dev-05",
+      "model": "pro",
+      "variant": "baseline",
+      "passed": true,
+      "requests": 6,
+      "wall_ms": 18340,
+      "input_tokens": 38809,
+      "output_tokens": 807,
+      "elapsed_gateway_ms": 17090,
+      "ttft_gateway_chunk_ms": [
+        2420,
+        2250,
+        1983
+      ],
+      "estimated_peak_upper_usd": 0.0544236,
+      "evidence": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\eval-development-launch-r3\\dev-05-pro-baseline"
+    },
+    {
+      "phase": "development",
+      "id": "dev-05",
+      "model": "pro",
+      "variant": "candidate",
+      "passed": true,
+      "requests": 5,
+      "wall_ms": 14235,
+      "input_tokens": 34118,
+      "output_tokens": 745,
+      "elapsed_gateway_ms": 13093,
+      "ttft_gateway_chunk_ms": [
+        2171,
+        1952,
+        1734
+      ],
+      "estimated_peak_upper_usd": 0.04798596,
+      "evidence": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\eval-development-launch-r3\\dev-05-pro-candidate"
+    },
+    {
+      "phase": "held_out",
+      "id": "hel-01",
+      "model": "flash",
+      "variant": "baseline",
+      "passed": true,
+      "requests": 9,
+      "wall_ms": 22233,
+      "input_tokens": 45804,
+      "output_tokens": 1706,
+      "elapsed_gateway_ms": 21872,
+      "ttft_gateway_chunk_ms": [
+        1922,
+        1452,
+        1219,
+        1843,
+        1733
+      ],
+      "estimated_peak_upper_usd": 0.0157884,
+      "evidence": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\eval-held-out-frozen-20261021\\hel-01-flash-baseline"
+    },
+    {
+      "phase": "held_out",
+      "id": "hel-01",
+      "model": "flash",
+      "variant": "candidate",
+      "passed": true,
+      "requests": 8,
+      "wall_ms": 19582,
+      "input_tokens": 40519,
+      "output_tokens": 1332,
+      "elapsed_gateway_ms": 18931,
+      "ttft_gateway_chunk_ms": [
+        1562,
+        1311,
+        1407,
+        1766
+      ],
+      "estimated_peak_upper_usd": 0.0137541,
+      "evidence": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\eval-held-out-frozen-20261021\\hel-01-flash-candidate"
+    },
+    {
+      "phase": "held_out",
+      "id": "hel-01",
+      "model": "pro",
+      "variant": "baseline",
+      "passed": true,
+      "requests": 7,
+      "wall_ms": 19099,
+      "input_tokens": 34855,
+      "output_tokens": 1480,
+      "elapsed_gateway_ms": 19163,
+      "ttft_gateway_chunk_ms": [
+        2108,
+        1765,
+        1859,
+        1516
+      ],
+      "estimated_peak_upper_usd": 0.0518694,
+      "evidence": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\eval-held-out-frozen-20261021\\hel-01-pro-baseline"
+    },
+    {
+      "phase": "held_out",
+      "id": "hel-01",
+      "model": "pro",
+      "variant": "candidate",
+      "passed": true,
+      "requests": 7,
+      "wall_ms": 19555,
+      "input_tokens": 37003,
+      "output_tokens": 1465,
+      "elapsed_gateway_ms": 19607,
+      "ttft_gateway_chunk_ms": [
+        2110,
+        1297,
+        1687,
+        1688
+      ],
+      "estimated_peak_upper_usd": 0.05464536,
+      "evidence": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\eval-held-out-frozen-20261021\\hel-01-pro-candidate"
+    },
+    {
+      "phase": "held_out",
+      "id": "hel-02",
+      "model": "flash",
+      "variant": "candidate",
+      "passed": true,
+      "requests": 6,
+      "wall_ms": 12619,
+      "input_tokens": 40211,
+      "output_tokens": 948,
+      "elapsed_gateway_ms": 11794,
+      "ttft_gateway_chunk_ms": [
+        1531,
+        1203,
+        1328,
+        1421,
+        1217,
+        1282
+      ],
+      "estimated_peak_upper_usd": 0.0132009,
+      "evidence": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\eval-held-out-frozen-20261021\\hel-02-flash-candidate"
+    },
+    {
+      "phase": "held_out",
+      "id": "hel-02",
+      "model": "flash",
+      "variant": "baseline",
+      "passed": true,
+      "requests": 7,
+      "wall_ms": 13568,
+      "input_tokens": 44038,
+      "output_tokens": 708,
+      "elapsed_gateway_ms": 12761,
+      "ttft_gateway_chunk_ms": [
+        1375,
+        1436,
+        1282,
+        1171,
+        1437,
+        1467,
+        1625
+      ],
+      "estimated_peak_upper_usd": 0.014061,
+      "evidence": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\eval-held-out-frozen-20261021\\hel-02-flash-baseline"
+    },
+    {
+      "phase": "held_out",
+      "id": "hel-02",
+      "model": "pro",
+      "variant": "candidate",
+      "passed": true,
+      "requests": 5,
+      "wall_ms": 11189,
+      "input_tokens": 32735,
+      "output_tokens": 417,
+      "elapsed_gateway_ms": 10388,
+      "ttft_gateway_chunk_ms": [
+        1827,
+        2000,
+        1561,
+        1500,
+        1766
+      ],
+      "estimated_peak_upper_usd": 0.04486152,
+      "evidence": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\eval-held-out-frozen-20261021\\hel-02-pro-candidate"
+    },
+    {
+      "phase": "held_out",
+      "id": "hel-02",
+      "model": "pro",
+      "variant": "baseline",
+      "passed": true,
+      "requests": 6,
+      "wall_ms": 12018,
+      "input_tokens": 37621,
+      "output_tokens": 446,
+      "elapsed_gateway_ms": 11202,
+      "ttft_gateway_chunk_ms": [
+        1858,
+        1577,
+        1375,
+        1860,
+        1266,
+        1561
+      ],
+      "estimated_peak_upper_usd": 0.05142588,
+      "evidence": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\eval-held-out-frozen-20261021\\hel-02-pro-baseline"
+    },
+    {
+      "phase": "held_out",
+      "id": "hel-03",
+      "model": "flash",
+      "variant": "baseline",
+      "passed": true,
+      "requests": 6,
+      "wall_ms": 12103,
+      "input_tokens": 38030,
+      "output_tokens": 575,
+      "elapsed_gateway_ms": 11311,
+      "ttft_gateway_chunk_ms": [
+        1389,
+        1547,
+        1453,
+        1639,
+        1468,
+        1484
+      ],
+      "estimated_peak_upper_usd": 0.012099,
+      "evidence": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\eval-held-out-frozen-20261021\\hel-03-flash-baseline"
+    },
+    {
+      "phase": "held_out",
+      "id": "hel-03",
+      "model": "flash",
+      "variant": "candidate",
+      "passed": true,
+      "requests": 6,
+      "wall_ms": 13194,
+      "input_tokens": 39933,
+      "output_tokens": 813,
+      "elapsed_gateway_ms": 12466,
+      "ttft_gateway_chunk_ms": [
+        1547,
+        1467,
+        1406,
+        1406,
+        1281,
+        1875
+      ],
+      "estimated_peak_upper_usd": 0.0129555,
+      "evidence": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\eval-held-out-frozen-20261021\\hel-03-flash-candidate"
+    },
+    {
+      "phase": "held_out",
+      "id": "hel-03",
+      "model": "pro",
+      "variant": "baseline",
+      "passed": true,
+      "requests": 8,
+      "wall_ms": 17478,
+      "input_tokens": 46391,
+      "output_tokens": 677,
+      "elapsed_gateway_ms": 16663,
+      "ttft_gateway_chunk_ms": [
+        1795,
+        1468,
+        1515,
+        1797,
+        1468,
+        2233,
+        2281,
+        1686
+      ],
+      "estimated_peak_upper_usd": 0.06391704,
+      "evidence": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\eval-held-out-frozen-20261021\\hel-03-pro-baseline"
+    },
+    {
+      "phase": "held_out",
+      "id": "hel-03",
+      "model": "pro",
+      "variant": "candidate",
+      "passed": true,
+      "requests": 6,
+      "wall_ms": 13680,
+      "input_tokens": 39653,
+      "output_tokens": 485,
+      "elapsed_gateway_ms": 12844,
+      "ttft_gateway_chunk_ms": [
+        1781,
+        1672,
+        1719,
+        2469,
+        1827,
+        1438
+      ],
+      "estimated_peak_upper_usd": 0.05426256,
+      "evidence": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\eval-held-out-frozen-20261021\\hel-03-pro-candidate"
+    },
+    {
+      "phase": "held_out",
+      "id": "hel-04",
+      "model": "flash",
+      "variant": "candidate",
+      "passed": true,
+      "requests": 3,
+      "wall_ms": 5782,
+      "input_tokens": 19193,
+      "output_tokens": 285,
+      "elapsed_gateway_ms": 5203,
+      "ttft_gateway_chunk_ms": [
+        1281,
+        1281,
+        1452
+      ],
+      "estimated_peak_upper_usd": 0.0060999,
+      "evidence": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\eval-held-out-frozen-20261021\\hel-04-flash-candidate"
+    },
+    {
+      "phase": "held_out",
+      "id": "hel-04",
+      "model": "flash",
+      "variant": "baseline",
+      "passed": true,
+      "requests": 3,
+      "wall_ms": 6548,
+      "input_tokens": 18259,
+      "output_tokens": 346,
+      "elapsed_gateway_ms": 5938,
+      "ttft_gateway_chunk_ms": [
+        1358,
+        1608,
+        1375
+      ],
+      "estimated_peak_upper_usd": 0.0058929,
+      "evidence": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\eval-held-out-frozen-20261021\\hel-04-flash-baseline"
+    },
+    {
+      "phase": "held_out",
+      "id": "hel-04",
+      "model": "pro",
+      "variant": "candidate",
+      "passed": true,
+      "requests": 3,
+      "wall_ms": 7295,
+      "input_tokens": 19260,
+      "output_tokens": 254,
+      "elapsed_gateway_ms": 6594,
+      "ttft_gateway_chunk_ms": [
+        1922,
+        1953,
+        1547
+      ],
+      "estimated_peak_upper_usd": 0.02642904,
+      "evidence": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\eval-held-out-frozen-20261021\\hel-04-pro-candidate"
+    },
+    {
+      "phase": "held_out",
+      "id": "hel-04",
+      "model": "pro",
+      "variant": "baseline",
+      "passed": true,
+      "requests": 3,
+      "wall_ms": 7165,
+      "input_tokens": 18357,
+      "output_tokens": 307,
+      "elapsed_gateway_ms": 6514,
+      "ttft_gateway_chunk_ms": [
+        2172,
+        1250,
+        1858
+      ],
+      "estimated_peak_upper_usd": 0.02544696,
+      "evidence": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\eval-held-out-frozen-20261021\\hel-04-pro-baseline"
+    },
+    {
+      "phase": "held_out",
+      "id": "hel-05",
+      "model": "flash",
+      "variant": "baseline",
+      "passed": true,
+      "requests": 2,
+      "wall_ms": 3916,
+      "input_tokens": 11746,
+      "output_tokens": 202,
+      "elapsed_gateway_ms": 3656,
+      "ttft_gateway_chunk_ms": [
+        1266,
+        1422
+      ],
+      "estimated_peak_upper_usd": 0.0037662,
+      "evidence": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\eval-held-out-frozen-20261021\\hel-05-flash-baseline"
+    },
+    {
+      "phase": "held_out",
+      "id": "hel-05",
+      "model": "flash",
+      "variant": "candidate",
+      "passed": true,
+      "requests": 2,
+      "wall_ms": 3901,
+      "input_tokens": 12267,
+      "output_tokens": 117,
+      "elapsed_gateway_ms": 3531,
+      "ttft_gateway_chunk_ms": [
+        1577,
+        1485
+      ],
+      "estimated_peak_upper_usd": 0.0038205,
+      "evidence": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\eval-held-out-frozen-20261021\\hel-05-flash-candidate"
+    },
+    {
+      "phase": "held_out",
+      "id": "hel-05",
+      "model": "pro",
+      "variant": "baseline",
+      "passed": true,
+      "requests": 4,
+      "wall_ms": 7534,
+      "input_tokens": 23846,
+      "output_tokens": 301,
+      "elapsed_gateway_ms": 7043,
+      "ttft_gateway_chunk_ms": [
+        1875,
+        1343,
+        1608,
+        1672
+      ],
+      "estimated_peak_upper_usd": 0.03266868,
+      "evidence": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\eval-held-out-frozen-20261021\\hel-05-pro-baseline"
+    },
+    {
+      "phase": "held_out",
+      "id": "hel-05",
+      "model": "pro",
+      "variant": "candidate",
+      "passed": true,
+      "requests": 4,
+      "wall_ms": 11014,
+      "input_tokens": 25191,
+      "output_tokens": 425,
+      "elapsed_gateway_ms": 10575,
+      "ttft_gateway_chunk_ms": [
+        2828,
+        2828,
+        2250,
+        1811
+      ],
+      "estimated_peak_upper_usd": 0.03493512,
+      "evidence": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\eval-held-out-frozen-20261021\\hel-05-pro-candidate"
+    },
+    {
+      "phase": "held_out",
+      "id": "hel-06",
+      "model": "flash",
+      "variant": "candidate",
+      "passed": true,
+      "requests": 0,
+      "wall_ms": 193,
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "elapsed_gateway_ms": 0,
+      "ttft_gateway_chunk_ms": [],
+      "estimated_peak_upper_usd": 0.0,
+      "evidence": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\eval-held-out-frozen-20261021\\hel-06-flash-candidate"
+    },
+    {
+      "phase": "held_out",
+      "id": "hel-06",
+      "model": "flash",
+      "variant": "baseline",
+      "passed": true,
+      "requests": 0,
+      "wall_ms": 187,
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "elapsed_gateway_ms": 0,
+      "ttft_gateway_chunk_ms": [],
+      "estimated_peak_upper_usd": 0.0,
+      "evidence": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\eval-held-out-frozen-20261021\\hel-06-flash-baseline"
+    },
+    {
+      "phase": "held_out",
+      "id": "hel-06",
+      "model": "pro",
+      "variant": "candidate",
+      "passed": true,
+      "requests": 0,
+      "wall_ms": 223,
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "elapsed_gateway_ms": 0,
+      "ttft_gateway_chunk_ms": [],
+      "estimated_peak_upper_usd": 0.0,
+      "evidence": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\eval-held-out-frozen-20261021\\hel-06-pro-candidate"
+    },
+    {
+      "phase": "held_out",
+      "id": "hel-06",
+      "model": "pro",
+      "variant": "baseline",
+      "passed": true,
+      "requests": 0,
+      "wall_ms": 217,
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "elapsed_gateway_ms": 0,
+      "ttft_gateway_chunk_ms": [],
+      "estimated_peak_upper_usd": 0.0,
+      "evidence": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\eval-held-out-frozen-20261021\\hel-06-pro-baseline"
+    },
+    {
+      "phase": "held_out",
+      "id": "hel-07",
+      "model": "flash",
+      "variant": "baseline",
+      "passed": true,
+      "requests": 3,
+      "wall_ms": 11021,
+      "input_tokens": 20521,
+      "output_tokens": 1336,
+      "elapsed_gateway_ms": 10515,
+      "ttft_gateway_chunk_ms": [
+        1405,
+        1250,
+        1390
+      ],
+      "estimated_peak_upper_usd": 0.0077595,
+      "evidence": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\eval-held-out-frozen-20261021\\hel-07-flash-baseline"
+    },
+    {
+      "phase": "held_out",
+      "id": "hel-07",
+      "model": "flash",
+      "variant": "candidate",
+      "passed": true,
+      "requests": 5,
+      "wall_ms": 13405,
+      "input_tokens": 35425,
+      "output_tokens": 1088,
+      "elapsed_gateway_ms": 12796,
+      "ttft_gateway_chunk_ms": [
+        1843,
+        1500,
+        1297,
+        1516,
+        1405
+      ],
+      "estimated_peak_upper_usd": 0.0119331,
+      "evidence": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\eval-held-out-frozen-20261021\\hel-07-flash-candidate"
+    },
+    {
+      "phase": "held_out",
+      "id": "hel-07",
+      "model": "pro",
+      "variant": "baseline",
+      "passed": true,
+      "requests": 2,
+      "wall_ms": 5246,
+      "input_tokens": 12955,
+      "output_tokens": 320,
+      "elapsed_gateway_ms": 4874,
+      "ttft_gateway_chunk_ms": [
+        2141,
+        1891
+      ],
+      "estimated_peak_upper_usd": 0.0183678,
+      "evidence": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\eval-held-out-frozen-20261021\\hel-07-pro-baseline"
+    },
+    {
+      "phase": "held_out",
+      "id": "hel-07",
+      "model": "pro",
+      "variant": "candidate",
+      "passed": true,
+      "requests": 2,
+      "wall_ms": 5502,
+      "input_tokens": 13563,
+      "output_tokens": 263,
+      "elapsed_gateway_ms": 5108,
+      "ttft_gateway_chunk_ms": [
+        1936,
+        2547
+      ],
+      "estimated_peak_upper_usd": 0.01894464,
+      "evidence": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\eval-held-out-frozen-20261021\\hel-07-pro-candidate"
+    },
+    {
+      "phase": "held_out",
+      "id": "hel-08",
+      "model": "flash",
+      "variant": "candidate",
+      "passed": true,
+      "requests": 4,
+      "wall_ms": 15341,
+      "input_tokens": 27885,
+      "output_tokens": 532,
+      "elapsed_gateway_ms": 8124,
+      "ttft_gateway_chunk_ms": [
+        1750,
+        1233,
+        1390,
+        1391
+      ],
+      "estimated_peak_upper_usd": 0.0090039,
+      "evidence": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\eval-held-out-frozen-20261021\\hel-08-flash-candidate"
+    },
+    {
+      "phase": "held_out",
+      "id": "hel-08",
+      "model": "flash",
+      "variant": "baseline",
+      "passed": true,
+      "requests": 4,
+      "wall_ms": 15052,
+      "input_tokens": 26627,
+      "output_tokens": 475,
+      "elapsed_gateway_ms": 8012,
+      "ttft_gateway_chunk_ms": [
+        1530,
+        1358,
+        1718,
+        1265
+      ],
+      "estimated_peak_upper_usd": 0.0085581,
+      "evidence": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\eval-held-out-frozen-20261021\\hel-08-flash-baseline"
+    },
+    {
+      "phase": "held_out",
+      "id": "hel-08",
+      "model": "pro",
+      "variant": "candidate",
+      "passed": true,
+      "requests": 4,
+      "wall_ms": 16571,
+      "input_tokens": 27813,
+      "output_tokens": 795,
+      "elapsed_gateway_ms": 11843,
+      "ttft_gateway_chunk_ms": [
+        3454,
+        3641,
+        2250,
+        1687
+      ],
+      "estimated_peak_upper_usd": 0.03986136,
+      "evidence": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\eval-held-out-frozen-20261021\\hel-08-pro-candidate"
+    },
+    {
+      "phase": "held_out",
+      "id": "hel-08",
+      "model": "pro",
+      "variant": "baseline",
+      "passed": true,
+      "requests": 4,
+      "wall_ms": 15891,
+      "input_tokens": 26594,
+      "output_tokens": 419,
+      "elapsed_gateway_ms": 9026,
+      "ttft_gateway_chunk_ms": [
+        2452,
+        1514,
+        2640,
+        1577
+      ],
+      "estimated_peak_upper_usd": 0.03676332,
+      "evidence": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\eval-held-out-frozen-20261021\\hel-08-pro-baseline"
+    },
+    {
+      "phase": "held_out",
+      "id": "hel-09",
+      "model": "flash",
+      "variant": "baseline",
+      "passed": true,
+      "requests": 2,
+      "wall_ms": 4508,
+      "input_tokens": 12797,
+      "output_tokens": 269,
+      "elapsed_gateway_ms": 4139,
+      "ttft_gateway_chunk_ms": [
+        1405,
+        1875
+      ],
+      "estimated_peak_upper_usd": 0.0041619,
+      "evidence": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\eval-held-out-frozen-20261021\\hel-09-flash-baseline"
+    },
+    {
+      "phase": "held_out",
+      "id": "hel-09",
+      "model": "flash",
+      "variant": "candidate",
+      "passed": true,
+      "requests": 2,
+      "wall_ms": 4009,
+      "input_tokens": 13353,
+      "output_tokens": 218,
+      "elapsed_gateway_ms": 3594,
+      "ttft_gateway_chunk_ms": [
+        1281,
+        1640
+      ],
+      "estimated_peak_upper_usd": 0.0042675,
+      "evidence": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\eval-held-out-frozen-20261021\\hel-09-flash-candidate"
+    },
+    {
+      "phase": "held_out",
+      "id": "hel-09",
+      "model": "pro",
+      "variant": "baseline",
+      "passed": true,
+      "requests": 2,
+      "wall_ms": 5078,
+      "input_tokens": 12834,
+      "output_tokens": 315,
+      "elapsed_gateway_ms": 4655,
+      "ttft_gateway_chunk_ms": [
+        2031,
+        2108
+      ],
+      "estimated_peak_upper_usd": 0.01818828,
+      "evidence": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\eval-held-out-frozen-20261021\\hel-09-pro-baseline"
+    },
+    {
+      "phase": "held_out",
+      "id": "hel-09",
+      "model": "pro",
+      "variant": "candidate",
+      "passed": true,
+      "requests": 2,
+      "wall_ms": 5397,
+      "input_tokens": 13442,
+      "output_tokens": 256,
+      "elapsed_gateway_ms": 5047,
+      "ttft_gateway_chunk_ms": [
+        2297,
+        2218
+      ],
+      "estimated_peak_upper_usd": 0.0187572,
+      "evidence": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\eval-held-out-frozen-20261021\\hel-09-pro-candidate"
+    },
+    {
+      "phase": "held_out",
+      "id": "hel-10",
+      "model": "flash",
+      "variant": "candidate",
+      "passed": true,
+      "requests": 4,
+      "wall_ms": 13683,
+      "input_tokens": 25581,
+      "output_tokens": 592,
+      "elapsed_gateway_ms": 12563,
+      "ttft_gateway_chunk_ms": [
+        5625
+      ],
+      "estimated_peak_upper_usd": 0.0083847,
+      "evidence": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\eval-held-out-frozen-20261021\\hel-10-flash-candidate"
+    },
+    {
+      "phase": "held_out",
+      "id": "hel-10",
+      "model": "flash",
+      "variant": "baseline",
+      "passed": true,
+      "requests": 3,
+      "wall_ms": 6299,
+      "input_tokens": 18281,
+      "output_tokens": 351,
+      "elapsed_gateway_ms": 5670,
+      "ttft_gateway_chunk_ms": [
+        1329
+      ],
+      "estimated_peak_upper_usd": 0.0059055,
+      "evidence": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\eval-held-out-frozen-20261021\\hel-10-flash-baseline"
+    },
+    {
+      "phase": "held_out",
+      "id": "hel-10",
+      "model": "pro",
+      "variant": "candidate",
+      "passed": true,
+      "requests": 3,
+      "wall_ms": 7953,
+      "input_tokens": 19383,
+      "output_tokens": 363,
+      "elapsed_gateway_ms": 6904,
+      "ttft_gateway_chunk_ms": [
+        2327
+      ],
+      "estimated_peak_upper_usd": 0.02702304,
+      "evidence": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\eval-held-out-frozen-20261021\\hel-10-pro-candidate"
+    },
+    {
+      "phase": "held_out",
+      "id": "hel-10",
+      "model": "pro",
+      "variant": "baseline",
+      "passed": true,
+      "requests": 3,
+      "wall_ms": 7275,
+      "input_tokens": 18473,
+      "output_tokens": 278,
+      "elapsed_gateway_ms": 6093,
+      "ttft_gateway_chunk_ms": [
+        1735
+      ],
+      "estimated_peak_upper_usd": 0.02548524,
+      "evidence": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\eval-held-out-frozen-20261021\\hel-10-pro-baseline"
+    },
+    {
+      "phase": "held_out",
+      "id": "hel-11",
+      "model": "flash",
+      "variant": "baseline",
+      "passed": true,
+      "requests": 2,
+      "wall_ms": 3203,
+      "input_tokens": 11675,
+      "output_tokens": 78,
+      "elapsed_gateway_ms": 2922,
+      "ttft_gateway_chunk_ms": [
+        1375,
+        1313
+      ],
+      "estimated_peak_upper_usd": 0.0035961,
+      "evidence": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\eval-held-out-frozen-20261021\\hel-11-flash-baseline"
+    },
+    {
+      "phase": "held_out",
+      "id": "hel-11",
+      "model": "flash",
+      "variant": "candidate",
+      "passed": true,
+      "requests": 3,
+      "wall_ms": 5163,
+      "input_tokens": 18522,
+      "output_tokens": 158,
+      "elapsed_gateway_ms": 4827,
+      "ttft_gateway_chunk_ms": [
+        1313,
+        1500,
+        1547
+      ],
+      "estimated_peak_upper_usd": 0.0057462,
+      "evidence": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\eval-held-out-frozen-20261021\\hel-11-flash-candidate"
+    },
+    {
+      "phase": "held_out",
+      "id": "hel-11",
+      "model": "pro",
+      "variant": "baseline",
+      "passed": true,
+      "requests": 2,
+      "wall_ms": 4975,
+      "input_tokens": 11793,
+      "output_tokens": 74,
+      "elapsed_gateway_ms": 4656,
+      "ttft_gateway_chunk_ms": [
+        1891,
+        2500
+      ],
+      "estimated_peak_upper_usd": 0.0158598,
+      "evidence": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\eval-held-out-frozen-20261021\\hel-11-pro-baseline"
+    },
+    {
+      "phase": "held_out",
+      "id": "hel-11",
+      "model": "pro",
+      "variant": "candidate",
+      "passed": true,
+      "requests": 3,
+      "wall_ms": 5949,
+      "input_tokens": 18671,
+      "output_tokens": 132,
+      "elapsed_gateway_ms": 5498,
+      "ttft_gateway_chunk_ms": [
+        1750,
+        1859,
+        1500
+      ],
+      "estimated_peak_upper_usd": 0.02516844,
+      "evidence": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\eval-held-out-frozen-20261021\\hel-11-pro-candidate"
+    },
+    {
+      "phase": "held_out",
+      "id": "hel-12",
+      "model": "flash",
+      "variant": "candidate",
+      "passed": true,
+      "requests": 4,
+      "wall_ms": 15760,
+      "input_tokens": 28254,
+      "output_tokens": 653,
+      "elapsed_gateway_ms": 9015,
+      "ttft_gateway_chunk_ms": [
+        1686,
+        1390,
+        1547,
+        1358
+      ],
+      "estimated_peak_upper_usd": 0.0092598,
+      "evidence": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\eval-held-out-frozen-20261021\\hel-12-flash-candidate"
+    },
+    {
+      "phase": "held_out",
+      "id": "hel-12",
+      "model": "flash",
+      "variant": "baseline",
+      "passed": true,
+      "requests": 4,
+      "wall_ms": 15091,
+      "input_tokens": 26641,
+      "output_tokens": 492,
+      "elapsed_gateway_ms": 7953,
+      "ttft_gateway_chunk_ms": [
+        1422,
+        1516,
+        1718,
+        1515
+      ],
+      "estimated_peak_upper_usd": 0.0085827,
+      "evidence": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\eval-held-out-frozen-20261021\\hel-12-flash-baseline"
+    },
+    {
+      "phase": "held_out",
+      "id": "hel-12",
+      "model": "pro",
+      "variant": "candidate",
+      "passed": true,
+      "requests": 4,
+      "wall_ms": 16335,
+      "input_tokens": 27794,
+      "output_tokens": 743,
+      "elapsed_gateway_ms": 11343,
+      "ttft_gateway_chunk_ms": [
+        3766,
+        3625,
+        1531,
+        1266
+      ],
+      "estimated_peak_upper_usd": 0.03963036,
+      "evidence": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\eval-held-out-frozen-20261021\\hel-12-pro-candidate"
+    },
+    {
+      "phase": "held_out",
+      "id": "hel-12",
+      "model": "pro",
+      "variant": "baseline",
+      "passed": true,
+      "requests": 3,
+      "wall_ms": 13449,
+      "input_tokens": 19652,
+      "output_tokens": 363,
+      "elapsed_gateway_ms": 6782,
+      "ttft_gateway_chunk_ms": [
+        2282,
+        1797,
+        2000
+      ],
+      "estimated_peak_upper_usd": 0.02737812,
+      "evidence": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\eval-held-out-frozen-20261021\\hel-12-pro-baseline"
+    }
+  ],
+  "first_verdicts": {
+    "development_r2": {
+      "pass": 20,
+      "cells": 24,
+      "four_dev05_driver_graph_file_mismatch": true
+    },
+    "development_launch_r3": {
+      "pass": 4,
+      "cells": 4
+    },
+    "held_out_frozen_original": {
+      "pass": 44,
+      "cells": 48
+    },
+    "held_out_offline_corrected": {
+      "pass": 48,
+      "cells": 48,
+      "additional_model_calls": 0,
+      "reason": "Confirmation RPC acceptance differs from launch revalidation; actual failed stale tool receipts and zero executions verified."
+    }
+  },
+  "claim_boundary": [
+    "Same frozen source and seeds, counterbalanced old/new pairs. No held-out prompt tuning.",
+    "Latest development cells span two explicitly identified runs; four original held-out verdicts were corrected offline, not erased.",
+    "First failed role driver and 32/256 output-budget cache probes remain in evidence and total spending.",
+    "TTFT is approximate gateway first matching chunk arrival via the bounded relay, not user-visible browser latency. Non-streamed TTFT stays null.",
+    "Floating provider aliases lack immutable upstream version; no statistical significance, general quality gain or upstream cache hit inferred.",
+    "Stale selected prompts correctly prevented all paid requests in four cells.",
+    "Cache/usage stripping tests settle real usage first, then inject omission into daemon responses; actual provider charging is not falsified."
+  ]
+}

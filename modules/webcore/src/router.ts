@@ -12,6 +12,9 @@ declare module 'vue-router' {
 }
 
 const routes = [
+  {path:'/work/:wid/addon-pages',name:'addon-pages',component:()=>import('./views/AddonPagesView.vue'),meta:{title:'Addon pages',workspace:true}},
+  {path:'/work/:wid/schedules',name:'schedules',component:()=>import('./views/SchedulesView.vue'),meta:{title:'Schedules',workspace:true}},
+  {path:'/work/:wid/tasks',name:'tasks',component:()=>import('./views/TaskContinuationView.vue'),meta:{title:'Task continuation',workspace:true}},
   { path: '/work/:wid/prompts', name: 'prompts', component: () => import('./views/PromptResourcesView.vue'), meta: { title: 'Prompt resources', workspace: true } },
   { path: '/work/:wid/memory', name: 'memory', component: () => import('./views/ProjectMemoryView.vue'), meta: { title: 'Project memory', workspace: true } },
   { path: '/work/:wid/execution', name: 'execution', component: () => import('./views/ExecutionView.vue'), meta: { title: 'Execution', workspace: true } },

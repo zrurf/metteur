@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "id": "hel-06",
+  "split": "held_out",
+  "mode": "stale_prompt",
+  "files": {
+    "app.py": "VALUE = \"synthetic_prompt\"\n"
+  },
+  "goal": "Report the explicitly selected project Prompt. Do not use another revision.",
+  "checks": {
+    "stale_prompt": true,
+    "unchanged": true
+  },
+  "limits": {
+    "max_iterations": 7,
+    "max_tokens": 1024,
+    "max_turns": 4,
+    "token_limit": 300000
+  },
+  "seed_digest": "0318bb3676909a0b92d1ce6c5e20a3c9c38b0a19fefd6fb2270017027ac2b271"
+}

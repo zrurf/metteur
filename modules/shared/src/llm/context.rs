@@ -206,6 +206,7 @@ impl ContextManager {
     pub fn mix_in_tool_result(&mut self, result: ToolResult) {
         let tool_call_id = result.tool_call_id.clone();
         self.messages.push(Message {
+            origin: Default::default(),
             role: Role::Tool,
             content: vec![super::message::ContentBlock::Text(result.content.clone())],
             tool_calls: Vec::new(),
@@ -744,6 +745,7 @@ mod tests {
     fn evict_keeps_tool_call_pairing_valid() {
         let mut ctx = ContextManager::default();
         ctx.push_message(Message {
+            origin: Default::default(),
             role: Role::Assistant,
             content: vec![super::super::message::ContentBlock::Text("working".to_string())],
             tool_calls: vec![super::super::tool::ToolCall {

@@ -20,7 +20,7 @@ import { wurl } from '@/lib/workspace-url'
  * reuses the returned `openSurface`.
  */
 
-type SurfaceKey = 'chat' | 'version' | 'settings' | 'execution' | 'execution-preview' | 'memory' | 'prompts'
+type SurfaceKey = 'addon-pages' | 'chat' | 'version' | 'settings' | 'execution' | 'execution-preview' | 'memory' | 'prompts' | 'tasks' | 'schedules'
 type PanelSurface = Exclude<SurfaceKey, 'chat'>
 
 interface SurfacePanel {
@@ -48,7 +48,7 @@ export function useSurfaceNavigation() {
       : key === 'settings' ? '/settings' : wurl(`/${key}`)
     router.push(target)
     const p = surfacePanel(key as PanelSurface)
-    if (key === 'execution-preview' || key === 'execution') panel.clear()
+    if (key === 'addon-pages' || key === 'prompts' || key === 'memory' || key === 'tasks' || key === 'schedules' || key === 'execution-preview' || key === 'execution') panel.clear()
     if (p) panel.show(p.owner, p.comp, p.title)
     // chat is a full-page surface: it owns no sidebar, so the current panel
     // (e.g. the Explorer) stays open instead of being cleared.

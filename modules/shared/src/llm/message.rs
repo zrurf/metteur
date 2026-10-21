@@ -41,11 +41,23 @@ pub enum ContentBlock {
     },
 }
 
+/// Persisted provenance is separate from the provider-compatible wire role.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum MessageOrigin {
+    #[default]
+    Unspecified,
+    HostEvent,
+}
+
 /// A single conversation message.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Message {
     /// The role of the message.
     pub role: Role,
+    /// Host provenance; old snapshots retain their unspecified origin.
+    #[serde(default)]
+    pub origin: MessageOrigin,
     /// The content blocks of the message.
     pub content: Vec<ContentBlock>,
     /// Tool calls made by an assistant message.
@@ -61,10 +73,18 @@ impl Message {
     pub fn text(role: Role, text: impl Into<String>) -> Self {
         Self {
             role,
+            origin: MessageOrigin::Unspecified,
             content: vec![ContentBlock::Text(text.into())],
             tool_calls: Vec::new(),
             tool_call_id: None,
         }
+    }
+
+    /// Construct host data without representing it as a new human instruction.
+    pub fn host_event(text: impl Into<String>) -> Self {
+        let mut message = Self::text(Role::User, text);
+        message.origin = MessageOrigin::HostEvent;
+        message
     }
 
     /// Returns the concatenated **text** content of the message.
@@ -107,5 +127,18 @@ impl Message {
         self.content.iter().any(|block| {
             matches!(block, ContentBlock::Thinking { .. } | ContentBlock::RedactedThinking { .. })
         })
+    }
+}
+
+#[cfg(test)]
+mod origin_tests {
+    use super::*;
+    #[test]
+    fn host_origin_round_trips_and_legacy_defaults() {
+        let event=Message::host_event("data, not permission");
+        let restored:Message=serde_json::from_slice(&serde_json::to_vec(&event).unwrap()).unwrap();
+        assert_eq!(restored.origin,MessageOrigin::HostEvent);assert_eq!(restored.role,Role::User);
+        let mut legacy=serde_json::to_value(Message::text(Role::User,"hello")).unwrap();legacy.as_object_mut().unwrap().remove("origin");
+        assert_eq!(serde_json::from_value::<Message>(legacy).unwrap().origin,MessageOrigin::Unspecified);
     }
 }

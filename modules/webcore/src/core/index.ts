@@ -24,6 +24,7 @@ export type {
   BlueprintEdge,
   BlueprintNode,
   BlueprintPin,
+  ChatContextStats,
   ChatMessage,
   ChatOptions,
   ChatSessionInfo,

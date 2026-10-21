@@ -62,7 +62,7 @@ pub async fn connect_daemon(cli: &Cli) -> Result<DaemonClient<Channel>> {
             .await
             .context("connecting to daemon")?,
     };
-    Ok(DaemonClient::new(channel))
+    Ok(DaemonClient::new(channel).max_decoding_message_size(metteur_proto::MAX_RPC_MESSAGE_BYTES).max_encoding_message_size(metteur_proto::MAX_RPC_MESSAGE_BYTES))
 }
 
 fn read_cert(path: &PathBuf) -> Result<Certificate> {

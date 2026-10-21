@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { Bot, ChevronRight, Circle, Layers, Play, Square } from '@lucide/vue'
+import { Bot, ChevronRight, Circle, Play, Square } from '@lucide/vue'
 import type { ExecTreeData } from '@/core'
 
 /** The tree payload and the node id to render one row (recursive). */

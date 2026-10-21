@@ -4,7 +4,7 @@ import { defineConfig, devices } from '@playwright/test'
 // and owned local provider: use `corepack pnpm test:live`.
 const port = Number(process.env.E2E_PORT ?? 5317)
 if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error('Invalid E2E_PORT')
-const baseURL = `http://localhost:${port}`
+const baseURL = `http://127.0.0.1:${port}`
 const production = process.env.E2E_PRODUCTION === '1'
 const browser = {
   ...devices['Desktop Chrome'],
@@ -41,8 +41,8 @@ export default defineConfig({
   ],
   webServer: {
     command: production
-      ? `corepack pnpm exec vite build --outDir .e2e-dist && corepack pnpm exec vite preview --outDir .e2e-dist --port ${port} --strictPort`
-      : `corepack pnpm dev --port ${port} --strictPort`,
+      ? `corepack pnpm exec vite build --outDir .e2e-dist && corepack pnpm exec vite preview --outDir .e2e-dist --host 127.0.0.1 --port ${port} --strictPort`
+      : `corepack pnpm dev --host 127.0.0.1 --port ${port} --strictPort`,
     url: baseURL,
     reuseExistingServer: false,
     timeout: 60_000,

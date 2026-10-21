@@ -13,4 +13,6 @@ const app = createApp(App)
 app.use(createPinia())
 app.use(router)
 
-app.mount('#app')
+// Resolve the initial route (including its pending workspace target) before
+// App.onMounted restores the workspace. Otherwise fast restore can race it.
+void router.isReady().then(() => app.mount('#app'))

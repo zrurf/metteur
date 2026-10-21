@@ -64,7 +64,7 @@ watch(context, () => { selected.value = ''; void fit() })
 </script>
 <template>
   <div class="graph-tools"><button aria-label="Follow execution" :aria-pressed="follow" @click="follow = !follow"><Crosshair :size="15" /></button><button aria-label="Fit graph" @click="fit"><Maximize2 :size="15" /></button><select v-if="contexts.size > 1" v-model="context" aria-label="Execution frame"><option v-for="([key, value]) in contexts" :key="key" :value="key">{{ value.label }}</option></select></div>
-  <VueFlow id="execution" class="blueprint-flow execution-flow" :nodes="nodes" :edges="edges" :nodes-draggable="false" :nodes-connectable="false" :edges-updatable="false" :delete-key-code="null" :zoom-on-double-click="false" :fit-view-on-init="true" @nodes-initialized="fit" @node-click="({ node }) => { selected = node.id; emit('inspect', latest.get(node.id) ?? null) }">
+  <VueFlow :only-render-visible-elements="true" id="execution" class="blueprint-flow execution-flow" :nodes="nodes" :edges="edges" :nodes-draggable="false" :nodes-connectable="false" :edges-updatable="false" :delete-key-code="null" :zoom-on-double-click="false" :fit-view-on-init="true" @nodes-initialized="fit" @node-click="({ node }) => { selected = node.id; emit('inspect', latest.get(node.id) ?? null) }">
     <Background :gap="20" :size="1" pattern-color="var(--grid-dot)" />
     <template #node-runtime="{ id, data }"><div class="runtime-node"><BlueprintNode readonly :id="id" :data="data" :selected="selected === id" /><div class="node-caption">{{ data.runtimeState }}</div></div></template>
   </VueFlow>

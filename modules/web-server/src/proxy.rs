@@ -60,7 +60,13 @@ fn pump_stream<T: Send + 'static>(
 
 #[tonic::async_trait]
 impl Daemon for ForwardService {
+    async fn addon_pages(&self, request: Request<metteur_proto::proto::ResourceRequest>) -> Result<Response<metteur_proto::proto::ResourceResponse>, Status> { self.client.clone().addon_pages(request).await }
     async fn select_prompt_resource(&self, request: Request<metteur_proto::proto::ResourceRequest>) -> Result<Response<metteur_proto::proto::ResourceResponse>, Status> { self.client.clone().select_prompt_resource(request).await }
+    async fn write_schedule(&self, request: Request<metteur_proto::proto::ResourceRequest>) -> Result<Response<metteur_proto::proto::ResourceResponse>, Status> { self.client.clone().write_schedule(request).await }
+    async fn confirm_blueprint_launch(&self, request: Request<metteur_proto::proto::ResourceRequest>) -> Result<Response<metteur_proto::proto::ResourceResponse>, Status> { self.client.clone().confirm_blueprint_launch(request).await }
+    async fn query_blueprint_launch(&self, request: Request<metteur_proto::proto::ResourceRequest>) -> Result<Response<metteur_proto::proto::ResourceResponse>, Status> { self.client.clone().query_blueprint_launch(request).await }
+    async fn query_continuations(&self, request: Request<metteur_proto::proto::ResourceRequest>) -> Result<Response<metteur_proto::proto::ResourceResponse>, Status> { self.client.clone().query_continuations(request).await }
+    async fn control_continuation(&self, request: Request<metteur_proto::proto::ResourceRequest>) -> Result<Response<metteur_proto::proto::ResourceResponse>, Status> { self.client.clone().control_continuation(request).await }
     async fn query_prompt_resources(&self, request: Request<metteur_proto::proto::ResourceRequest>) -> Result<Response<metteur_proto::proto::ResourceResponse>, Status> { self.client.clone().query_prompt_resources(request).await }
     async fn write_prompt_resource(&self, request: Request<metteur_proto::proto::ResourceRequest>) -> Result<Response<metteur_proto::proto::ResourceResponse>, Status> { self.client.clone().write_prompt_resource(request).await }
     async fn delete_prompt_resource(&self, request: Request<metteur_proto::proto::ResourceRequest>) -> Result<Response<metteur_proto::proto::ResourceResponse>, Status> { self.client.clone().delete_prompt_resource(request).await }
@@ -506,6 +512,22 @@ mod tests {
 
     #[tonic::async_trait]
     impl Daemon for TestBackend {
+        async fn write_schedule(&self, _: Request<metteur_proto::proto::ResourceRequest>) -> Result<Response<metteur_proto::proto::ResourceResponse>, Status> { Err(Status::unimplemented("write_schedule")) }
+        async fn confirm_blueprint_launch(&self, _: Request<metteur_proto::proto::ResourceRequest>) -> Result<Response<metteur_proto::proto::ResourceResponse>, Status> { Err(Status::unimplemented("confirm_blueprint_launch")) }
+        async fn query_blueprint_launch(&self, _: Request<metteur_proto::proto::ResourceRequest>) -> Result<Response<metteur_proto::proto::ResourceResponse>, Status> { Err(Status::unimplemented("query_blueprint_launch")) }
+        async fn query_continuations(&self, _: Request<metteur_proto::proto::ResourceRequest>) -> Result<Response<metteur_proto::proto::ResourceResponse>, Status> { Err(Status::unimplemented("query_continuations")) }
+        async fn control_continuation(&self, _: Request<metteur_proto::proto::ResourceRequest>) -> Result<Response<metteur_proto::proto::ResourceResponse>, Status> { Err(Status::unimplemented("control_continuation")) }
+        async fn select_prompt_resource(&self, _: Request<metteur_proto::proto::ResourceRequest>) -> Result<Response<metteur_proto::proto::ResourceResponse>, Status> { Err(Status::unimplemented("select_prompt_resource")) }
+        async fn query_prompt_resources(&self, _: Request<metteur_proto::proto::ResourceRequest>) -> Result<Response<metteur_proto::proto::ResourceResponse>, Status> { Err(Status::unimplemented("query_prompt_resources")) }
+        async fn write_prompt_resource(&self, _: Request<metteur_proto::proto::ResourceRequest>) -> Result<Response<metteur_proto::proto::ResourceResponse>, Status> { Err(Status::unimplemented("write_prompt_resource")) }
+        async fn delete_prompt_resource(&self, _: Request<metteur_proto::proto::ResourceRequest>) -> Result<Response<metteur_proto::proto::ResourceResponse>, Status> { Err(Status::unimplemented("delete_prompt_resource")) }
+        async fn copy_prompt_to_project(&self, _: Request<metteur_proto::proto::ResourceRequest>) -> Result<Response<metteur_proto::proto::ResourceResponse>, Status> { Err(Status::unimplemented("copy_prompt_to_project")) }
+        async fn query_project_memory(&self, _: Request<metteur_proto::proto::ResourceRequest>) -> Result<Response<metteur_proto::proto::ResourceResponse>, Status> { Err(Status::unimplemented("query_project_memory")) }
+        async fn write_project_note(&self, _: Request<metteur_proto::proto::ResourceRequest>) -> Result<Response<metteur_proto::proto::ResourceResponse>, Status> { Err(Status::unimplemented("write_project_note")) }
+        async fn promote_project_convention(&self, _: Request<metteur_proto::proto::ResourceRequest>) -> Result<Response<metteur_proto::proto::ResourceResponse>, Status> { Err(Status::unimplemented("promote_project_convention")) }
+        async fn update_project_memory_status(&self, _: Request<metteur_proto::proto::ResourceRequest>) -> Result<Response<metteur_proto::proto::ResourceResponse>, Status> { Err(Status::unimplemented("update_project_memory_status")) }
+
+        async fn addon_pages(&self, _: Request<metteur_proto::proto::ResourceRequest>) -> Result<Response<metteur_proto::proto::ResourceResponse>, Status> { Err(Status::unimplemented("addon_pages")) }
         async fn list_oversight_reports(&self, request: Request<metteur_proto::proto::OversightReportsRequest>) -> Result<Response<metteur_proto::proto::OversightReports>, Status> { let r=request.into_inner(); if r.workspace_path=="denied" {return Err(Status::permission_denied("denied"));} Ok(Response::new(metteur_proto::proto::OversightReports{reports_json:r.run_id})) }
 
         type SendConciergeMessageStream = ReceiverStream<Result<metteur_proto::proto::ConciergeEvent, Status>>;
@@ -668,9 +690,10 @@ mod tests {
         }
         async fn list_executions(
             &self,
-            _: Request<ListExecutionsRequest>,
+            request: Request<ListExecutionsRequest>,
         ) -> Result<Response<ExecutionList>, Status> {
-            Err(Status::unimplemented("list_executions"))
+            if request.into_inner().workspace_path != "scale-fixture" { return Err(Status::permission_denied("fixture owner mismatch")); }
+            Ok(Response::new(ExecutionList { executions: vec![metteur_proto::proto::ExecutionInfo { run_id: "scale".into(), data_json: "x".repeat(7_200_000), ..Default::default() }] }))
         }
         async fn get_execution_tree(
             &self,
@@ -1042,4 +1065,16 @@ mod tests {
             .unwrap_err();
         assert_eq!(err.code(), tonic::Code::Unimplemented);
     }
+    #[tokio::test]
+    async fn nx_scale_proxy_forwards_bounded_seven_megabyte_evidence() {
+        let cap=metteur_proto::MAX_RPC_MESSAGE_BYTES;
+        let backend=serve_client(DaemonServer::new(TestBackend).max_encoding_message_size(cap)).await.max_decoding_message_size(cap);
+        let mut client=serve_client(DaemonServer::new(ForwardService::new(backend)).max_encoding_message_size(cap)).await.max_decoding_message_size(cap);
+        let start=std::time::Instant::now();
+        let result=client.list_executions(ListExecutionsRequest{workspace_path:"scale-fixture".into()}).await.unwrap().into_inner();
+        assert_eq!(result.executions[0].data_json.len(),7_200_000);
+        eprintln!("7.2MB backend -> proxy -> client elapsed_ms={}",start.elapsed().as_millis());
+        assert_eq!(client.list_executions(ListExecutionsRequest{workspace_path:"denied".into()}).await.unwrap_err().code(),tonic::Code::PermissionDenied);
+    }
+
 }

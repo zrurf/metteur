@@ -102,6 +102,8 @@ pub struct Interpreter {
     /// Task list restored from a checkpoint, applied to the first context built
     /// for the resumed run (the list lives on the context, not the scheduler).
     pub(crate) resume_todos: Vec<TodoItem>,
+    pub(crate) continuation: Option<crate::continuation::store::TaskHandle>,
+    pub(crate) handoff_ref: Option<uuid::Uuid>,
     pub(crate) hook_cursor: crate::addon::hooks::Cursor,
 }
 
@@ -147,8 +149,14 @@ impl Interpreter {
             frame_trees: Vec::new(),
             current_tree: None,
             resume_todos: Vec::new(),
+            continuation: None,
+            handoff_ref: None,
             hook_cursor: Default::default(),
         }
+    }
+
+    pub fn with_continuation(mut self, task: crate::continuation::store::TaskHandle, handoff: uuid::Uuid) -> Self {
+        self.continuation=Some(task); self.handoff_ref=Some(handoff); self
     }
 
     /// Enables checkpoint persistence through the given sink.

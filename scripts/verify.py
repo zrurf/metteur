@@ -93,7 +93,9 @@ if args.scope in ['all', 'rust']:
 if args.scope in ['checks', 'all', 'web']:
     steps += [('install', pnpm + ['install', '--frozen-lockfile'], web),
               ('typecheck', pnpm + ['typecheck'], web), ('lint', pnpm + ['lint'], web),
-              ('live-guards', ['node', '--test', 'scripts/live-identity.test.mjs'], web)]
+              ('live-guards', ['node', '--test', 'scripts/live-identity.test.mjs', 'scripts/local-job-fixture.test.mjs'], web),
+              ('navigation-order', ['node', 'scripts/check-navigation-order.mjs'], web),
+              ('preview-isolation', ['node', 'scripts/check-next-preview.mjs'], web)]
 if args.scope in ['all', 'web']:
     steps += [('web-build', pnpm + ['build', '--outDir', str(dist)], web),
               ('e2e', pnpm + ['test:e2e', '--workers=1', '--retries=0'], web)]

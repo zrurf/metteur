@@ -129,6 +129,7 @@ impl DaemonService {
                     "active": active,
                     "pause_requested": current.is_some_and(|r| r.pause_requested.load(std::sync::atomic::Ordering::SeqCst)),
                     "cancel_requested": current.is_some_and(|r| r.cancel_requested.load(std::sync::atomic::Ordering::SeqCst)),
+                    "pending_approvals": current.map(|r|{let ids=r.approvals.as_ref().map(|b|b.pending_ids()).unwrap_or_default();let details=r.approval_details.lock();ids.into_iter().filter_map(|id|details.get(&id).map(|detail|serde_json::json!({"request_id":id,"detail":detail}))).collect::<Vec<_>>()}).unwrap_or_default(),
                     "pending_approval_ids": current.and_then(|r| r.approvals.as_ref()).map(|b| b.pending_ids()).unwrap_or_default(),
                 });
                 let status = if cp.in_flight.is_some() && !active && cp.status.resumable() {
@@ -282,6 +283,7 @@ impl DaemonService {
             addon_fragments,
             Some(ws.version_manager.clone()),
             ws.jobs(),
+            None,
         )
         .await?;
 

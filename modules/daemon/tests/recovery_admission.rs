@@ -80,6 +80,6 @@ async fn unreadable_chat_checkpoint_stops_the_turn_before_tool_effects() {
     });
     let error = Daemon::send_chat(&service, request).await.err().unwrap();
     assert_eq!(error.code(), tonic::Code::FailedPrecondition);
-    assert!(error.message().contains("no new turn started"));
+    assert!(error.message().contains("no new turn started"), "unexpected admission error: {error}");
     assert!(!root.join("never").exists());
 }

@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import type { Component } from 'vue'
 import { computed, ref } from 'vue'
-import { FileCode2, FileJson, FileText, History, MessageSquare, Settings, Workflow } from '@lucide/vue'
+import { FileCode2, FileJson, FileText, History, MessageSquare, Settings, Workflow, Puzzle } from '@lucide/vue'
 import { projectName } from '@/lib/path'
 import { fileRoute } from '@/lib/file-token'
 import { wurl } from '@/lib/workspace-url'
@@ -27,7 +27,7 @@ export interface TabItem {
 
 /** App surfaces exposed as closable tabs, reopened from the activity bar. */
 export interface SurfaceDef {
-  key: 'chat' | 'version' | 'settings' | 'execution' | 'execution-preview' | 'memory' | 'prompts'
+  key: 'addon-pages' | 'chat' | 'version' | 'settings' | 'execution' | 'execution-preview' | 'memory' | 'prompts' | 'tasks' | 'schedules'
   label: string
   /** Surface route fragment, e.g. `/chat`. */
   path: string
@@ -37,6 +37,9 @@ export interface SurfaceDef {
 }
 
 export const SURFACES: SurfaceDef[] = [
+  {key:'addon-pages',label:'Addon pages',path:'/addon-pages',workspace:true,icon:Puzzle},
+  {key:'tasks',label:'Task continuation',path:'/tasks',workspace:true,icon:Workflow},
+  {key:'schedules',label:'Schedules',path:'/schedules',workspace:true,icon:History},
   { key: 'prompts', label: 'Prompt resources', path: '/prompts', workspace: true, icon: FileText },
   { key: 'memory', label: 'Project memory', path: '/memory', workspace: true, icon: FileText },
   { key: 'execution', label: 'Execution', path: '/execution', workspace: true, icon: Workflow },

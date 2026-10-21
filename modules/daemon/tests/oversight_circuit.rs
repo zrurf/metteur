@@ -17,7 +17,7 @@ async fn unavailable_timeout_and_budget_exhausted_circuits_never_dispatch_failed
         (true, serde_json::json!({"run_token_budget":0}), 0, "budget_exhausted"),
     ] {
         let root = std::env::temp_dir().join(format!("circuit-failure-{}", Uuid::new_v4()));
-        let db = Db::open(&root).unwrap();
+        let db = Db::open(&root.join(".metteur/db")).unwrap();
         let run = Uuid::new_v4();
         let registry = Arc::new(Registry::with_builtins());
         let bp=metteur_shared::dsl::compile_draft_value_with_catalog(&serde_json::json!({"name":"Circuit","nodes":{"s":{"kind":"Start"},"v":{"kind":"Validator","Actual":1,"Expected":2,"mode":"eq"},"e":{"kind":"End"}},"flow":["s -> v -> e"]}),&registry.authoring_catalog()).unwrap();

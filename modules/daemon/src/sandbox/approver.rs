@@ -69,10 +69,20 @@ pub async fn review(ctx: &ExecutionContext, request: &ReviewRequest<'_>) -> Opti
         prompt,
     );
     let started = std::time::Instant::now();
-    let response = client
-        .complete(&context, &metteur_shared::llm::GenerationParams::default(), &[])
-        .await
-        .ok()?;
+    let params=metteur_shared::llm::GenerationParams{max_tokens:Some(1024),..Default::default()};
+    let call_id=uuid::Uuid::new_v4().to_string();
+    let reserved=serde_json::to_vec(&context).ok()?.len() as u64+1024;
+    if let Some(root)=&ctx.continuation{root.reserve_call(reserved).ok()?;}
+    ctx.audit("llm.request",serde_json::json!({"run_id":ctx.run_id,"model":client.model()}));
+    ctx.audit("llm.observation.begin",serde_json::json!({"call_id":call_id,"run_id":ctx.run_id,"role":"sandbox_reviewer","provider":client.provider(),"model":client.model(),"request":client.diagnostics(&context,&params,&[],false)}));
+    let result=client.complete(&context,&params,&[]).await;
+    if let Some(root)=&ctx.continuation{root.settle_call(&call_id,reserved,result.as_ref().ok().filter(|r|r.usage.tokens_reported).map(|r|r.usage.total_tokens)).ok()?;}
+    let billing=crate::execution::react::billing_config(ctx).await;
+    let cost=billing.as_ref().map(|(currency,tz,models)|crate::llm::diagnostics::cost(models.get(client.model()),currency,tz,result.as_ref().ok().map(|r|&r.usage))).unwrap_or(serde_json::Value::Null);
+    ctx.audit("llm.observation.end",serde_json::json!({"call_id":call_id,"run_id":ctx.run_id,"role":"sandbox_reviewer","provider":client.provider(),"model":client.model(),"elapsed_ms":started.elapsed().as_millis() as u64,"ttft_ms":null,"cost":cost,"outcome":if result.is_ok(){"response"}else{"error"},"usage":result.as_ref().ok().map(|r|crate::llm::diagnostics::usage(client.provider(),&r.usage))}));
+    let usage=result.as_ref().ok().map(|r|r.usage).unwrap_or_default();
+    crate::execution::react::record_usage(ctx,client.as_ref(),&usage,&billing).await;
+    let response=result.ok()?;
     let verdict = parse_verdict(&response.text);
     let elapsed_ms = started.elapsed().as_millis() as u64;
     ctx.audit(

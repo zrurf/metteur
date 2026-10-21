@@ -32,62 +32,101 @@
     },
     {
       "id": "PV-03",
-      "revision": 0,
+      "revision": 2,
       "title": "Task continuation",
-      "state": "NOT_PRESENTED",
+      "state": "APPROVED_PROVISIONAL",
       "coverage": [
         "waiting",
         "paused",
         "stopped",
         "source",
-        "budget"
-      ]
+        "budget",
+        "explicit bounded new-task confirmation in a dedicated session"
+      ],
+      "fixtureVersion": "nx-m2-fixture-1",
+      "previous_revision_approval": {
+        "message": "Sentinel_6854677f3c588191b3eb4c75269067a7",
+        "feedback": "暂时允许,不过再最后加上一个新页面全量复核的环节,一一微调,现在先继续推进",
+        "finalVisualReviewRequired": true
+      },
+      "approval": {
+        "message": "Sentinel_83b8735a74a881919e3bc006977a82ab",
+        "feedback": "仍然是暂时允许,继续推进",
+        "finalVisualReviewRequired": true
+      }
     },
     {
       "id": "PV-04",
-      "revision": 0,
+      "revision": 1,
       "title": "Schedules",
-      "state": "NOT_PRESENTED",
+      "state": "APPROVED_PROVISIONAL",
       "coverage": [
         "timezone",
         "missed triggers",
         "consent",
         "stop"
-      ]
+      ],
+      "fixtureVersion": "nx-m2-fixture-1",
+      "approval": {
+        "message": "Sentinel_6854677f3c588191b3eb4c75269067a7",
+        "feedback": "暂时允许,不过再最后加上一个新页面全量复核的环节,一一微调,现在先继续推进",
+        "finalVisualReviewRequired": true
+      }
     },
     {
       "id": "PV-05",
-      "revision": 0,
+      "revision": 1,
       "title": "Blueprint handoff",
-      "state": "NOT_PRESENTED",
+      "state": "APPROVED_PROVISIONAL",
       "coverage": [
         "version manifest",
         "confirmation",
         "return"
-      ]
+      ],
+      "fixtureVersion": "nx-m3-fixture-1",
+      "presentedAt": "2026-10-15T09:43:35Z",
+      "approval": {
+        "message": "Sentinel_e787052f5454819199a5ccadfde963bf",
+        "feedback": "暂时允许,继续",
+        "finalVisualReviewRequired": true
+      }
     },
     {
       "id": "PV-06",
-      "revision": 0,
+      "revision": 1,
       "title": "Addon pages",
-      "state": "NOT_PRESENTED",
+      "state": "PROVISIONALLY_APPROVED",
       "coverage": [
         "isolation",
         "capabilities",
         "revocation"
-      ]
+      ],
+      "fixtureVersion": "nx-m5-fixture-1",
+      "approval": {
+        "message": "Sentinel_106b3f6af6ec819191a269986e0ac706",
+        "feedback": "暂时确定继续",
+        "at": "2026-10-15T11:46:54Z",
+        "scope": "Shown r1 interactions; final all-new-pages review required"
+      }
     },
     {
       "id": "PV-07",
-      "revision": 0,
+      "revision": 1,
       "title": "Preview checks",
-      "state": "NOT_PRESENTED",
+      "state": "PROVISIONALLY_APPROVED",
       "coverage": [
         "target",
         "deterministic evidence",
         "model opinion",
         "acceptance"
-      ]
+      ],
+      "fixtureVersion": "nx-m5-fixture-1",
+      "approval": {
+        "message": "Sentinel_106b3f6af6ec819191a269986e0ac706",
+        "feedback": "暂时确定继续",
+        "at": "2026-10-15T11:46:54Z",
+        "scope": "Shown r1 interactions; final all-new-pages review required"
+      }
     }
   ],
   "approval": {

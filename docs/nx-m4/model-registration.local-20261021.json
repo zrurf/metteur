@@ -1,0 +1,127 @@
+{
+  "schema_version": 1,
+  "date": "2026-10-21 Asia/Shanghai",
+  "status": "TWO_DEEPSEEK_MODELS_PAIRED_EVALUATION_AND_ROLE_CHAINS_COMPLETE",
+  "authorization": {
+    "paid_calls_allowed": true,
+    "spending_limit": 5,
+    "currency": "USD",
+    "approved_provider": "DeepSeek models via existing CommandCode connection",
+    "approved_task_data_scope": "Isolated synthetic acceptance data and necessary synthetic test code only",
+    "approval_reference": "Current local owner: 上限 US$5，仅合成验收数据; subsequently 把剩余全部补齐,允许调用付费测试,全部完成了再报告"
+  },
+  "models": [
+    {
+      "slot": "A",
+      "configuration_alias": "commandcode-flash",
+      "configuration_source_path": "D:/BaiduNetdiskDownload/metteur-a7-work/preview/config.toml",
+      "actual_model_id_and_version": "deepseek/deepseek-v4.1-flash",
+      "immutable_upstream_version": null,
+      "version_boundary": "Provider catalogue says latest; response repeats floating request alias. No immutable upstream build verified.",
+      "api_type": "openai-chat",
+      "redacted_endpoint": "https://api.commandcode.ai/provider/v1",
+      "credentials": "Present in existing local configuration; never copied here",
+      "context_input_limit_configured": 1000000,
+      "context_output_limit_configured": 2048,
+      "replay_reasoning_configured": true,
+      "pricing_configured": false,
+      "generation_parameters_smoke_only": {
+        "max_tokens": 512,
+        "temperature": 0,
+        "stream": false,
+        "round_one_forced_synthetic_tool": true
+      },
+      "provider_usage_fields_verified": [
+        "prompt_tokens",
+        "completion_tokens",
+        "total_tokens",
+        "prompt_tokens_details",
+        "completion_tokens_details"
+      ],
+      "usage_boundary": "Gateway-reported fields from two requests only; upstream cache semantics and actual billed amount unverified.",
+      "status": "PASS_REAL_DEVELOPMENT_THROUGH_NATIVE_DAEMON",
+      "evaluation_overrides": {
+        "context_input_limit": 64000,
+        "context_output_limit": 1024,
+        "temperature": 0,
+        "max_iterations": 7
+      },
+      "current_evaluation": "PASS_MATCHED_SYNTHETIC_AND_ACTUAL_ROLE_BOUNDARIES"
+    },
+    {
+      "slot": "B",
+      "configuration_alias": "pro (isolated evaluation only)",
+      "actual_model_id_and_version": "deepseek/deepseek-v4-pro",
+      "immutable_upstream_version": null,
+      "api_type": "openai-chat",
+      "redacted_endpoint": "https://api.commandcode.ai/provider/v1",
+      "credentials": "Existing CommandCode connection; credential remains in original local file",
+      "context_input_limit_evaluation": 64000,
+      "context_output_limit_evaluation": 1024,
+      "generation_parameters": {
+        "temperature": 0,
+        "max_tokens": 1024,
+        "max_iterations": 7
+      },
+      "status": "PASS_REAL_DEVELOPMENT_THROUGH_NATIVE_DAEMON",
+      "pricing_source": "https://commandcode.ai/models/deepseek-v4-pro",
+      "pricing_peak_usd_per_million": {
+        "input": 1.32,
+        "output": 3.96,
+        "cache_read": 0.04
+      },
+      "pricing_verified_date": "2026-10-21 Asia/Shanghai",
+      "current_evaluation": "PASS_MATCHED_SYNTHETIC_AND_ACTUAL_ROLE_BOUNDARIES"
+    }
+  ],
+  "pricing": {
+    "source": "https://commandcode.ai/models/deepseek-v4-1-flash",
+    "protocol_source": "https://commandcode.ai/docs/provider",
+    "verified_date": "2026-10-21 Asia/Shanghai",
+    "currency": "USD",
+    "units": "per million tokens",
+    "peak": {
+      "input": 0.3,
+      "output": 1.2,
+      "cache_read": 0.006
+    },
+    "off_peak": {
+      "input": 0.15,
+      "output": 0.6,
+      "cache_read": 0.003
+    },
+    "estimated_smoke_cost_upper_at_published_peak_rates": 0.0002619,
+    "provider_reported_cost_usd": null,
+    "cache_discount_assumed": false
+  },
+  "budget_control": {
+    "generation_request_attempts_so_far": 379,
+    "automatic_retries": 0,
+    "note": "US$5 shared durable ledger. All first failures and smoke included. No further paid calls needed for this completion.",
+    "estimated_peak_upper_usd_so_far": 1.82139858,
+    "ledger_path": "D:/BaiduNetdiskDownload/metteur-a7-work/tmp/local-acceptance-20261020/real-model-ledger-20261021.json",
+    "provider_actual_bill_usd": null
+  },
+  "evidence": [
+    {
+      "path": "evidence/20261021-deepseek-smoke.json",
+      "sha256": "108e4bfcd07fd92033c3ba20492d25f1fab58cd5bab7cc9a5a0dd197766e919f",
+      "original_source_sha256": "d8c9de117e43cbe2a29eeeb728ab5ea4510dffa456b39227b2607a5fb7c95679"
+    },
+    {
+      "path": "evidence/20261021-deepseek-catalog.json",
+      "sha256": "d03d9f73f7deece9fa50cc83b74f2d966b820d501f21d27e755af4f4822bafde",
+      "original_source_sha256": "b37e17183c2f2491de2a78621ff3946ec10607e99c77e8376c330a3216dec392"
+    },
+    {
+      "path": "evidence/20261021-development-paired-r2.json",
+      "sha256": "3f49460ef7d0ee2de65764ca7990915550a9281c0792e4ac8df6e0854f0d7511"
+    },
+    {
+      "path": "evidence/20261021-development-launch-r3.json",
+      "sha256": "54d7258001917041db2746122f894ca220efba2f4d2dec1310bfbfec148f9735"
+    }
+  ],
+  "claim_boundary": "24 latest development cells and 48 frozen held-out cells accepted, with disclosed driver corrections. Floating aliases, small synthetic sample, no general improvement or actual-bill claim.",
+  "evidence_copy_boundary": "Public evidence copies normalize CRLF to LF for reproducible Git export. Both canonical copy SHA256 and original source SHA256 are retained."
+}

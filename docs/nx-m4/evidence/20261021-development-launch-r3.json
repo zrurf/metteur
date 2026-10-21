@@ -1,0 +1,92 @@
+{
+  "schema_version": 1,
+  "phase": "development",
+  "source_sha256_start": "a8d4abbfe65ed0f0cb517cd2891c08101c2b8b6a32a17c667773b798145807bb",
+  "head": "fc493c8c1b9c66738495c64e0d108841c8bd2768",
+  "cases": [
+    {
+      "id": "dev-05",
+      "model": "flash",
+      "variant": "baseline",
+      "mode": "blueprint",
+      "assertions": {
+        "no_unrelated_file_changes": true,
+        "execution_count_exact": true,
+        "continuation_completed": true,
+        "minimum_host_dispatches": true,
+        "driver_completed": true
+      },
+      "passed": true,
+      "changed_files": [],
+      "seed_digest": "6a7c991f905470e5f22bdfcb65d1a2e33750911edd3d1d4f59a83a3231d4b4ad",
+      "generation_requests": 5,
+      "estimated_peak_upper_nano_usd": 10671300,
+      "evidence": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\eval-development-launch-r3\\dev-05-flash-baseline"
+    },
+    {
+      "id": "dev-05",
+      "model": "flash",
+      "variant": "candidate",
+      "mode": "blueprint",
+      "assertions": {
+        "no_unrelated_file_changes": true,
+        "execution_count_exact": true,
+        "continuation_completed": true,
+        "minimum_host_dispatches": true,
+        "driver_completed": true
+      },
+      "passed": true,
+      "changed_files": [],
+      "seed_digest": "6a7c991f905470e5f22bdfcb65d1a2e33750911edd3d1d4f59a83a3231d4b4ad",
+      "generation_requests": 6,
+      "estimated_peak_upper_nano_usd": 14070900,
+      "evidence": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\eval-development-launch-r3\\dev-05-flash-candidate"
+    },
+    {
+      "id": "dev-05",
+      "model": "pro",
+      "variant": "baseline",
+      "mode": "blueprint",
+      "assertions": {
+        "no_unrelated_file_changes": true,
+        "execution_count_exact": true,
+        "continuation_completed": true,
+        "minimum_host_dispatches": true,
+        "driver_completed": true
+      },
+      "passed": true,
+      "changed_files": [],
+      "seed_digest": "6a7c991f905470e5f22bdfcb65d1a2e33750911edd3d1d4f59a83a3231d4b4ad",
+      "generation_requests": 6,
+      "estimated_peak_upper_nano_usd": 54423600,
+      "evidence": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\eval-development-launch-r3\\dev-05-pro-baseline"
+    },
+    {
+      "id": "dev-05",
+      "model": "pro",
+      "variant": "candidate",
+      "mode": "blueprint",
+      "assertions": {
+        "no_unrelated_file_changes": true,
+        "execution_count_exact": true,
+        "continuation_completed": true,
+        "minimum_host_dispatches": true,
+        "driver_completed": true
+      },
+      "passed": true,
+      "changed_files": [],
+      "seed_digest": "6a7c991f905470e5f22bdfcb65d1a2e33750911edd3d1d4f59a83a3231d4b4ad",
+      "generation_requests": 5,
+      "estimated_peak_upper_nano_usd": 47985960,
+      "evidence": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\eval-development-launch-r3\\dev-05-pro-candidate"
+    }
+  ],
+  "claim_boundary": "One matched pass per cell; synthetic data. No statistical significance or provider cache reuse inferred. Negative host gates can correctly prevent all provider calls.",
+  "binary_sha256": {
+    "daemon": "170e93187b63b2d950e694f8c20556462e9735144d7993279b8cd1052e502247",
+    "web": "5467de822105a001cd3c022f2286e81174c697ea0c0e50630912a1b6b84ca897"
+  },
+  "source_sha256_end": "a8d4abbfe65ed0f0cb517cd2891c08101c2b8b6a32a17c667773b798145807bb",
+  "source_unchanged": true,
+  "all_cells_passed": true
+}

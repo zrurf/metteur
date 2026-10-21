@@ -95,7 +95,8 @@ function parseTranscript(raw: string): ChatMessage[] {
         createdAt: at,
       }
     }
-    if (role === 'notice') return { id: `n-${index}`, role: 'notice' as const, content, createdAt: at }
+    if (role === 'notice') return { id: `n-${index}`, role: 'notice' as const, content, createdAt: at,
+      detail: typeof entry.continuation_task === 'string' ? { continuation_task: entry.continuation_task } : undefined }
     if (role === 'error') return { id: `e-${index}`, role: 'error' as const, content, createdAt: at }
     if (role === 'assistant') {
       return {
@@ -812,7 +813,10 @@ export class GrpcGateway implements DaemonGateway {
               createdAt: Date.now(),
             })
             break
+          case 'waiting':
           case 'done': {
+            if(event.kind === 'waiting') onMessage({id:`waiting-${Date.now()}-${seq++}`,role:'notice',content:'Task is waiting. Automatic continuation follows its saved policy; manage it in Task continuation.',createdAt:Date.now(),
+              detail: typeof detail.task_id === 'string' ? { continuation_task: detail.task_id } : undefined })
             if (detail.context) onContext?.(parseContextStats(detail.context))
             const usage = (detail.usage ?? {}) as Record<string, unknown>
             onUsage?.({

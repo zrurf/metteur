@@ -23,7 +23,9 @@ async fn run_case(
     disposition: bool,
 ) -> (metteur_daemon::execution::ExecutionCheckpoint, scheduler::Schedule, usize) {
     let root = std::env::temp_dir().join(format!("gate-{}", Uuid::new_v4()));
-    let db = Db::open(&root).unwrap();
+    // Mirror the real workspace layout: snapshots must not try to read an
+    // open RocksDB LOCK or journal from the source tree on Windows.
+    let db = Db::open(&root.join(".metteur/db")).unwrap();
     let run = Uuid::new_v4();
     let registry = Arc::new(Registry::with_builtins());
     let bp=metteur_shared::dsl::compile_draft_value_with_catalog(&serde_json::json!({"name":"Gate","nodes":{"s":{"kind":"Start"},"g":{"kind":"OversightCheckpoint","async":asynchronous},"d":{"kind":"Delay","Ms":150},"e":{"kind":"End"}},"flow":["s -> g -> d -> e"]}), &registry.authoring_catalog()).unwrap();

@@ -71,6 +71,11 @@ pub trait LlmClient: Send + Sync {
     /// The model identifier.
     fn model(&self) -> &str;
 
+    /// Host-derived description of the final request. Default is explicitly unavailable.
+    fn diagnostics(&self,_ctx:&ContextManager,_params:&GenerationParams,_tools:&[ToolDefinition],_stream:bool)->serde_json::Value {
+        serde_json::json!({"schema_version":1,"available":false})
+    }
+
     /// Performs a non-streaming completion.
     async fn complete(
         &self,
@@ -253,5 +258,24 @@ impl LlmClientFactory {
 
 /// Maps an HTTP error into a daemon error.
 pub(crate) fn http_error(context: &str, err: reqwest::Error) -> DaemonError {
-    DaemonError::LlmTransport(format!("{context}: {err}"))
+    DaemonError::LlmTransport(format!("{context}: {}",err.without_url()))
+}
+
+
+/// Error responses may echo credentials or prompt content. Keep only a known
+/// machine category; the HTTP status remains available for retry decisions.
+pub(crate) fn safe_provider_error(body:&str)->String{
+ let raw:serde_json::Value=serde_json::from_str(body).unwrap_or_default();
+ let code=raw.pointer("/error/code").or_else(||raw.pointer("/error/type")).and_then(|v|v.as_str()).unwrap_or("");
+ const KNOWN:&[&str]=&["invalid_api_key","insufficient_quota","rate_limit_exceeded","context_length_exceeded","invalid_request_error","overloaded_error","authentication_error","permission_error","not_found_error","rate_limit_error","api_error"];
+ if KNOWN.contains(&code){format!("Provider rejected request: {code}. Response text omitted for privacy.")}
+ else{"Provider rejected request; response text omitted for privacy.".into()}
+}
+#[cfg(test)]
+mod diagnostic_error_tests {
+ #[test]fn nx_m4_provider_errors_do_not_echo_credentials_or_prompts(){
+  let text=super::safe_provider_error(r#"{"error":{"code":"invalid_api_key","message":"secret prompt and sk-private-value"}}"#);
+  assert!(text.contains("invalid_api_key"));assert!(!text.contains("sk-private-value"));assert!(!text.contains("secret prompt"));
+  assert!(!super::safe_provider_error("raw secret").contains("raw secret"));
+ }
 }
