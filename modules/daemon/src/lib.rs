@@ -40,3 +40,4 @@ pub use startup::{autostart, service};
 pub use tls::cert;
 
 pub mod continuation;
+pub mod workflow;

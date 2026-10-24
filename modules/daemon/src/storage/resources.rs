@@ -29,7 +29,7 @@ pub struct ResourceStore { db: Db, prefix: String }
 
 impl ResourceStore {
     pub fn new(db: Db, scope: &ResourceScope, namespace: &str) -> Result<Self> {
-        if !matches!(namespace, "memory" | "prompts" | "snapshots" | "continuations" | "prompt_intents" | "handoffs" | "launches") {
+        if !matches!(namespace, "memory" | "prompts" | "snapshots" | "continuations" | "prompt_intents" | "handoffs" | "launches" | "workflow_reviews") {
             return Err(fault("invalid_namespace", "Unknown resource namespace"));
         }
         let owner = digest(&serde_json::to_vec(scope).map_err(storage_error)?);
@@ -70,6 +70,11 @@ impl ResourceStore {
     pub fn get(&self, id: uuid::Uuid) -> Result<Option<StoredRecord>> {
         self.db.get(cf::EXECUTION_STATE, self.key(id).as_bytes()).map_err(storage_error)?
             .map(|raw| Self::decode(&raw)).transpose()
+    }
+    /// Read a durable replay receipt without performing a write or migration.
+    pub fn receipt(&self, request_id: uuid::Uuid) -> Result<Option<StoredRecord>> {
+        self.db.get(cf::EXECUTION_STATE, format!("{}requests/{request_id}",self.prefix).as_bytes()).map_err(storage_error)?
+            .map(|raw|serde_json::from_slice::<(String,StoredRecord)>(&raw).map(|(_,record)|record).map_err(storage_error)).transpose()
     }
     pub fn revision(&self, id: uuid::Uuid, revision: u64) -> Result<Option<StoredRecord>> {
         self.db.get(cf::EXECUTION_STATE, format!("{}history/{id}/{revision:020}", self.prefix).as_bytes()).map_err(storage_error)?

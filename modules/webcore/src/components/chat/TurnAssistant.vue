@@ -15,6 +15,7 @@ import type { ChatMessage } from '@/core'
  */
 const props = defineProps<{
   readOnly?: boolean
+  showTurnTiming?: boolean
   message: ChatMessage
   onCopy: (text: string) => void
   onRetry: (id: string) => void
@@ -27,18 +28,21 @@ const thinking = computed(() => props.message.reasoningPending === true)
 /** Drives the reasoning block's auto-open/auto-close. */
 const reasoning = ref<InstanceType<typeof ReasoningBlock>>()
 watch([thinking, reasoning], ([value]) => reasoning.value?.sync(value), { flush: 'post' })
-
 </script>
 
 <template>
   <div class="chat-turn group/turn">
     <ReasoningBlock
-      v-if="message.reasoning || message.turnStartedAt !== undefined || message.turnElapsedMs !== undefined"
+      v-if="
+        message.reasoning ||
+        (showTurnTiming &&
+          (message.turnStartedAt !== undefined || message.turnElapsedMs !== undefined))
+      "
       ref="reasoning"
       :text="message.reasoning ?? ''"
       :streaming="thinking"
-      :elapsed-ms="message.turnElapsedMs"
-      :started-at="message.turnStartedAt"
+      :elapsed-ms="showTurnTiming ? message.turnElapsedMs : message.reasoningElapsedMs"
+      :started-at="showTurnTiming ? message.turnStartedAt : message.reasoningStartedAt"
     />
     <div
       v-if="message.content"

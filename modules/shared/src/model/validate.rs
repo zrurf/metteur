@@ -18,6 +18,8 @@ use super::types::compatible;
 /// A single reason a blueprint is invalid, anchored to the node that caused it.
 #[derive(Debug, Clone, PartialEq)]
 pub enum BlueprintError {
+    /// Acceptance metadata no longer describes the graph it accompanies.
+    WorkflowContract { detail: String },
     /// A package node no longer matches its immutable declared contract.
     AddonContract { node_id: NodeId, detail: String },
     /// The entry node id does not resolve to a node in the graph.
@@ -78,6 +80,7 @@ pub enum BlueprintError {
 impl fmt::Display for BlueprintError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::WorkflowContract { detail } => write!(f, "workflow contract: {detail}"),
             Self::AddonContract { node_id, detail } => write!(f,"addon node {node_id}: {detail}"),
             Self::MissingEntryNode(id) => {
                 write!(f, "entry node {id} is not part of the blueprint")
@@ -182,6 +185,9 @@ impl ValidationReport {
 pub fn validate(blueprint: &Blueprint) -> ValidationReport {
     let mut errors = Vec::new();
     let mut warnings = Vec::new();
+    if let Err(error) = crate::workflow::read_contract(blueprint) {
+        errors.push(BlueprintError::WorkflowContract { detail: error.to_string() });
+    }
 
     if blueprint.node(blueprint.entry_node_id).is_none() {
         errors.push(BlueprintError::MissingEntryNode(blueprint.entry_node_id));

@@ -13,8 +13,10 @@ import { Copy, FileCode, History, Pencil } from '@lucide/vue'
 const props = defineProps<{
   readOnly?: boolean
   content: string
+  displayContent?: string
   createdAt: number
   queued: boolean
+  inputStatus?: 'queued' | 'claimed' | 'applied' | 'unconsumed' | 'unknown'
   /** Snapshot taken before this turn, when versioning is available. */
   checkpoint?: string
   onOpenFile: (path: string) => void
@@ -27,7 +29,10 @@ const props = defineProps<{
 const parts = computed(() => {
   const out: Array<{ kind: 'text'; text: string } | { kind: 'file'; path: string }> = []
   let text = ''
-  for (const line of props.content.split('\n')) {
+  const visible =
+    props.displayContent ??
+    (props.content.length > 1000 ? props.content.slice(0, 500) + '…' : props.content)
+  for (const line of visible.split('\n')) {
     const match = /^@file\s+(.+)$/.exec(line)
     if (match) {
       if (text) {
@@ -63,7 +68,28 @@ const time = computed(() =>
         </button>
         <template v-else>{{ part.kind === 'file' ? part.path : part.text }}</template>
       </template>
-      <span v-if="queued" class="chat-queued-mark">queued</span>
+      <span
+        v-if="inputStatus && inputStatus !== 'applied'"
+        class="ml-2 text-[13px] text-muted-foreground"
+        >{{
+          {
+            queued: 'Queued',
+            claimed: 'In this turn',
+            unconsumed: 'Not used · input kept',
+            unknown: 'Outcome unconfirmed · input kept',
+          }[inputStatus]
+        }}</span
+      >
+      <span v-else-if="queued && !inputStatus" class="chat-queued-mark">queued</span>
+      <details
+        v-if="displayContent !== undefined || content.length > 1000"
+        class="mt-2 text-[13px] leading-6"
+      >
+        <summary class="cursor-pointer text-muted-foreground">
+          {{ displayContent !== undefined ? 'Selected context & full message' : 'Full message' }}
+        </summary>
+        <pre class="max-h-80 overflow-auto whitespace-pre-wrap break-words">{{ content }}</pre>
+      </details>
     </div>
     <div class="chat-turn-meta">
       <span class="tabular-nums">{{ time }}</span>

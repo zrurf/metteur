@@ -1,9 +1,19 @@
 <script setup lang="ts">
 import { inject } from 'vue'
 import type { Component } from 'vue'
-import { ChevronRight, FileCode, FileCode2, FileJson, FileText, Folder, FolderOpen, Workflow } from '@lucide/vue'
+import {
+  ChevronRight,
+  FileCode,
+  FileCode2,
+  FileJson,
+  FileText,
+  Folder,
+  FolderOpen,
+  Workflow,
+} from '@lucide/vue'
 import type { FileTreeNode } from '@/core'
 import { TREE_API, TREE_CREATE, TREE_RENAME } from '@/lib/tree'
+import TreeNameInput from './TreeNameInput.vue'
 
 defineOptions({ name: 'TreeItem' })
 
@@ -29,11 +39,6 @@ function icon(node: FileTreeNode): Component {
 function fileName(path: string): string {
   const seg = path.split(/[\\/]/).filter(Boolean)
   return seg[seg.length - 1] ?? path
-}
-
-function selectAll(e: FocusEvent) {
-  const el = e.target as HTMLInputElement
-  el.select()
 }
 </script>
 
@@ -78,37 +83,24 @@ function selectAll(e: FocusEvent) {
       <span class="truncate font-medium">{{ fileName(node.path) }}</span>
     </button>
 
-    <div
-      v-if="node.kind === 'dir' && api.isOpen(node.path) && node.children"
-      class="relative"
-    >
+    <div v-if="node.kind === 'dir' && api.isOpen(node.path) && node.children" class="relative">
       <!-- Vertical guide from this folder's icon down to its children. -->
       <div
         class="pointer-events-none absolute bottom-0 top-0 w-px bg-divider"
         :style="{ left: 8 + depth * 14 + 7 + 'px' }"
       />
-      <TreeItem
-        v-for="child in node.children"
-        :key="child.path"
-        :node="child"
-        :depth="depth + 1"
-      />
-      <!-- Inline creation input rendered as the folder's last child. -->
-      <div
+      <TreeNameInput
         v-if="create && create.active && create.active.dir === node.path"
-        class="py-0.5 pr-2"
+        v-model="create.name"
+        :kind="create.active.kind"
+        :label="create.active.kind === 'file' ? 'New File Name' : 'New Folder Name'"
+        :error="create.error"
+        :busy="create.busy"
         :style="{ paddingLeft: 8 + (depth + 1) * 14 + 'px' }"
-      >
-        <input
-          v-model="create.name"
-          class="input h-7! w-full text-[12px]"
-          autofocus
-          @focus="selectAll"
-          @keydown.enter="create.confirm()"
-          @keydown.esc="create.cancel()"
-          @blur="create.confirm()"
-        />
-      </div>
+        @confirm="create.confirm"
+        @cancel="create.cancel"
+      />
+      <TreeItem v-for="child in node.children" :key="child.path" :node="child" :depth="depth + 1" />
     </div>
   </div>
 </template>

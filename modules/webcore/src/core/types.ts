@@ -33,6 +33,12 @@ export interface FileTreeNode {
   kind: 'dir' | 'file'
   /** Present only for directories. */
   children?: FileTreeNode[]
+  reference?: SavedFileReference
+}
+export interface SavedFileReference {
+  snapshotId: string
+  path: string
+  digest: string
 }
 
 /** Metadata of one filesystem entry, used by the explorer's Properties. */
@@ -83,6 +89,8 @@ export interface WatchEvent {
 /** A sidecar resource (a saved file) inside the workspace. */
 export interface FileContent {
   content: string
+  reference?: SavedFileReference
+  readOnlyReason?: string
   /** Editor language hint derived from the extension, e.g. `json`, `blueprint`. */
   language: string
 }
@@ -90,6 +98,10 @@ export interface FileContent {
 /** One turn in the ReAct conversation shown by the chat surface. */
 export interface ChatMessage {
   id: string
+  fileReferences?: SavedFileReference[]
+  resultReferences?: import('./workflow').SavedResultReference[]
+  contextOrder?: ChatOptions['context_order']
+  displayContent?: string
   role: 'user' | 'assistant' | 'tool' | 'error' | 'notice'
   /** Role header for tool messages, e.g. the tool name. */
   actor?: string
@@ -113,6 +125,7 @@ export interface ChatMessage {
   turnStartedAt?: number
   /** Set on a user turn typed while the agent worked, until it is injected. */
   queued?: boolean
+  inputStatus?: 'queued' | 'claimed' | 'applied' | 'unconsumed' | 'unknown'
   /**
    * Snapshot taken before this turn ran, when versioning is available: the
    * transcript offers to roll the workspace back to it.
@@ -135,19 +148,29 @@ export interface TodoItem {
 export interface ChatUsage {
   /** Server-measured total duration supplied with a terminal event. */
   turnElapsedMs?: number
-  inputTokens: number
-  outputTokens: number
-  totalTokens: number
-  /** Input tokens served from the provider's prompt cache (0 when unreported). */
-  cachedInputTokens: number
+  inputTokens: number | null
+  outputTokens: number | null
+  totalTokens: number | null
+  /** Input tokens served from the provider's prompt cache; null when unreported. */
+  cachedInputTokens: number | null
   /** Input tokens written into the provider's prompt cache. */
-  cacheWriteInputTokens: number
+  cacheWriteInputTokens: number | null
 }
 
 /** Sampling parameters for a ReAct chat turn, adjustable from the chat panel. */
 export interface ChatOptions {
-  continuation_policy?: {detached:boolean;max_turns:number;token_limit:number;expires_ms:number;purpose:string}
+  delivery?: { id: string; expected_revision: number; new_session?: string }
+  continuation_policy?: {
+    detached: boolean
+    max_turns: number
+    token_limit: number
+    expires_ms: number
+    purpose: string
+  }
   prompt_snapshots?: string[]
+  file_references?: SavedFileReference[]
+  result_references?: import('./workflow').SavedResultReference[]
+  context_order?: { kind: 'file' | 'prompt' | 'result'; index: number }[]
   model?: string
   system?: string
   temperature?: number
@@ -165,6 +188,36 @@ export interface ChatOptions {
   /** Internal marker: retry must resume the restored persisted session. */
   retry?: boolean
 }
+
+export interface ChatDeliveryReceipt {
+  /** Current read availability, supplied by reconciliation; never a permission grant. */
+  source_available?: boolean
+  schema_version: 1
+  id: string
+  input_digest: string
+  session: string
+  turn: string
+  checkpoint: string
+  accepted_revision: number
+  phase:
+    | 'retired'
+    | 'accepted'
+    | 'started'
+    | 'finished'
+    | 'needs_attention'
+    | 'live_queued'
+    | 'live_claimed'
+    | 'live_applied'
+    | 'live_unconsumed'
+    | 'live_unknown'
+  live?: { mode: 'queue' | 'steer'; body_digest: string }
+  outcome: string | null
+  accepted_ms: number
+  updated_ms: number
+}
+export type LiveTarget =
+  | { kind: 'chat'; sessionId: string; turnId: string }
+  | { kind: 'blueprint'; runId: string }
 
 /** What the conversation occupies in the model's window, as the daemon sees it. */
 export interface ChatContextStats {
@@ -289,7 +342,15 @@ export interface Blueprint {
 }
 
 /** Execution lifecycle observed by the UI. */
-export type ExecStatus = 'idle' | 'running' | 'paused' | 'finished' | 'cancelled' | 'failed' | 'unknown' | 'suspended'
+export type ExecStatus =
+  | 'idle'
+  | 'running'
+  | 'paused'
+  | 'finished'
+  | 'cancelled'
+  | 'failed'
+  | 'unknown'
+  | 'suspended'
 
 /** A region of the live LLM context, reported by a CallLLM node. */
 export interface ContextRegion {
@@ -317,6 +378,7 @@ export interface ExecutionEvent {
 
 /** A pending sandbox approval surfaced during execution. */
 export interface ApprovalRequest {
+  contentDigest?: string
   id: string
   title: string
   tool: string
@@ -360,7 +422,16 @@ export interface AddonInfo {
   error?: string
   requiredPermissions?: string[]
   grantedPermissions?: string[]
-  hooks?: Array<{ name: string; event: string; scopeRoot: string; eventId: string; status: string; completed: number; failed: number; error: string }>
+  hooks?: Array<{
+    name: string
+    event: string
+    scopeRoot: string
+    eventId: string
+    status: string
+    completed: number
+    failed: number
+    error: string
+  }>
 }
 
 /** Aggregated token/cost usage for an execution scope. Missing completeness fields are unknown. */
@@ -370,7 +441,14 @@ export interface OversightUsage {
   warning: boolean
   exhausted: boolean
   concierge_available: boolean
-  calls: Array<{ caller: 'supervisor' | 'concierge'; charged: number; state: string; cost_micros: number | null; currency: string; accounting_version?: number }>
+  calls: Array<{
+    caller: 'supervisor' | 'concierge'
+    charged: number
+    state: string
+    cost_micros: number | null
+    currency: string
+    accounting_version?: number
+  }>
 }
 export interface UsageSummary {
   oversight?: OversightUsage

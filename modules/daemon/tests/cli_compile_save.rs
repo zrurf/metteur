@@ -179,6 +179,7 @@ async fn cli_save_cannot_replace_an_active_blueprint() {
         .execute_blueprint(proto::ExecuteBlueprintRequest {
             workspace_path: f.root.to_string_lossy().into(),
             blueprint_id: id.to_string(),
+            workflow_confirmation: String::new(),
             blueprint_json: String::new(),
         })
         .await

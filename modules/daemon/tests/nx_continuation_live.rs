@@ -18,9 +18,11 @@ use std::sync::{
 use tokio_stream::StreamExt;
 use tonic::Request;
 
+#[cfg(unix)]
 struct Script {
     calls: AtomicUsize,
 }
+#[cfg(unix)]
 #[async_trait]
 impl LlmClient for Script {
     fn provider(&self) -> &str {
@@ -348,6 +350,129 @@ async fn background_child_uses_host_allowlist_and_root_ledger() {
 
 struct FinalScript {
     calls: AtomicUsize,
+}
+
+struct BlockedChild {
+    started: tokio::sync::Notify,
+    cancelled: Arc<tokio::sync::Notify>,
+}
+struct ChildCallGuard(Arc<tokio::sync::Notify>);
+impl Drop for ChildCallGuard {
+    fn drop(&mut self) {
+        self.0.notify_one();
+    }
+}
+#[async_trait]
+impl LlmClient for BlockedChild {
+    fn provider(&self) -> &str {
+        "local-fixture"
+    }
+    fn model(&self) -> &str {
+        "fixture"
+    }
+    async fn complete(
+        &self,
+        _: &ContextManager,
+        _: &GenerationParams,
+        _: &[ToolDefinition],
+    ) -> DaemonResult<LlmResponse> {
+        let _guard = ChildCallGuard(self.cancelled.clone());
+        self.started.notify_one();
+        std::future::pending().await
+    }
+    async fn stream(
+        &self,
+        ctx: &ContextManager,
+        params: &GenerationParams,
+        tools: &[ToolDefinition],
+        _: &mut (dyn FnMut(StreamDelta) + Send),
+    ) -> DaemonResult<LlmResponse> {
+        self.complete(ctx, params, tools).await
+    }
+}
+
+#[tokio::test]
+async fn owner_stop_cancels_an_inflight_child_and_preserves_unknown_reservations() {
+    use metteur_daemon::{
+        continuation::{policy::Policy, store::TaskHandle},
+        execution::context::ExecutionContext,
+        storage::persistence::Db,
+    };
+    use metteur_shared::Value;
+    let root = std::env::temp_dir().join(format!("nx-child-stop-{}", uuid::Uuid::new_v4()));
+    std::fs::create_dir_all(&root).unwrap();
+    let db = Db::open(&root.join("db")).unwrap();
+    let store = ContinuationStore::new(db.clone(), &root).unwrap();
+    let policy = Policy {
+        detached: true,
+        max_turns: 4,
+        token_limit: 2_000_000,
+        expires_ms: chrono::Utc::now().timestamp_millis() as u64 + 60000,
+        purpose: "Synthetic child cancellation".into(),
+    };
+    let task = store.create(policy.task(uuid::Uuid::new_v4(), 0)).unwrap();
+    let task = store
+        .update(task.task.id, task.revision, |r| {
+            r.policy = Some(policy);
+            r.model_options = serde_json::json!({"provider":"openai-chat","model":"fixture"});
+            Ok(())
+        })
+        .unwrap();
+    let model = Arc::new(BlockedChild {
+        started: Default::default(),
+        cancelled: Arc::new(Default::default()),
+    });
+    let registry = Arc::new(Registry::with_builtins());
+    let mut ctx = ExecutionContext::new(
+        registry.clone(),
+        LlmClientFactory::with_override(model.clone()),
+        root.clone(),
+    );
+    ctx.workspace_db = Some(db.clone());
+    ctx.continuation = Some(TaskHandle {
+        store: store.clone(),
+        id: task.task.id,
+        generation: task.task.generation,
+    });
+    let value = registry
+        .tool("StartSubAgent")
+        .unwrap()
+        .call(
+            &[Value::Json(serde_json::json!({"task":"Wait for controlled cancellation"}))],
+            &mut ctx,
+        )
+        .await
+        .unwrap();
+    assert!(matches!(value, Value::Json(_)));
+    tokio::time::timeout(std::time::Duration::from_secs(3), model.started.notified())
+        .await
+        .unwrap();
+    let current = store.get(task.task.id).unwrap().unwrap();
+    assert!(current.task.budget.reserved_tokens > 0);
+    let mut changes = db.subscribe_changes();
+    store
+        .update(task.task.id, current.revision, |r| {
+            r.task.stop();
+            Ok(())
+        })
+        .unwrap();
+    tokio::time::timeout(std::time::Duration::from_secs(3), model.cancelled.notified())
+        .await
+        .unwrap();
+    let final_state = tokio::time::timeout(std::time::Duration::from_secs(3), async {
+        loop {
+            let current = store.get(task.task.id).unwrap().unwrap();
+            if current.task.budget.unknown_usage {
+                break current;
+            }
+            changes.changed().await.unwrap();
+        }
+    })
+    .await
+    .unwrap();
+    assert_eq!(final_state.task.state, TaskState::Stopped);
+    assert!(final_state.task.dispatch_history.is_empty());
+    assert_eq!(final_state.task.budget.reserved_tokens, current.task.budget.reserved_tokens);
 }
 #[async_trait]
 impl LlmClient for FinalScript {

@@ -37,6 +37,7 @@ export const SETTINGS_GROUPS: SettingsSection[] = [
   { key: 'mcp', label: 'MCP Servers', icon: Link2 },
   { key: 'lsp', label: 'LSP Servers', icon: Braces },
   { key: 'addons', label: 'Addons', icon: Puzzle },
+  { key: 'addon-pages', label: 'Addon Pages', icon: Puzzle },
   { key: 'versioning', label: 'Versioning', icon: History },
   { key: 'billing', label: 'Billing', icon: Coins },
   { key: 'daemon', label: 'Daemon', icon: Server },

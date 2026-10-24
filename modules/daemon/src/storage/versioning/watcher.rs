@@ -83,6 +83,13 @@ impl WorkspaceWatcher {
     pub fn subscribe(&self) -> broadcast::Receiver<FileEvent> {
         self.events.subscribe()
     }
+    pub async fn shutdown(&mut self) {
+        if let Some(stop) = self.stop.take() {
+            let _ = stop.send(());
+        }
+        self.handle.abort();
+        let _ = (&mut self.handle).await;
+    }
 }
 
 impl Drop for WorkspaceWatcher {

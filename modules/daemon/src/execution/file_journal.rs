@@ -117,8 +117,31 @@ impl FileJournal {
         origin: FileOrigin,
         expected: Option<&[u8]>,
     ) -> DaemonResult<FileOperation> {
+        self.prepare_checked(path, after, origin, expected, false)
+    }
+    pub fn prepare_new(
+        &self,
+        path: &Path,
+        after: &[u8],
+        origin: FileOrigin,
+    ) -> DaemonResult<FileOperation> {
+        self.prepare_checked(path, Some(after), origin, None, true)
+    }
+    fn prepare_checked(
+        &self,
+        path: &Path,
+        after: Option<&[u8]>,
+        origin: FileOrigin,
+        expected: Option<&[u8]>,
+        create_only: bool,
+    ) -> DaemonResult<FileOperation> {
         validate_path(&self.root, path)?;
         let before = read_optional(path)?;
+        if create_only && before.is_some() {
+            return Err(DaemonError::Execution(
+                "file already exists; choose a new copy path".into(),
+            ));
+        }
         if expected.is_some_and(|value| before.as_deref() != Some(value)) {
             return Err(DaemonError::Execution(format!(
                 "file changed before edit: {}",
@@ -162,7 +185,21 @@ impl FileJournal {
                 operation.path.display()
             )));
         }
-        self.restore(&operation.path, &operation.after)?;
+        if operation.before.is_none()
+            && let Some(hash) = &operation.after
+        {
+            use std::io::Write;
+            if let Some(parent) = operation.path.parent() {
+                std::fs::create_dir_all(parent)?;
+            }
+            let bytes = self.store.blob(hash)?;
+            let mut file =
+                std::fs::OpenOptions::new().write(true).create_new(true).open(&operation.path)?;
+            file.write_all(&bytes)?;
+            file.sync_all()?;
+        } else {
+            self.restore(&operation.path, &operation.after)?;
+        }
         operation.phase = FilePhase::Applied;
         self.save(operation)
     }
@@ -226,17 +263,12 @@ pub fn validate_path(root: &Path, path: &Path) -> DaemonResult<()> {
         current.push(component);
         match std::fs::symlink_metadata(&current) {
             Ok(meta) => {
-                let mut link = meta.file_type().is_symlink();
+                let link = crate::workspace::fs::is_link(&meta);
                 #[cfg(unix)]
-                {
+                let link = {
                     use std::os::unix::fs::MetadataExt;
-                    link |= meta.is_file() && meta.nlink() > 1;
-                }
-                #[cfg(windows)]
-                {
-                    use std::os::windows::fs::MetadataExt;
-                    link |= meta.file_attributes() & 0x400 != 0;
-                }
+                    link || meta.is_file() && meta.nlink() > 1
+                };
                 if link
                     || (current == path && !meta.is_file())
                     || (current != path && !meta.is_dir())

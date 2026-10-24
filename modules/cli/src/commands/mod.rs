@@ -21,6 +21,9 @@ pub mod workspace;
 use metteur_proto::proto::daemon_client::DaemonClient;
 use tonic::transport::Channel;
 
+mod live;
+use live::live_target;
+
 /// Mutable REPL session state.
 #[derive(Debug, Default, Clone)]
 pub struct SessionState {

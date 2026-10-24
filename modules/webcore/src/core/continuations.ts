@@ -1,3 +1,6 @@
+export const CONTINUATION_WAITING_MESSAGE =
+  'Task is waiting. Automatic continuation follows its saved policy; manage it in Tasks.'
+
 export interface TaskSource {
   id: string
   kind: string
@@ -21,8 +24,14 @@ export interface Schedule {
   misfire: string
 }
 export interface TaskRecord {
-  launch_intent?: string | null;
-  pending_approvals?: { request_id: string; detail: string }[]
+  workflow?: import('./workflow').WorkflowFacts
+  launch_intent?: string | null
+  pending_approvals?: {
+    request_id: string
+    detail: string
+    content_digest?: string
+    target?: import('./approval-decision').ApprovalTarget
+  }[]
   revision: number
   policy: { purpose: string; expires_ms: number } | null
   schedules: Schedule[]

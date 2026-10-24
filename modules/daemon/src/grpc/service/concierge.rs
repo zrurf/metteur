@@ -58,12 +58,22 @@ impl DaemonService {
             .into_iter()
             .filter(|t| t.conversation_id == conversation_id)
             .collect();
-        let schedule=crate::oversight::scheduler::load(&ws.db,run).map_err(to_status)?;
-        let consumer_enabled=active && schedule.as_ref().is_some_and(|s|!s.closed);
-        let reports:Vec<_>=schedule.into_iter().flat_map(|s|s.reviews)
-            .filter(|r|r.source_request_ids.iter().any(|id|queue.requests.iter().any(|q|q.request_id==*id && q.conversation_id==conversation_id)))
-            .map(|r|crate::oversight::projection::review(&ws.db,&r,&queue))
-            .collect::<crate::DaemonResult<Vec<_>>>().map_err(to_status)?;
+        let schedule = crate::oversight::scheduler::load(&ws.db, run).map_err(to_status)?;
+        let consumer_enabled = active && schedule.as_ref().is_some_and(|s| !s.closed);
+        let reports: Vec<_> = schedule
+            .into_iter()
+            .flat_map(|s| s.reviews)
+            .filter(|r| {
+                r.source_request_ids.iter().any(|id| {
+                    queue
+                        .requests
+                        .iter()
+                        .any(|q| q.request_id == *id && q.conversation_id == conversation_id)
+                })
+            })
+            .map(|r| crate::oversight::projection::review(&ws.db, &r, &queue))
+            .collect::<crate::DaemonResult<Vec<_>>>()
+            .map_err(to_status)?;
         Ok(Response::new(ConciergeState{state_json:serde_json::json!({"run_id":run,"conversation_id":conversation_id,"read_only":!active||queue.closed,"available":reason.is_empty(),"reason":reason,"consumer_enabled":consumer_enabled,"reports":reports,"messages":messages,"requests":queue.requests,"budget":usage}).to_string()}))
     }
     pub(crate) async fn send_concierge_message(
@@ -73,6 +83,8 @@ impl DaemonService {
         Response<tokio_stream::wrappers::ReceiverStream<Result<ConciergeEvent, Status>>>,
         Status,
     > {
+        let subject =
+            super::super::acl::subject_from_request(&request).unwrap_or_else(|| "local".into());
         let req = request.into_inner();
         let run =
             Uuid::parse_str(&req.run_id).map_err(|_| Status::invalid_argument("invalid run id"))?;
@@ -87,15 +99,21 @@ impl DaemonService {
             .await
             .ok_or_else(|| Status::not_found("workspace not open"))?;
         let (tx, rx) = tokio::sync::mpsc::channel(8);
-        // A retry of a persisted message only reads its status, even after closure.
-        if let Some(existing) =
-            conversation::load(&ws.db, run).map_err(to_status)?.turns.iter().find(|t| t.id == id)
-        {
+        // Inspection before model configuration/active checks is owner-bound.
+        let receipt =
+            conversation::input_receipt(&ws.db, &subject, run, conversation_id, id, false)
+                .map_err(to_status)?;
+        if receipt.phase == "retired" || receipt.phase == "unknown" {
+            return Err(Status::failed_precondition(
+                "Input identity is closed or unknown; do not replay",
+            ));
+        }
+        if let Some(existing) = receipt.turn {
             if existing.conversation_id != conversation_id || existing.original_text != req.message
             {
                 return Err(Status::already_exists("message id bound to different content"));
             }
-            tx.send(Ok(event(run, existing)))
+            tx.send(Ok(event(run, &existing)))
                 .await
                 .map_err(|_| Status::cancelled("stream closed"))?;
             return Ok(Response::new(tokio_stream::wrappers::ReceiverStream::new(rx)));
@@ -113,21 +131,22 @@ impl DaemonService {
         if budget::summary(&ws.db, run, &settings).map_err(to_status)?.exhausted {
             return Err(Status::resource_exhausted("oversight token budget exhausted"));
         }
-        if let Some(existing) = conversation::begin(&ws.db, run, conversation_id, id, &req.message)
-            .map_err(to_status)?
+        if let Some(existing) =
+            conversation::begin_for(&ws.db, &subject, run, conversation_id, id, &req.message)
+                .map_err(to_status)?
         {
             tx.send(Ok(event(run, &existing)))
                 .await
                 .map_err(|_| Status::cancelled("stream closed"))?;
         } else {
-            tx.send(Ok(ConciergeEvent {
-                run_id: run.to_string(),
-                message_id: id.to_string(),
-                kind: "processing".into(),
-                detail_json: "{}".into(),
-            }))
-            .await
-            .map_err(|_| Status::cancelled("stream closed"))?;
+            let received =
+                conversation::input_receipt(&ws.db, &subject, run, conversation_id, id, false)
+                    .map_err(to_status)?
+                    .turn
+                    .ok_or_else(|| Status::internal("Accepted supervision input is unconfirmed"))?;
+            tx.send(Ok(event(run, &received)))
+                .await
+                .map_err(|_| Status::cancelled("stream closed"))?;
             tokio::spawn(async move {
                 let result =
                     conversation::answer(&ws.db, run, id, &config, &model_key, client.as_ref())

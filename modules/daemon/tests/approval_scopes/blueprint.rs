@@ -44,6 +44,7 @@ async fn disconnecting_a_blueprint_stream_withdraws_its_pending_approval() {
         Request::new(ExecuteBlueprintRequest {
             workspace_path: root.to_string_lossy().into(),
             blueprint_id: blueprint.id.to_string(),
+            workflow_confirmation: String::new(),
             blueprint_json: serde_json::to_string(&blueprint).unwrap(),
         }),
     )
@@ -91,6 +92,7 @@ async fn disconnecting_a_blueprint_stream_withdraws_its_pending_approval() {
                 workspace_path: root.to_string_lossy().into(),
                 request_id: id,
                 decision: "AllowWorkspace".into(),
+                ..Default::default()
             })
         )
         .await

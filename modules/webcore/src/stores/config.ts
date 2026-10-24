@@ -39,7 +39,12 @@ export function mergeConfig(user: DaemonConfig, ws: DaemonConfig): DaemonConfig 
     }
   }
   // Trust policy is global-only; section collection rules remain unchanged.
-  if (user.addon || ws.addon) out.addon = { ...out.addon, require_signature: user.addon?.require_signature, signing_keys: user.addon?.signing_keys }
+  if (user.addon || ws.addon)
+    out.addon = {
+      ...out.addon,
+      require_signature: user.addon?.require_signature,
+      signing_keys: user.addon?.signing_keys,
+    }
   if (ws.llm?.project_instruction_files?.join('\0') === 'METTEUR.md\0AGENTS.md') {
     out.llm = { ...out.llm, project_instruction_files: user.llm?.project_instruction_files }
   } else if (ws.llm?.project_instruction_files) {
@@ -50,7 +55,10 @@ export function mergeConfig(user: DaemonConfig, ws: DaemonConfig): DaemonConfig 
 
 function mergePresence(base: unknown, override: unknown): unknown {
   if (override && typeof override === 'object' && !Array.isArray(override)) {
-    const out: Record<string, unknown> = base && typeof base === 'object' && !Array.isArray(base) ? { ...base as Record<string, unknown> } : {}
+    const out: Record<string, unknown> =
+      base && typeof base === 'object' && !Array.isArray(base)
+        ? { ...(base as Record<string, unknown>) }
+        : {}
     for (const [key, value] of Object.entries(override)) out[key] = mergePresence(out[key], value)
     return out
   }
@@ -104,17 +112,22 @@ export const useConfigStore = defineStore('config', () => {
     }
     // Preserve the historical distinction between an absent LSP section and
     // a present section whose debounce field was omitted.
-    if (user.value.lsp && user.value.lsp.debounce_ms === undefined) base.lsp = { ...base.lsp, debounce_ms: 300 }
+    if (user.value.lsp && user.value.lsp.debounce_ms === undefined)
+      base.lsp = { ...base.lsp, debounce_ms: 300 }
     return mergeConfig(base, ws.value)
   })
 
   /** Fetch the daemon's compatibility projection; no file is rewritten. */
+  let loadEpoch = 0
   async function load(): Promise<void> {
+    const epoch = ++loadEpoch
     const activePath = workspace.active?.path
+    loaded.value = false
     const [u, w] = await Promise.all([
       gateway.getConfigState(''),
       activePath ? gateway.getConfigState(activePath) : Promise.resolve(null),
     ])
+    if (epoch !== loadEpoch || workspace.active?.path !== activePath) return
     if (!u.ok || (w && !w.ok)) {
       lastError.value = !u.ok ? u.error : w && !w.ok ? w.error : ''
       ws.value = {}
@@ -138,9 +151,10 @@ export const useConfigStore = defineStore('config', () => {
     lastError.value = ''
     try {
       if (!loaded.value) return (lastError.value = 'Load configuration successfully before saving')
-      if (layer === 'workspace' && !workspace.active) return (lastError.value = 'Open a workspace before saving its configuration')
+      if (layer === 'workspace' && !workspace.active)
+        return (lastError.value = 'Open a workspace before saving its configuration')
       const cfg = { ...(layer === 'user' ? user.value : ws.value), config_version: 2 }
-      const path = layer === 'workspace' ? workspace.active?.path ?? '' : ''
+      const path = layer === 'workspace' ? (workspace.active?.path ?? '') : ''
       const r = await gateway.setConfig(cfg, path)
       if (!r.ok) {
         lastError.value = r.error

@@ -18,6 +18,7 @@ const props = defineProps<{
   modified: string
   /** Snapshot the baseline came from, shown in the footer. */
   snapshotId?: string
+  comparisonLabel?: string
 }>()
 
 const host = ref<HTMLElement | null>(null)
@@ -42,11 +43,13 @@ async function mount() {
     originalEditable: false,
     minimap: { enabled: false },
     scrollBeyondLastLine: false,
-    fontSize: 12.5,
+    fontSize: 13,
   })
-  ;(editor as unknown as {
-    setModel: (value: { original: unknown; modified: unknown }) => void
-  }).setModel({ original, modified })
+  ;(
+    editor as unknown as {
+      setModel: (value: { original: unknown; modified: unknown }) => void
+    }
+  ).setModel({ original, modified })
 }
 
 onMounted(() => {
@@ -76,9 +79,10 @@ watch(
 <template>
   <div class="flex h-full min-h-0 flex-col">
     <div ref="host" class="min-h-0 flex-1" />
-    <p class="shrink-0 border-t border-divider px-3 py-1 text-[10.5px] text-subtle">
+    <p class="shrink-0 border-t border-divider px-3 py-1 text-[13px] text-subtle">
       <span class="text-foreground/70">{{ filePath }}</span>
-      · snapshot {{ snapshotId || '(none)' }} → working copy
+      <template v-if="comparisonLabel"> · {{ comparisonLabel }}</template>
+      <template v-else> · snapshot {{ snapshotId || '(none)' }} → working copy</template>
     </p>
   </div>
 </template>

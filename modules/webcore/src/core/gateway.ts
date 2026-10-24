@@ -9,6 +9,7 @@ import type {
   NodeCatalog,
   ChatMessage,
   ChatOptions,
+  ChatDeliveryReceipt,
   ChatSessionInfo,
   ChatSessionSnapshot,
   ChatUsage,
@@ -41,9 +42,21 @@ import type {
  * grpc-web through the Web Server Client.
  */
 export interface DaemonGateway {
-  resourceRequest(method: import('./resources').ResourceMethod, workspacePath: string, payload: unknown, expectedRevision?: number, requestId?: string): Promise<Result<unknown>>
+  watchWorkspaceChanges(
+    workspacePath: string,
+    onChange: () => void,
+    signal?: AbortSignal,
+  ): Promise<Result<void>>
+  resourceRequest(
+    method: import('./resources').ResourceMethod,
+    workspacePath: string,
+    payload: unknown,
+    expectedRevision?: number,
+    requestId?: string,
+  ): Promise<Result<unknown>>
   /** Live daemon connection state (reactive; heartbeat-driven). */
   readonly connected: Ref<boolean>
+  readonly liveUpdateError?: Ref<string>
   /** True when the in-memory demo gateway backs the app (never blocks). */
   readonly demo: boolean
 
@@ -65,8 +78,17 @@ export interface DaemonGateway {
 
   // File explorer / editors ---------------------------------------------------
   listFiles(workspacePath: string, dir: string): Promise<Result<FileTreeNode[]>>
-  readFile(workspacePath: string, filePath: string): Promise<Result<FileContent>>
-  writeFile(workspacePath: string, filePath: string, content: string): Promise<Result<void>>
+  readFile(
+    workspacePath: string,
+    filePath: string,
+    freezeReference?: boolean,
+  ): Promise<Result<FileContent>>
+  writeFile(
+    workspacePath: string,
+    filePath: string,
+    content: string,
+    options?: { expectedContent?: string; createOnly?: boolean },
+  ): Promise<Result<void>>
   createDir(workspacePath: string, dirPath: string): Promise<Result<void>>
   removeFile(workspacePath: string, filePath: string): Promise<Result<void>>
   renameFile(workspacePath: string, from: string, to: string): Promise<Result<void>>
@@ -126,9 +148,14 @@ export interface DaemonGateway {
     /** Reports what the conversation occupies once the turn ends. */
     onContext?: (stats: ChatContextStats) => void,
     /** Asks the client to decide on a sandbox approval, mid-turn. */
-    onApproval?: (request: { requestId: string; detail: string }) => void,
+    onApproval?: (request: { requestId: string; detail: string; contentDigest?: string }) => void,
+    /** Durable input acceptance, separate from the eventual model outcome. */
+    onDelivery?: (receipt: ChatDeliveryReceipt) => void,
   ): Promise<Result<void>>
-  abortChat(workspacePath: string): Promise<Result<void>>
+  abortChat(
+    workspacePath: string,
+    target?: Extract<import('./types').LiveTarget, { kind: 'chat' }>,
+  ): Promise<Result<void>>
   /**
    * Injects a message into the running turn.
    *
@@ -139,6 +166,8 @@ export interface DaemonGateway {
     workspacePath: string,
     message: string,
     priority?: 'Normal' | 'Urgent' | 'Emergency',
+    target?: import('./types').LiveTarget,
+    receiptId?: string,
   ): Promise<Result<void>>
   /**
    * Opens the host's folder dialog.
@@ -151,17 +180,33 @@ export interface DaemonGateway {
   listChatSessions(workspacePath: string): Promise<Result<ChatSessionInfo[]>>
   /** Load a session's history for UI restore (empty id = latest, NotFound when absent). */
   getChatSession(workspacePath: string, sessionId?: string): Promise<Result<ChatSessionSnapshot>>
-  rewindChat(workspacePath: string, sessionId: string, snapshotId: string): Promise<Result<ChatSessionSnapshot>>
+  rewindChat(
+    workspacePath: string,
+    sessionId: string,
+    snapshotId: string,
+  ): Promise<Result<ChatSessionSnapshot>>
   /** Delete one session (empty id = latest; stops a running chat first). */
   deleteChatSession(workspacePath: string, sessionId?: string): Promise<Result<void>>
 
   // Blueprints -----------------------------------------------------------------
   listNodeKinds(workspacePath?: string): Promise<Result<NodeCatalog>>
   listFunctions(workspacePath: string): Promise<Result<FunctionItem[]>>
-  importFunction(workspacePath: string, source: FunctionItem, name: string, filePath: string): Promise<Result<{ name: string; filePath: string }>>
+  importFunction(
+    workspacePath: string,
+    source: FunctionItem,
+    name: string,
+    filePath: string,
+  ): Promise<Result<{ name: string; filePath: string }>>
   compileDsl(source: string, workspacePath?: string): Promise<Result<Blueprint>>
-  decompileBlueprint(workspacePath: string, blueprintOrId: Blueprint | string): Promise<Result<string>>
-  saveBlueprint(workspacePath: string, blueprint: Blueprint, filePath?: string): Promise<Result<void>>
+  decompileBlueprint(
+    workspacePath: string,
+    blueprintOrId: Blueprint | string,
+  ): Promise<Result<string>>
+  saveBlueprint(
+    workspacePath: string,
+    blueprint: Blueprint,
+    filePath?: string,
+  ): Promise<Result<void>>
   loadBlueprint(workspacePath: string, blueprintId: string): Promise<Result<Blueprint>>
 
   // Execution ------------------------------------------------------------------
@@ -172,6 +217,7 @@ export interface DaemonGateway {
     /** The canvas being edited; sent so Run executes what the user sees even
      *  when the daemon mirror of the blueprint is stale. */
     blueprint?: Blueprint,
+    workflowConfirmation?: string,
   ): Promise<Result<void>>
   continueExecution(
     workspacePath: string,
@@ -185,7 +231,12 @@ export interface DaemonGateway {
   resume(workspacePath: string, runId?: string): Promise<Result<void>>
 
   // Approvals ------------------------------------------------------------------
-  respondApproval(workspacePath: string, requestId: string, allow: boolean): Promise<Result<void>>
+  respondApproval(
+    workspacePath: string,
+    requestId: string,
+    allow: boolean,
+    binding?: import('./approval-decision').ApprovalBinding,
+  ): Promise<Result<void>>
 
   // Versioning -----------------------------------------------------------------
   listSnapshots(workspacePath: string): Promise<Result<SnapshotInfo[]>>
@@ -203,9 +254,25 @@ export interface DaemonGateway {
    *  the global scope. */
   setAddonEnabled(id: string, enabled: boolean, workspacePath?: string): Promise<Result<void>>
   listMcpServers(workspacePath?: string): Promise<Result<McpServerInfo[]>>
-  getBlackboard(workspacePath: string, runId: string, query?: BoardQuery): Promise<Result<Blackboard>>
+  getBlackboard(
+    workspacePath: string,
+    runId: string,
+    query?: BoardQuery,
+  ): Promise<Result<Blackboard>>
   listOversightReports(workspacePath: string, runId: string): Promise<Result<OversightReports>>
-  getConciergeState(workspacePath: string, runId: string, conversationId: string): Promise<Result<ConciergeState>>
-  sendConciergeMessage(workspacePath: string, runId: string, conversationId: string, messageId: string, message: string, onEvent: (event: ConciergeEvent) => void, signal?: AbortSignal): Promise<Result<void>>
+  getConciergeState(
+    workspacePath: string,
+    runId: string,
+    conversationId: string,
+  ): Promise<Result<ConciergeState>>
+  sendConciergeMessage(
+    workspacePath: string,
+    runId: string,
+    conversationId: string,
+    messageId: string,
+    message: string,
+    onEvent: (event: ConciergeEvent) => void,
+    signal?: AbortSignal,
+  ): Promise<Result<void>>
   getExecutionUsage(workspacePath: string, runId: string): Promise<Result<UsageSummary>>
 }

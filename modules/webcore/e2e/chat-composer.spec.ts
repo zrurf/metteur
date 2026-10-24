@@ -28,12 +28,21 @@ for (const width of [1280, 800]) {
     // the viewport and every clipping ancestor, then hit-test all its actions.
     const contained = await menu.evaluate((el) => {
       const rect = el.getBoundingClientRect()
-      if (rect.left < 0 || rect.right > innerWidth || rect.top < 0 || rect.bottom > innerHeight) return false
+      if (rect.left < 0 || rect.right > innerWidth || rect.top < 0 || rect.bottom > innerHeight)
+        return false
       for (let parent = el.parentElement; parent; parent = parent.parentElement) {
         const style = getComputedStyle(parent)
         const bounds = parent.getBoundingClientRect()
-        if (/(hidden|clip|auto|scroll)/.test(style.overflowX) && (rect.left < bounds.left || rect.right > bounds.right)) return false
-        if (/(hidden|clip|auto|scroll)/.test(style.overflowY) && (rect.top < bounds.top || rect.bottom > bounds.bottom)) return false
+        if (
+          /(hidden|clip|auto|scroll)/.test(style.overflowX) &&
+          (rect.left < bounds.left || rect.right > bounds.right)
+        )
+          return false
+        if (
+          /(hidden|clip|auto|scroll)/.test(style.overflowY) &&
+          (rect.top < bounds.top || rect.bottom > bounds.bottom)
+        )
+          return false
       }
       return [...el.querySelectorAll('button')].every((button) => {
         const bounds = button.getBoundingClientRect()
@@ -73,7 +82,10 @@ test('the model control pairs the model with the reasoning effort', async ({ pag
   await expect(model).toBeVisible()
   await model.click()
   // Effort is a segmented choice inside the same menu as the model list.
-  await page.getByRole('group', { name: 'Reasoning effort' }).getByRole('button', { name: 'High' }).click()
+  await page
+    .getByRole('group', { name: 'Reasoning effort' })
+    .getByRole('button', { name: 'High' })
+    .click()
   await expect(model).toContainText('High')
 })
 
@@ -90,10 +102,9 @@ test('the context meter reports usage and breaks it down', async ({ page }) => {
   await expect(meter).toBeVisible()
   await expect(meter).toContainText('%')
   await meter.click()
-  await expect(page.getByText('Context window')).toBeVisible()
-  await expect(page.getByText('Composition')).toBeVisible()
+  await expect(page.getByText('Context Window', { exact: true })).toBeVisible()
   // The breakdown names the regions rather than showing bare numbers.
-  await expect(page.getByText('System & tools')).toBeVisible()
+  await expect(page.getByText('System & Tools')).toBeVisible()
 })
 
 test('a message can be delivered while the turn runs', async ({ page }) => {

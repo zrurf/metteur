@@ -1,15 +1,12 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, provide, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import {
-  ClipboardPaste,
-  FilePlus2,
-  FolderPlus,
-  RefreshCw,
-} from '@lucide/vue'
+import { ClipboardPaste, FilePlus2, BookOpen, FolderPlus, RefreshCw } from '@lucide/vue'
 import { gateway } from '@/core'
 import type { FileTreeNode } from '@/core'
 import { useWorkspaceStore } from '@/stores/workspace'
+import { useDocumentsStore } from '@/stores/documents'
+import TreeNameInput from './TreeNameInput.vue'
 import { useTabsStore } from '@/stores/tabs'
 import { useChatStore } from '@/stores/chat'
 import { useBlueprintStore } from '@/stores/blueprint'
@@ -47,6 +44,8 @@ const fileWatch = useFileWatchStore()
 const root = ref<FileTreeNode[]>([])
 const expanded = ref<Set<string>>(new Set())
 const loading = ref(false)
+const loadError = ref('')
+let loadGeneration = 0
 const menu = ref<{ x: number; y: number; node: FileTreeNode | null } | null>(null)
 /** Multi-selection (Ctrl/Shift): paths of the currently highlighted rows. */
 const selected = ref<Set<string>>(new Set())
@@ -55,33 +54,51 @@ let lastSelectedPath: string | null = null
 /** New-file/folder name input, anchored to the toolbar. */
 const creating = ref<{ kind: 'file' | 'folder'; dir: string } | null>(null)
 const newName = ref('')
+const createError = ref('')
+const creatingBusy = ref(false)
 const { openSurface } = useSurfaceNavigation()
 
 /** Loads (or reuses the cached) listing for `dir`; fills `into.children` too. */
-async function loadDir(dir: string, into: FileTreeNode | null): Promise<FileTreeNode[]> {
+async function loadDir(dir: string, into: FileTreeNode | null): Promise<FileTreeNode[] | null> {
   const wsPath = workspace.active?.path ?? ''
+  const generation = loadGeneration
   const cached = workspace.cachedDir(wsPath, dir)
-  if (cached) return cached
+  if (cached) {
+    if (into) into.children = cached
+    return cached
+  }
   const r = await gateway.listFiles(wsPath, dir)
-  if (!r.ok) return []
+  if (workspace.active?.path !== wsPath || generation !== loadGeneration) return null
+  if (!r.ok) {
+    loadError.value = r.error
+    return null
+  }
   if (into) into.children = r.data
   workspace.cacheDir(wsPath, dir, r.data)
   return r.data
 }
 
 async function loadRoot() {
+  const generation = ++loadGeneration,
+    wsPath = workspace.active?.path
   loading.value = true
+  loadError.value = ''
   try {
-    root.value = await loadDir('', null)
+    const nodes = await loadDir('', null)
+    if (nodes && generation === loadGeneration && workspace.active?.path === wsPath)
+      root.value = nodes
   } finally {
-    loading.value = false
+    if (generation === loadGeneration) loading.value = false
   }
 }
 
 async function toggle(node: FileTreeNode) {
   if (node.kind !== 'dir') return
   const willOpen = !expanded.value.has(node.path)
+  const wsPath = workspace.active?.path
+  const generation = loadGeneration
   if (willOpen && node.children === undefined) await loadDir(node.path, node)
+  if (workspace.active?.path !== wsPath || generation !== loadGeneration) return
   if (expanded.value.has(node.path)) expanded.value.delete(node.path)
   else expanded.value.add(node.path)
   expanded.value = new Set(expanded.value)
@@ -151,6 +168,7 @@ async function refreshTree() {
   if (!ws) return
   workspace.invalidateTree(ws.path)
   await loadRoot()
+  if (workspace.active?.path !== ws.path) return
   await reloadExpanded(root.value)
 }
 
@@ -174,8 +192,9 @@ function findNode(path: string, nodes: FileTreeNode[]): FileTreeNode | null {
 }
 
 function startCreate(kind: 'file' | 'folder', dir: string) {
+  createError.value = ''
   creating.value = { kind, dir }
-  newName.value = 'untitled'
+  newName.value = ''
   // Reveal the target folder so the inline row is visible at its level.
   if (dir) {
     const node = findNode(dir, root.value)
@@ -190,24 +209,39 @@ function cancelCreate() {
 /** Create at `dir`; conflicts and empty names are rejected with a toast. */
 async function confirmCreate() {
   const ws = workspace.active
-  if (!ws || !creating.value) return
+  if (!ws || !creating.value || creatingBusy.value) return
   const { kind, dir } = creating.value
+  const intent = creating.value
   const name = newName.value.trim()
-  creating.value = null
-  if (!name || /[\\/]/.test(name)) {
-    feedback.toast('error', 'Invalid name', 'Name must be non-empty and contain no path separators')
+  if (
+    !name ||
+    /[\\/:*?"<>|]/.test(name) ||
+    /^\.+$/.test(name) ||
+    /[. ]$/.test(name) ||
+    /^(con|prn|aux|nul|com[1-9]|lpt[1-9])(\.|$)/i.test(name)
+  ) {
+    createError.value = 'Enter a valid file or folder name.'
     return
   }
   const path = dir ? `${dir}/${name}` : name
   if (await exists(ws.path, dir, path)) {
-    feedback.toast('error', `${name} already exists`)
+    if (workspace.active?.path !== ws.path || creating.value !== intent) return
+    createError.value = `${name} already exists.`
     return
   }
-  const r = kind === 'folder' ? await gateway.createDir(ws.path, path) : await gateway.writeFile(ws.path, path, '')
+  if (workspace.active?.path !== ws.path || creating.value !== intent) return
+  creatingBusy.value = true
+  const r =
+    kind === 'folder'
+      ? await gateway.createDir(ws.path, path)
+      : await gateway.writeFile(ws.path, path, '', { createOnly: true })
+  if (workspace.active?.path !== ws.path || creating.value !== intent) return
+  creatingBusy.value = false
   if (!r.ok) {
-    feedback.toast('error', `Cannot create ${kind}`, r.error)
+    createError.value = r.error
     return
   }
+  creating.value = null
   if (kind === 'file') {
     tabs.openFile(path)
     router.push(fileRoute(path))
@@ -235,6 +269,7 @@ function baseName(path: string): string {
 
 /** Recursively copies a file or directory tree (daemon has no copy RPC). */
 async function copyPath(ws: string, from: string, to: string): Promise<boolean> {
+  if (to === from || to.startsWith(from + '/')) return false
   const st = await gateway.statFile(ws, from)
   if (st.ok && st.data.isDir) {
     if (!(await gateway.createDir(ws, to)).ok) return false
@@ -247,7 +282,7 @@ async function copyPath(ws: string, from: string, to: string): Promise<boolean> 
   }
   const r = await gateway.readFile(ws, from)
   if (!r.ok) return false
-  return (await gateway.writeFile(ws, to, r.data.content)).ok
+  return (await gateway.writeFile(ws, to, r.data.content, { createOnly: true })).ok
 }
 
 /** First name inside `dir` that does not collide yet (`name`, `name (1)`, …). */
@@ -278,6 +313,7 @@ async function pasteInto(dir: string) {
       if (dest === src) continue
       const r = await gateway.renameFile(ws.path, src, dest)
       if (!r.ok) feedback.toast('error', 'Cut failed', r.error)
+      else if (workspace.active?.path === ws.path) tabs.renameFile(src, dest)
     } else {
       const dest = await uniqueDest(ws.path, dir, name)
       if (!(await copyPath(ws.path, src, dest))) feedback.toast('error', 'Copy failed', src)
@@ -312,27 +348,17 @@ async function commitRename() {
     return
   }
   const r = await gateway.renameFile(ws.path, path, target)
+  if (workspace.active?.path !== ws.path) return
   if (!r.ok) {
     feedback.toast('error', 'Rename failed', r.error)
     return
   }
-  const tabId = `file:${path}`
-  if (tabs.items.some((t) => t.id === tabId)) {
-    tabs.close(tabId)
-    tabs.openFile(target)
-  }
+  tabs.renameFile(path, target)
+  if (tabs.activeItem?.path) void router.push(tabs.activeItem.route)
   await refreshTree()
 }
 
 /* Delete / properties / reveal ----------------------------------------- */
-
-/** Whether a workspace-relative path names a directory (multi-delete aid). */
-async function isDirectory(path: string): Promise<boolean> {
-  const ws = workspace.active
-  if (!ws) return false
-  const r = await gateway.statFile(ws.path, path)
-  return r.ok && r.data.isDir
-}
 
 function formatBytes(n: number): string {
   if (n < 1024) return `${n} B`
@@ -347,7 +373,7 @@ async function showProperties(node: FileTreeNode) {
   const ws = workspace.active
   if (!ws) return
   const r = await gateway.statFile(ws.path, node.path)
-  const kind = node.kind === 'dir' ? 'Folder' : (node.path.split('.').pop()?.toUpperCase() || 'File')
+  const kind = node.kind === 'dir' ? 'Folder' : node.path.split('.').pop()?.toUpperCase() || 'File'
   const size = r.ok ? formatBytes(r.data.len) : '—'
   propertiesName.value = baseName(node.path)
   properties.value = {
@@ -495,6 +521,7 @@ async function onMenuSelect(id: string) {
       openInSplit(node.path)
       break
     case 'add-to-chat':
+      if (node.kind !== 'file') return
       chat.attach(node.path)
       openSurface('chat')
       break
@@ -518,14 +545,9 @@ async function onMenuSelect(id: string) {
         })
         if (!ok || !ws) return
         for (const path of targets) {
-          const entry = targets.length === 1 ? node : null
-          const isDir = entry ? entry.kind === 'dir' : await isDirectory(path)
-          if (!isDir) {
-            const tabId = `file:${path}`
-            if (tabs.items.some((t) => t.id === tabId)) tabs.close(tabId)
-          }
           const r = await gateway.removeFile(ws.path, path)
           if (!r.ok) feedback.toast('error', 'Delete failed', r.error)
+          else useDocumentsStore().markDeleted(ws.path, path)
         }
         selected.value = new Set()
         await refreshTree()
@@ -552,6 +574,8 @@ provide(TREE_API, {
 const createState = reactive({
   active: creating,
   name: newName,
+  error: createError,
+  busy: creatingBusy,
   confirm: () => void confirmCreate(),
   cancel: cancelCreate,
 })
@@ -569,8 +593,22 @@ const renameState = reactive({
 })
 provide(TREE_RENAME, renameState)
 
+watch(
+  () => workspace.active?.path,
+  (path) => {
+    loadGeneration++
+    root.value = []
+    expanded.value = new Set()
+    selected.value = new Set()
+    creating.value = null
+    creatingBusy.value = false
+    renamingPath.value = null
+    menu.value = null
+    if (path) void loadRoot()
+  },
+  { immediate: true, flush: 'sync' },
+)
 onMounted(() => {
-  void loadRoot()
   window.addEventListener('focus', onWindowFocus)
   // Refresh on live fs events (debounced bursts from external editors/CLI).
   watch(
@@ -583,6 +621,7 @@ onMounted(() => {
   )
 })
 onBeforeUnmount(() => {
+  loadGeneration++
   window.removeEventListener('focus', onWindowFocus)
   clearTimeout(refreshTimer)
 })
@@ -590,11 +629,6 @@ onBeforeUnmount(() => {
 /** Re-sync the listing with the disk when the window regains focus. */
 function onWindowFocus() {
   if (workspace.hasActive) void refreshTree()
-}
-
-function onCreateFocus(e: FocusEvent) {
-  const el = e.target as HTMLInputElement
-  el.select()
 }
 
 let refreshTimer: ReturnType<typeof setTimeout> | undefined
@@ -605,10 +639,30 @@ let refreshTimer: ReturnType<typeof setTimeout> | undefined
     <!-- Toolbar (VSCode-style explorer header) -->
     <div class="flex shrink-0 items-center gap-0.5 border-b border-divider px-2 py-1">
       <span class="panel-heading flex-1 px-0!">Explorer</span>
-      <button class="btn-icon h-6! w-6!" type="button" title="New File" :aria-label="'New File'" @click="startCreate('file', '')">
+      <button
+        class="btn-icon h-6! w-6!"
+        title="Prompt Library"
+        aria-label="Prompt Library"
+        @click="openSurface('prompts')"
+      >
+        <BookOpen class="h-3.5 w-3.5" />
+      </button>
+      <button
+        class="btn-icon h-6! w-6!"
+        type="button"
+        title="New File"
+        :aria-label="'New File'"
+        @click="startCreate('file', '')"
+      >
         <FilePlus2 class="h-3.5 w-3.5" />
       </button>
-      <button class="btn-icon h-6! w-6!" type="button" title="New Folder" :aria-label="'New Folder'" @click="startCreate('folder', '')">
+      <button
+        class="btn-icon h-6! w-6!"
+        type="button"
+        title="New Folder"
+        :aria-label="'New Folder'"
+        @click="startCreate('folder', '')"
+      >
         <FolderPlus class="h-3.5 w-3.5" />
       </button>
       <button
@@ -621,26 +675,34 @@ let refreshTimer: ReturnType<typeof setTimeout> | undefined
       >
         <ClipboardPaste class="h-3.5 w-3.5" />
       </button>
-      <button class="btn-icon h-6! w-6!" type="button" title="Refresh" :aria-label="'Refresh'" @click="refreshTree">
+      <button
+        class="btn-icon h-6! w-6!"
+        type="button"
+        title="Refresh"
+        :aria-label="'Refresh'"
+        @click="refreshTree"
+      >
         <RefreshCw class="h-3.5 w-3.5" />
       </button>
     </div>
 
+    <p v-if="loadError" class="m-2 rounded-md bg-danger-soft p-2 text-xs text-danger" role="alert">
+      {{ loadError }} <button type="button" class="underline" @click="refreshTree">Retry</button>
+    </p>
     <!-- Inline name input for creating a file/folder (rendered inside the
          tree at the target level; tree folder rows host their own). -->
-    <div v-if="createState.active && createState.active.dir === ''" class="px-2 py-0.5">
-      <input
-        v-model="createState.name"
-        class="input h-7! w-full text-[12px]"
-        autofocus
-        @focus="onCreateFocus"
-        @keydown.enter="createState.confirm()"
-        @keydown.esc="createState.cancel()"
-        @blur="createState.confirm()"
-      />
-    </div>
-
     <div class="min-h-0 flex-1 overflow-y-auto p-1" @contextmenu.prevent="onBlankContext">
+      <TreeNameInput
+        v-if="createState.active?.dir === ''"
+        v-model="createState.name"
+        :kind="createState.active.kind"
+        :label="createState.active.kind === 'file' ? 'New File Name' : 'New Folder Name'"
+        :error="createState.error"
+        :busy="createState.busy"
+        class="pl-5"
+        @confirm="createState.confirm"
+        @cancel="createState.cancel"
+      />
       <p v-if="loading" class="px-2 py-1 text-[11px] text-subtle">Loading…</p>
       <TreeItem v-for="node in root" v-else :key="node.path" :node="node" :depth="0" />
     </div>

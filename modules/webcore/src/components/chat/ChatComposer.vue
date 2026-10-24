@@ -1,5 +1,14 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import {
+  computed,
+  nextTick,
+  onBeforeUnmount,
+  onMounted,
+  onActivated,
+  onDeactivated,
+  ref,
+  watch,
+} from 'vue'
 import { usePromptResourcesStore } from '@/stores/prompt-resources'
 import '@/components/resources/resources.css'
 import { ArrowUp, ChevronUp, FileCode, ListPlus, Square, X } from '@lucide/vue'
@@ -33,6 +42,11 @@ import type {
  * words is never an option.
  */
 const props = defineProps<{
+  draftValue?: string
+  draftIdentity?: string
+  onDraftChange?: (text: string) => void
+  sendBlocked?: boolean
+  readOnly?: boolean
   concierge?: { placeholder: string; sendDisabled: boolean }
   files: FileTreeNode[]
   pendingFiles: FileTreeNode[]
@@ -49,9 +63,9 @@ const props = defineProps<{
   running: boolean
   /** Whether a model is configured at all. */
   ready: boolean
-  onSend: (text: string) => void
-  onQueue: (text: string) => void
-  onSteer: (text: string) => void
+  onSend: (text: string, accepted?: () => void) => boolean | void | Promise<boolean | void>
+  onQueue: (text: string, accepted?: () => void) => boolean | void | Promise<boolean | void>
+  onSteer: (text: string, accepted?: () => void) => boolean | void | Promise<boolean | void>
   onStop: () => void
   onRemoveFile: (path: string) => void
   onAttach: (file: FileTreeNode) => void
@@ -64,8 +78,52 @@ const props = defineProps<{
   onOpenSettings: () => void
 }>()
 
-const draft = ref('')
+const localDraft = ref('')
+function readDraft() {
+  return props.draftValue ?? localDraft.value
+}
+function writeDraft(text: string) {
+  if (props.draftValue !== undefined) props.onDraftChange?.(text)
+  else localDraft.value = text
+}
+const draft = computed({ get: readDraft, set: writeDraft })
+const submitting = ref(false),
+  deliveryError = ref('')
+let inputVersion = 0,
+  submissionTicket = 0,
+  alive = true,
+  composing = false,
+  lastCompositionEnd = -Infinity
+let surfaceActive = true
+onActivated(() => {
+  surfaceActive = true
+})
+onDeactivated(() => {
+  surfaceActive = false
+  menu.value = null
+  composing = false
+})
+function startComposition() {
+  composing = true
+}
+function endComposition() {
+  composing = false
+  lastCompositionEnd = performance.now()
+}
 const prompts = usePromptResourcesStore()
+watch(
+  [
+    draft,
+    () => props.draftIdentity,
+    () => props.pendingFiles,
+    () => (props.concierge ? null : prompts.selections),
+    () => props.model,
+  ],
+  () => {
+    inputVersion++
+  },
+  { deep: true, flush: 'sync' },
+)
 const textarea = ref<HTMLTextAreaElement | null>(null)
 /** Which upward menu is open; only one at a time keeps the row readable. */
 const menu = ref<'context' | 'model' | 'permission' | 'delivery' | null>(null)
@@ -160,21 +218,41 @@ watch(draft, () => void nextTick(autosize))
  * (and its click-catching backdrop) in the way.
  */
 function onDocumentKeydown(event: KeyboardEvent): void {
-  if (event.key === 'Escape' && menu.value) menu.value = null
+  if (!surfaceActive) return
+  if (event.isComposing || composing || event.keyCode === 229) return
+  if (event.key === 'Escape' && menu.value) {
+    menu.value = null
+    event.preventDefault()
+    event.stopPropagation()
+  }
 }
 
 onMounted(() => {
   autosize()
   document.addEventListener('keydown', onDocumentKeydown)
 })
-onBeforeUnmount(() => document.removeEventListener('keydown', onDocumentKeydown))
+onBeforeUnmount(() => {
+  alive = false
+  document.removeEventListener('keydown', onDocumentKeydown)
+})
 
 /** Enter sends, queues or delivers the queue; Shift+Enter breaks the line. */
 function onKeydown(event: KeyboardEvent): void {
+  if (event.isComposing || event.keyCode === 229 || composing) return
+  if (['Enter', 'Tab'].includes(event.key) && performance.now() - lastCompositionEnd < 60) return
+  if (event.repeat && ['Enter', 'Tab'].includes(event.key)) {
+    event.preventDefault()
+    return
+  }
   if (event.key === 'Escape') {
-    if (menu.value) menu.value = null
-    else if (mentionOpen.value || commandOpen.value) {
+    if (menu.value) {
+      menu.value = null
+      event.preventDefault()
+      event.stopPropagation()
+    } else if (mentionOpen.value || commandOpen.value) {
       draft.value = draft.value.replace(/[\s@/][^\s]*$/, '')
+      event.preventDefault()
+      event.stopPropagation()
     }
     return
   }
@@ -186,6 +264,7 @@ function onKeydown(event: KeyboardEvent): void {
   }
   if (event.key !== 'Enter' || event.shiftKey) return
   event.preventDefault()
+  if (!props.ready || props.sendBlocked || submitting.value || props.readOnly) return
   if (props.running && !hasDraft.value) {
     // Enter on an empty composer sends what was queued, so holding Enter keeps
     // work moving instead of looking like the input was swallowed.
@@ -196,22 +275,56 @@ function onKeydown(event: KeyboardEvent): void {
 }
 
 /** Delivers the draft according to the delivery mode. */
-function submit(mode: 'auto' | 'queue' | 'steer'): void {
-  const text = draft.value.trim()
-  if (!text || !props.ready || (props.concierge?.sendDisabled && mode !== 'steer')) return
-  draft.value = ''
-  void nextTick(autosize)
-  if (props.concierge) {
-    if (mode === 'steer') props.onSteer(text)
-    else props.onSend(text)
+async function submit(mode: 'auto' | 'queue' | 'steer'): Promise<void> {
+  const text = draft.value,
+    version = inputVersion,
+    identity = props.draftIdentity
+  if (
+    !text.trim() ||
+    !props.ready ||
+    props.sendBlocked ||
+    props.readOnly ||
+    submitting.value ||
+    composing ||
+    (props.concierge?.sendDisabled && mode !== 'steer')
+  )
     return
+  const ticket = ++submissionTicket
+  submitting.value = true
+  deliveryError.value = ''
+  let acknowledged = false
+  const accepted = () => {
+    if (acknowledged) return
+    acknowledged = true
+    if (!alive || props.draftIdentity !== identity) return
+    // Controlled drafts are cleared by their versioned owner. The standalone
+    // supervision composer still compares the exact local input version.
+    if (
+      props.draftValue === undefined &&
+      inputVersion === version &&
+      draft.value === text &&
+      textarea.value?.value === text.replace(/\r\n?/g, '\n')
+    )
+      draft.value = ''
+    if (submissionTicket === ticket) submitting.value = false
+    void nextTick(autosize)
   }
-  if (!props.running) {
-    props.onSend(text)
-    return
+  try {
+    const action = props.concierge
+      ? mode === 'steer'
+        ? props.onSteer
+        : props.onSend
+      : !props.running
+        ? props.onSend
+        : mode === 'steer'
+          ? props.onSteer
+          : props.onQueue
+    if ((await action(text, accepted)) === true) accepted()
+  } catch (error) {
+    if (alive && props.draftIdentity === identity) deliveryError.value = String(error)
+  } finally {
+    if (alive && submissionTicket === ticket) submitting.value = false
   }
-  if (mode === 'steer') props.onSteer(text)
-  else props.onQueue(text)
 }
 
 /** Handlers that close the menu they were opened from. */
@@ -248,11 +361,13 @@ function stopAndClose(): void {
 }
 
 const placeholder = computed(() =>
-  props.concierge ? props.concierge.placeholder : !props.ready
-    ? 'Configure a model to start chatting'
-    : props.running
-      ? 'Queue a message for this turn — Tab to queue, ⌘/Ctrl+Enter to send it now'
-      : 'Describe a task — @ to reference a file, / for a template',
+  props.concierge
+    ? props.concierge.placeholder
+    : !props.ready
+      ? 'Configure a model to start chatting'
+      : props.running
+        ? 'Queue a message for this turn — Tab to queue, ⌘/Ctrl+Enter to send it now'
+        : 'Describe a task — @ to reference a file, / for a template',
 )
 
 defineExpose({
@@ -266,14 +381,39 @@ defineExpose({
 
 <template>
   <div class="chat-composer" @dragover.prevent @drop="!concierge && prompts.dropChat($event)">
+    <p v-if="deliveryError" role="alert" class="px-3 py-2 text-[13px] text-danger">
+      {{ deliveryError }}
+    </p>
     <div v-if="!concierge && prompts.selections.length" class="chat-composer-chips">
-      <span v-for="(item,index) in prompts.selections" :key="item.snapshot.id" class="pv-chip"><span :title="item.snapshot.body">{{ item.snapshot.reference.scope.scope }} / {{ item.snapshot.name }} · r{{ item.snapshot.reference.revision }}</span><span v-if="item.status!=='current'">{{ item.status }}</span><button v-if="item.status==='changed'" class="pv-link" @click="prompts.refresh(index)">Refresh selection</button><button :aria-label="`Remove selected prompt ${index+1}`" @click="prompts.selections.splice(index,1)">×</button></span>
+      <span v-for="(item, index) in prompts.selections" :key="item.snapshot.id" class="pv-chip"
+        ><span :title="item.snapshot.body"
+          >{{ item.snapshot.reference.scope.scope }} / {{ item.snapshot.name }} · r{{
+            item.snapshot.reference.revision
+          }}</span
+        ><span v-if="item.status !== 'current'">{{ item.status }}</span
+        ><button v-if="item.status === 'changed'" class="pv-link" @click="prompts.refresh(index)">
+          Refresh selection</button
+        ><button
+          :aria-label="`Remove selected prompt ${index + 1}`"
+          @click="prompts.selections.splice(index, 1)"
+        >
+          ×
+        </button></span
+      >
     </div>
     <p v-if="!concierge && prompts.error" role="alert" class="pv-callout">{{ prompts.error }}</p>
     <div v-if="pendingFiles.length" class="chat-composer-chips">
       <span v-for="file in pendingFiles" :key="file.path" class="chat-chip">
         <FileCode class="h-3 w-3 shrink-0" />
-        <span class="max-w-60 truncate">{{ file.path }}</span>
+        <span
+          class="max-w-60 truncate text-[13px]"
+          :title="
+            file.reference
+              ? `Saved version ${file.reference.snapshotId} · SHA256 ${file.reference.digest}`
+              : 'Path only; review the file before sending'
+          "
+          >{{ file.path }} · {{ file.reference ? 'Saved' : 'Path only' }}</span
+        >
         <button
           class="ml-0.5 rounded hover:text-foreground"
           type="button"
@@ -319,7 +459,9 @@ defineExpose({
             type="button"
             @mousedown.prevent="pickCommand(entry)"
           >
-            <span class="w-16 shrink-0 font-mono text-[12.5px] text-primary">{{ entry.label }}</span>
+            <span class="w-16 shrink-0 font-mono text-[12.5px] text-primary">{{
+              entry.label
+            }}</span>
             <span class="min-w-0 flex-1 truncate text-muted-foreground">{{ entry.desc }}</span>
           </button>
         </template>
@@ -331,9 +473,11 @@ defineExpose({
         rows="1"
         class="chat-composer-textarea"
         :placeholder="placeholder"
-        :disabled="!ready"
+        :readonly="readOnly"
         aria-label="Message"
         @keydown="onKeydown"
+        @compositionstart="startComposition"
+        @compositionend="endComposition"
       />
     </div>
 
@@ -386,7 +530,7 @@ defineExpose({
               type="button"
               title="Queue this message for the running turn (Tab)"
               aria-label="Queue message"
-              :disabled="!hasDraft"
+              :disabled="!ready || !hasDraft || sendBlocked || submitting || readOnly"
               @click="submit('queue')"
             >
               <ListPlus class="h-4 w-4" />
@@ -395,7 +539,14 @@ defineExpose({
               v-else
               class="chat-send"
               type="button"
-              :disabled="!ready || !hasDraft || concierge?.sendDisabled"
+              :disabled="
+                !ready ||
+                !hasDraft ||
+                concierge?.sendDisabled ||
+                sendBlocked ||
+                submitting ||
+                readOnly
+              "
               title="Send (Enter)"
               aria-label="Send"
               @click="submit('auto')"
@@ -415,15 +566,31 @@ defineExpose({
 
           <div v-if="menu === 'delivery'" class="chat-menu chat-menu-up chat-delivery-menu w-64">
             <p class="chat-menu-head">Delivery</p>
-            <button v-if="!concierge" class="chat-menu-item" type="button" @click="deliver('queue')">
+            <button
+              v-if="!concierge"
+              class="chat-menu-item"
+              type="button"
+              :disabled="!ready || sendBlocked || readOnly || submitting || !hasDraft"
+              @click="deliver('queue')"
+            >
               <span class="font-medium">Queue</span>
               <span class="text-[12px] text-subtle">after the current step</span>
             </button>
-            <button class="chat-menu-item" type="button" @click="deliver('steer')">
+            <button
+              class="chat-menu-item"
+              type="button"
+              :disabled="!ready || sendBlocked || readOnly || submitting || !hasDraft"
+              @click="deliver('steer')"
+            >
               <span class="font-medium">{{ concierge ? 'Urgent message' : 'Send now' }}</span>
               <span class="text-[12px] text-subtle">before the next model call</span>
             </button>
-            <button class="chat-menu-item" type="button" :disabled="!!concierge && !ready" @click="stopAndClose">
+            <button
+              class="chat-menu-item"
+              type="button"
+              :disabled="!!concierge && !ready"
+              @click="stopAndClose"
+            >
               <Square class="h-4 w-4 shrink-0 text-status-error" />
               <span class="font-medium">Stop and take over</span>
             </button>

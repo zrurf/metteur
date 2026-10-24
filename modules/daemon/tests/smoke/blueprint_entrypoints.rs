@@ -34,6 +34,7 @@ async fn file_save_inline_assertion_and_restore_share_one_authority() {
         .execute_blueprint(ExecuteBlueprintRequest {
             workspace_path: ws.clone(),
             blueprint_id: graph.id.to_string(),
+            workflow_confirmation: String::new(),
             blueprint_json: file.clone(),
         })
         .await
@@ -44,6 +45,7 @@ async fn file_save_inline_assertion_and_restore_share_one_authority() {
             workspace_path: ws.clone(),
             path: "plan.blueprint".into(),
             content: file.clone(),
+            ..Default::default()
         })
         .await
         .unwrap();
@@ -80,6 +82,7 @@ async fn file_save_inline_assertion_and_restore_share_one_authority() {
         .execute_blueprint(ExecuteBlueprintRequest {
             workspace_path: ws.clone(),
             blueprint_id: graph.id.to_string(),
+            workflow_confirmation: String::new(),
             blueprint_json: file.clone(),
         })
         .await
@@ -117,6 +120,7 @@ async fn file_save_inline_assertion_and_restore_share_one_authority() {
         .execute_blueprint(ExecuteBlueprintRequest {
             workspace_path: ws,
             blueprint_id: graph.id.to_string(),
+            workflow_confirmation: String::new(),
             blueprint_json: file,
         })
         .await
@@ -146,6 +150,7 @@ async fn active_save_and_restore_are_rejected_and_external_edits_stop_successors
             workspace_path: ws.clone(),
             path: "active.blueprint".into(),
             content: file.clone(),
+            ..Default::default()
         })
         .await
         .unwrap();
@@ -170,6 +175,7 @@ async fn active_save_and_restore_are_rejected_and_external_edits_stop_successors
         .execute_blueprint(ExecuteBlueprintRequest {
             workspace_path: ws.clone(),
             blueprint_id: graph.id.to_string(),
+            workflow_confirmation: String::new(),
             blueprint_json: String::new(),
         })
         .await
@@ -196,7 +202,8 @@ async fn active_save_and_restore_are_rejected_and_external_edits_stop_successors
             .write_file(WriteFileRequest {
                 workspace_path: ws.clone(),
                 path: "active.blueprint".into(),
-                content: file.clone()
+                content: file.clone(),
+                ..Default::default()
             })
             .await
             .is_err()
@@ -271,6 +278,7 @@ async fn legacy_database_graph_executes_but_cannot_be_silently_associated_on_sav
         .execute_blueprint(ExecuteBlueprintRequest {
             workspace_path: ws,
             blueprint_id: graph.id.to_string(),
+            workflow_confirmation: String::new(),
             blueprint_json: String::new(),
         })
         .await

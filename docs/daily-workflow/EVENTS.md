@@ -1,0 +1,15 @@
+# 多窗口事件连接及兼容
+
+2026-10-23。生产双窗口首次验收发现真实阻塞：每个浏览器窗口分别保持WatchWorkspace、WatchWorkspaceChanges、WatchJobs，两个窗口耗尽HTTP/1同源6连接，第二个窗口的ReadFile/ChatDelivery/Recovery排队不返回。原始trace在`s4-recovery-production-first`，首窗3条和次窗3条监听及未完成请求可核对。不能以增大超时处理。
+
+修复复用原有三类宿主事件源及原WatchWorkspaceChanges RPC，新增可选include_activity请求、file_event/job_event和activity_supported回复。新Web的三个订阅经引用计数共享一个连接，每窗口/工作区只占一条活动事件流；不加轮询、不创建新的业务账本或执行器。恢复备份仍静默，不触发业务查询。
+
+宿主合流前检查原WatchWorkspaceChanges、WatchWorkspace、WatchJobs全部当前ACL，不能借新增字段绕过旧权限。宿主转发有界64项；任何源溢出明确结束并要求重连/原有快照对账。浏览器最后一个订阅取消才关闭连接；旧代次事件不能送入新订阅。断开后仍用现有followStream退避和各存储的全量重读。
+
+旧客户端不设置include_activity，保留原流行为。旧宿主首次业务事件没有activity_supported，新Web明确停止共享流并在既有状态栏以13px提示更新宿主，不悄悄漏掉文件/Job变化或退回3连接。该兼容边界没有改动草稿正文schema和保存协议。网关及daemon均须更新，冻结运行清单同时包含二者和新Web。
+
+定向证据：客户端共享/迟加入对账/取消/旧代次/旧宿主3例通过；Windows及Linux各2例真实文件、持久业务通知、实际echo Job终态、关闭释放和原ACL拒绝通过。Windows旧RPC空闲/关闭重开/条件文件写3例通过；全部workspace/all-targets clippy退出0，仅既有27 lib及1旧测试告警。首个构建命令误将二进制名metteur-web作为package名，修正为metteur-web-server后构建通过，原失败日志保留。
+
+生产修复后的两项场景：实际pending approval、固定目标Stop及无source新计划追加草稿通过；双窗口已同时编辑并取得独立宿主副本，刷新后磁盘变化先显示当前版本，明确恢复旧副本进入冲突，不覆盖磁盘或另一窗口副本。首轮修复后夹具误忽略Monaco自动补括号，改用无括号合成输入，仅复测失败的双窗口场景通过。详见`s4-recovery-production-activity-fix`及`s4-recovery-two-window-narrow`。
+
+未受影响的A/B执行/预算/交接结果证据复用STORIES.md；本次重测事件传输、恢复、审批/Stop、兼容和性能，不重跑整套相同真实任务。更多同时可见窗口的浏览器连接上限仍受平台约束，当前明确实测两窗口；不宣称无限窗口。

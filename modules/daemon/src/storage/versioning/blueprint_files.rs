@@ -23,6 +23,10 @@ pub(crate) enum ExpectedFile<'a> {
     Any,
     /// Manual save may update only a valid file with the same identity.
     Blueprint(Uuid),
+    Contents {
+        blueprint: Uuid,
+        bytes: &'a [u8],
+    },
     Absent,
     Version(&'a VersionRef),
 }
@@ -33,6 +37,60 @@ impl<'a> From<Option<&'a VersionRef>> for ExpectedFile<'a> {
 }
 
 impl VersionManager {
+    /// Reuse an existing exact Version Flow image when possible. New file
+    /// references share its snapshots/blobs and do not create another ledger.
+    pub fn capture_file(&self, uri: &str) -> DaemonResult<VersionRef> {
+        let path = self.blueprint_path(uri)?;
+        let _guard = self.operation_gate.lock();
+        let bytes = std::fs::read(&path)?;
+        let rel = path
+            .strip_prefix(&self.root)
+            .map_err(|_| DaemonError::PermissionDenied("file outside workspace".into()))?
+            .to_string_lossy()
+            .replace('\\', "/");
+        let hash = hash_content(&bytes);
+        if let Some(snapshot) = self.latest_snapshot()?
+            && snapshot.files.get(&rel) == Some(&hash)
+        {
+            return Ok(VersionRef {
+                snapshot_id: snapshot.id,
+                blueprint_uri: rel,
+                blob_hash: hash,
+            });
+        }
+        self.capture_blueprint_locked(&path)
+    }
+    pub fn referenced_file(
+        &self,
+        snapshot_id: Uuid,
+        path: &str,
+        digest: &str,
+    ) -> DaemonResult<String> {
+        self.blueprint_path(path)?;
+        let raw = self
+            .db
+            .get(crate::storage::persistence::cf::SNAPSHOTS, snapshot_id.as_bytes())?
+            .ok_or_else(|| DaemonError::NotFound("referenced file snapshot".into()))?;
+        let snapshot: super::Snapshot =
+            serde_json::from_slice(&raw).map_err(|e| DaemonError::Serialization(e.to_string()))?;
+        let blob = snapshot.files.get(path).ok_or_else(|| {
+            DaemonError::NotFound("referenced path is absent from its snapshot".into())
+        })?;
+        let bytes = self
+            .db
+            .get(crate::storage::persistence::cf::FILE_BLOBS, blob.as_bytes())?
+            .ok_or_else(|| DaemonError::NotFound("referenced file content".into()))?;
+        if bytes.len() > 64 * 1024
+            || hash_content(&bytes) != *blob
+            || crate::storage::resources::digest(&bytes) != digest
+        {
+            return Err(DaemonError::Execution(
+                "file reference is too large or its content identity does not match".into(),
+            ));
+        }
+        String::from_utf8(bytes)
+            .map_err(|_| DaemonError::Execution("referenced file is not UTF-8 text".into()))
+    }
     pub fn blueprint_path(&self, uri: &str) -> DaemonResult<std::path::PathBuf> {
         let relative = std::path::PathBuf::from(uri.replace('\\', "/"));
         let path = if relative.is_absolute() {
@@ -136,11 +194,21 @@ impl VersionManager {
         }
         let mut operation_id = None;
         let before = read_optional(&path)?;
-        if let ExpectedFile::Blueprint(id) = expected
+        let blueprint_id = match expected {
+            ExpectedFile::Blueprint(id)
+            | ExpectedFile::Contents {
+                blueprint: id,
+                ..
+            } => Some(id),
+            _ => None,
+        };
+        if let Some(id) = blueprint_id
             && let Some(previous) = &before
         {
             let graph = crate::storage::blueprint_files::decode(previous).map_err(|_| {
-                DaemonError::Execution("existing blueprint file is invalid; save to a new file".into())
+                DaemonError::Execution(
+                    "existing blueprint file is invalid; save to a new file".into(),
+                )
             })?;
             if graph.id != id {
                 return Err(DaemonError::Execution(
@@ -154,6 +222,10 @@ impl VersionManager {
         let mismatch = match expected {
             ExpectedFile::Any | ExpectedFile::Blueprint(_) => false,
             ExpectedFile::Absent => before.is_some(),
+            ExpectedFile::Contents {
+                bytes,
+                ..
+            } => before.as_deref() != Some(bytes),
             ExpectedFile::Version(base) => {
                 before.as_deref().map(hash_content).as_ref() != Some(&base.blob_hash)
             }

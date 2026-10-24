@@ -213,6 +213,12 @@ impl ApprovalBroker {
     pub fn is_closed(&self) -> bool {
         self.state.lock().unwrap().closed
     }
+    /// Receipt retirement closes only this unanswered request without granting.
+    pub fn withdraw(&self, request_id: &str) {
+        if let Some(pending) = self.state.lock().unwrap().pending.remove(request_id) {
+            let _ = pending.tx.send(Err(ApprovalFailure::Closed));
+        }
+    }
 
     /// Closes the run permanently without turning cancellation into user Deny.
     pub fn close(&self) {
@@ -232,8 +238,12 @@ impl ApprovalBroker {
 
     /// Event-driven run closure, including closure before the waiter is registered.
     pub async fn closed(&self) {
-        let notified=self.closed_notify.notified();tokio::pin!(notified);notified.as_mut().enable();
-        if !self.is_closed() {notified.await;}
+        let notified = self.closed_notify.notified();
+        tokio::pin!(notified);
+        notified.as_mut().enable();
+        if !self.is_closed() {
+            notified.await;
+        }
     }
     /// Returns unanswered request ids for diagnostics and tests.
     pub fn pending_ids(&self) -> Vec<String> {
@@ -253,11 +263,15 @@ impl Drop for ApprovalRunGuard {
 /// Host-only wall-time accounting. Only a real broker wait may pause the
 /// Addon active-time budget; plugin input cannot manipulate this clock.
 #[derive(Default)]
-pub struct ApprovalWaitClock(std::sync::Mutex<(usize, Option<std::time::Instant>, std::time::Duration)>);
+pub struct ApprovalWaitClock(
+    std::sync::Mutex<(usize, Option<std::time::Instant>, std::time::Duration)>,
+);
 impl ApprovalWaitClock {
     pub fn enter(self: &std::sync::Arc<Self>) -> ApprovalWaitGuard {
         let mut state = self.0.lock().unwrap();
-        if state.0 == 0 { state.1 = Some(std::time::Instant::now()); }
+        if state.0 == 0 {
+            state.1 = Some(std::time::Instant::now());
+        }
         state.0 += 1;
         ApprovalWaitGuard(self.clone())
     }
@@ -271,6 +285,10 @@ impl Drop for ApprovalWaitGuard {
     fn drop(&mut self) {
         let mut state = self.0.0.lock().unwrap();
         state.0 -= 1;
-        if state.0 == 0 && let Some(start) = state.1.take() { state.2 += start.elapsed(); }
+        if state.0 == 0
+            && let Some(start) = state.1.take()
+        {
+            state.2 += start.elapsed();
+        }
     }
 }

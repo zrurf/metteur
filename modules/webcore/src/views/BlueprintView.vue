@@ -31,13 +31,21 @@ import '@vue-flow/core/dist/style.css'
 import '@vue-flow/core/dist/theme-default.css'
 import type { Blueprint, BlueprintEdge, BlueprintNode, BlueprintPin, NodeCategory } from '@/core'
 import { gateway } from '@/core'
+import { useCodingWorkflowsStore } from '@/stores/coding-workflows'
+const codingWorkflows = useCodingWorkflowsStore()
+function startTemplate() {
+  if (!workspace.active) return
+  void codingWorkflows.openPlan(workspace.active.path)
+  openExecutionSurface('tasks')
+}
 import { useFeedbackStore } from '@/stores/feedback'
 import { useWorkspaceStore } from '@/stores/workspace'
 import { usePromptResourcesStore } from '@/stores/prompt-resources'
 import { fileNameOf, useBlueprintStore } from '@/stores/blueprint'
 import { useSurfaceNavigation } from '@/lib/surface'
 import { useExecutionStore } from '@/stores/execution'
-import { useTabsStore } from '@/stores/tabs'
+import { useDocumentsStore } from '@/stores/documents'
+import { useWorkspaceViewStore } from '@/stores/workspace-view'
 import { useRightPanelStore } from '@/stores/right-panel'
 import BlueprintNodeComp from '@/components/BlueprintNode.vue'
 import BlueprintAuditDrawer from '@/components/BlueprintAuditDrawer.vue'
@@ -45,20 +53,32 @@ import ContextMenu, { type MenuGroup } from '@/components/ContextMenu.vue'
 import FileVersionPanel from '@/components/FileVersionPanel.vue'
 import NodeInspector from '@/components/NodeInspector.vue'
 import FilePickerDialog, { type FilePick } from '@/components/FilePickerDialog.vue'
-import { CATEGORIES, execInOf, isPinCompatible, makeCallFunctionNode, makeFlowNode, makeFileReference, categoryFor, NODE_PRESETS, uuid } from '@/lib/blueprint'
+import {
+  CATEGORIES,
+  execInOf,
+  isPinCompatible,
+  makeCallFunctionNode,
+  makeFlowNode,
+  makeFileReference,
+  categoryFor,
+  NODE_PRESETS,
+  uuid,
+} from '@/lib/blueprint'
 
 const nodeTypes = { blueprint: markRaw(BlueprintNodeComp) as unknown as NodeComponent }
 
 const workspace = useWorkspaceStore()
 const prompts = usePromptResourcesStore()
 const store = useBlueprintStore()
+const documents = useDocumentsStore()
+const views = useWorkspaceViewStore()
 const execution = useExecutionStore()
 const { openSurface: openExecutionSurface } = useSurfaceNavigation()
-const tabs = useTabsStore()
 const rightPanel = useRightPanelStore()
 const feedback = useFeedbackStore()
 const props = defineProps<{ filePath?: string }>()
-const { screenToFlowCoordinate, viewport, getNodes } = useVueFlow()
+const canvasId = crypto.randomUUID()
+const { screenToFlowCoordinate, viewport, getNodes } = useVueFlow(canvasId)
 
 /** Palette categories start folded so a long node list stays navigable. */
 const PALETTE_COLLAPSED = ['Events', 'Module', 'Actions', 'Flow', 'Functions']
@@ -139,6 +159,9 @@ const canvasEdges = computed({
   },
 })
 const dirty = ref(false)
+const canvasLoading = ref(true)
+let canvasGeneration = 0
+const canvasDocument = computed(() => documents.get(workspace.active?.path ?? '', fileKey.value))
 /** Serialized graph as last written to disk for the open file (kept in the
  *  store per blueprint id). The dirty watchers compare the live graph against
  *  this, so switching tabs to a cached-but-edited file still shows the unsaved
@@ -170,7 +193,13 @@ const selectedNode = computed(() => flowNodes.value.find((n) => n.id === selecte
 /** The selected node's pin payload, fed to the inspector. */
 const selectedNodeData = computed(() => {
   const data = selectedNode.value?.data as
-    | { title?: string; category?: string; inputs?: BlueprintPin[]; outputs?: BlueprintPin[]; values?: Record<string, string> }
+    | {
+        title?: string
+        category?: string
+        inputs?: BlueprintPin[]
+        outputs?: BlueprintPin[]
+        values?: Record<string, string>
+      }
     | undefined
   return data ?? null
 })
@@ -301,7 +330,6 @@ const isExecHandle = (h?: string): boolean => {
 
 /** Category tint, aligned with the palette swatches in the context menu. */
 
-
 /** The live registry controls available kinds, including extensions without visual presets. */
 const kindList = computed(() => store.signatures.map((s) => s.kind))
 const signatureOf = (kind: string) => store.signatures.find((s) => s.kind === kind)
@@ -309,15 +337,33 @@ const categoryOf = (kind: string) => categoryFor(kind, signatureOf(kind)?.nodeTy
 
 /** Load the graph for the currently open blueprint file and reset editor state. */
 async function loadBlueprint() {
+  const generation = ++canvasGeneration
+  canvasLoading.value = true
   const ws = workspace.active
   if (!ws) return
-  await store.load(ws.path, fileKey.value)
-  flowNodes.value = store.nodes.map(toFlowNode)
-  flowEdges.value = store.edges.map(toFlowEdge)
+  const file = fileKey.value
+  const graph = await store.load(ws.path, file)
+  const savedView = await views.ready(ws.path)
+  if (
+    generation !== canvasGeneration ||
+    workspace.active?.path !== ws.path ||
+    fileKey.value !== file
+  )
+    return
+  if (!graph) {
+    flowNodes.value = []
+    flowEdges.value = []
+    return
+  }
+  flowNodes.value = graph.nodes.map(toFlowNode)
+  flowEdges.value = graph.edges.map(toFlowEdge)
   consumePromptNodes()
   // The store keeps the on-disk baseline per file, so a partially saved graph
   // that was edited again is still reported dirty after a tab round-trip.
   await nextTick()
+  if (generation !== canvasGeneration) return
+  canvasLoading.value = false
+  persistDraft()
   dirty.value = graphKey() !== savedBaseline.value
   past.value = []
   future.value = []
@@ -325,7 +371,23 @@ async function loadBlueprint() {
   selectedEdgeId.value = null
   clearDrag()
   clearPendingWire()
-  requestAnimationFrame(() => flowRef.value?.fitView({ padding: 0.25 }))
+  requestAnimationFrame(() => {
+    if (
+      generation !== canvasGeneration ||
+      workspace.active?.path !== ws.path ||
+      fileKey.value !== file
+    )
+      return
+    const saved = savedView.positions[file]
+    if (saved?.kind === 'canvas')
+      void flowRef.value?.setViewport({ x: saved.x, y: saved.y, zoom: saved.zoom })
+    else void flowRef.value?.fitView({ padding: 0.25 })
+  })
+}
+function saveViewport(value: { x: number; y: number; zoom: number }) {
+  const path = workspace.active?.path
+  if (path && !canvasLoading.value)
+    views.position(path, fileKey.value, { kind: 'canvas', ...value })
 }
 
 onMounted(() => {
@@ -339,7 +401,18 @@ onMounted(() => {
 
 // Switching blueprint tabs loads that file's own graph instead of reusing the
 // previous canvas (item 9).
-watch(() => props.filePath, () => void loadBlueprint())
+watch(
+  [() => props.filePath, () => workspace.active?.path],
+  (_current, previous) => {
+    const [file, path] = previous
+    if (file && path && !canvasLoading.value)
+      views.position(path, file, { kind: 'canvas', ...viewport.value })
+    void loadBlueprint()
+  },
+  {
+    flush: 'sync',
+  },
+)
 
 /** The explorer's "Add to Blueprint" lands a file reference on this canvas.
  *  Immediate mode also drains a reference queued while no blueprint was open. */
@@ -354,6 +427,9 @@ watch(
 )
 
 onBeforeUnmount(() => {
+  if (workspace.active?.path && !canvasLoading.value)
+    views.position(workspace.active.path, fileKey.value, { kind: 'canvas', ...viewport.value })
+  canvasGeneration++
   window.removeEventListener('keydown', onKeydown)
   flowWrap.value?.removeEventListener('mousedown', onCanvasMouseDown, true)
 })
@@ -388,25 +464,37 @@ watch(
   { deep: false },
 )
 
-/** Structural changes to the graph (value edits, moves, added/removed nodes or
- *  wires) are compared against the file's on-disk baseline. The state we derive
- *  from wires (connectedIn/connectedOut) is excluded from {@link graphKey}, so
- *  it never spurious-dirties a pristine file (item 2c). */
-watch(
-  flowNodes,
-  () => {
-    dirty.value = graphKey() !== savedBaseline.value
-  },
-  { deep: true },
-)
-watch(flowEdges, () => {
+/** Every authored change belongs to its document immediately, before any
+ * route transition can unmount this canvas. Wire styling is excluded. */
+function persistDraft() {
+  if (canvasLoading.value || !workspace.active) return
+  store.updateDraft(
+    workspace.active.path,
+    fileKey.value,
+    flowNodes.value.map(toBpNode),
+    flowEdges.value.map((e) => ({
+      id: e.id,
+      source: e.source,
+      target: e.target,
+      sourceHandle: e.sourceHandle ?? undefined,
+      targetHandle: e.targetHandle ?? undefined,
+      label: typeof e.label === 'string' ? e.label : undefined,
+    })),
+    entryNodeIdOf(),
+  )
   dirty.value = graphKey() !== savedBaseline.value
-})
-
-/** Keep the owning tab's unsaved dot synced to the graph's clean/dirty state in
- *  both directions — a clean reload clears any stale dot on this tab. */
-watch(dirty, (d) => {
-  if (props.filePath) tabs.markDirty(props.filePath, d)
+}
+watch(graphKey, persistDraft, { flush: 'sync' })
+watch(
+  () => canvasDocument.value.content,
+  () => {
+    if (canvasLoading.value || !workspace.active) return
+    const graph = store.graphFor(workspace.active.path, fileKey.value)
+    if (!graph || store.keyFor(graph.nodes, graph.edges) !== graphKey()) void loadBlueprint()
+  },
+)
+watch(savedBaseline, () => {
+  dirty.value = graphKey() !== savedBaseline.value
 })
 
 /* Graph mapping                                                     */
@@ -416,7 +504,10 @@ function edgeVisual(
   sourceNodeId?: string,
 ): { class: string; animated: boolean; style?: Record<string, string> } {
   const node = flowNodes.value.find((n) => n.id === sourceNodeId)
-  return blueprintEdgeVisual(isExecHandle(sourceHandle), (node?.data?.category as NodeCategory) ?? 'module')
+  return blueprintEdgeVisual(
+    isExecHandle(sourceHandle),
+    (node?.data?.category as NodeCategory) ?? 'module',
+  )
 }
 
 function toFlowNode(n: BlueprintNode): FlowNode {
@@ -562,7 +653,8 @@ function onConnectEnd(p?: MouseEvent | TouchEvent | { event?: MouseEvent | Touch
   const start = dragStart.value
   dragStart.value = null
   if (!start || edgeMade.value) return
-  const me = p && 'clientX' in p ? (p as MouseEvent) : (p as { event?: MouseEvent } | undefined)?.event
+  const me =
+    p && 'clientX' in p ? (p as MouseEvent) : (p as { event?: MouseEvent } | undefined)?.event
   const rect = flowWrap.value?.getBoundingClientRect()
   const x = me?.clientX ?? (rect?.left ?? 0) + (rect?.width ?? 0) / 2
   const y = me?.clientY ?? (rect?.top ?? 0) + (rect?.height ?? 0) / 2
@@ -585,7 +677,9 @@ function onConnectEnd(p?: MouseEvent | TouchEvent | { event?: MouseEvent | Touch
       y1: from.y - rect.top,
       x2: x - rect.left,
       y2: y - rect.top,
-      stroke: isExec ? 'var(--exec-wire)' : (ACCENT[(node?.data?.category as NodeCategory) ?? 'module']),
+      stroke: isExec
+        ? 'var(--exec-wire)'
+        : ACCENT[(node?.data?.category as NodeCategory) ?? 'module'],
       width: isExec ? 2 : 1.5,
     }
   }
@@ -643,11 +737,7 @@ function onEdgeContextMenu(ev: EdgeMouseEvent) {
 
 /** Injected into node components: right-click a connected pin opens a menu with
  *  a "Disconnect" action (item 6). Unconnected pins do nothing. */
-function onPinContext(
-  e: MouseEvent,
-  nodeId: string,
-  pin: { id: string; kind: string },
-) {
+function onPinContext(e: MouseEvent, nodeId: string, pin: { id: string; kind: string }) {
   e.preventDefault()
   e.stopPropagation()
   const isIn = pin.kind === 'exec-in' || pin.kind === 'data-in'
@@ -694,7 +784,10 @@ const paletteMenuGroups = computed<MenuGroup[]>(() => {
     const signature = signatureOf(kind)
     if (!signature) return false
     if (srcPin.kind === 'exec-out') return signature.pins.some((p) => p.kind === 'exec-in')
-    if (srcPin.kind === 'data-out') return signature.pins.some((p) => p.kind === 'data-in' && isPinCompatible(srcPin.type, p.type))
+    if (srcPin.kind === 'data-out')
+      return signature.pins.some(
+        (p) => p.kind === 'data-in' && isPinCompatible(srcPin.type, p.type),
+      )
     return false
   }
   return CATEGORIES.map((cat) => ({
@@ -712,12 +805,13 @@ const nodeMenuGroups = computed<MenuGroup[]>(() => {
   // Sequence / Branch) gain or shed extra exec outlets. A single-exit node
   // (CallLLM, Tool, …) has no useful second stream, so no such option (item 15).
   const execOuts = node?.data?.outputs?.filter((p: { kind: string }) => p.kind === 'exec-out') ?? []
-  const flowActions = execOuts.length > 1
-    ? [
-        { id: 'add-exec-out', label: 'Add Exec Output' },
-        { id: 'remove-exec-out', label: 'Remove Exec Output' },
-      ]
-    : []
+  const flowActions =
+    execOuts.length > 1
+      ? [
+          { id: 'add-exec-out', label: 'Add Exec Output' },
+          { id: 'remove-exec-out', label: 'Remove Exec Output' },
+        ]
+      : []
   return [
     {
       label: 'Node',
@@ -781,17 +875,42 @@ function wirePaletteTo(source: string, sourceHandle: string, newId: string) {
     const execIn = execInOf((node?.data?.inputs as BlueprintPin[] | undefined) ?? [])
     if (!execIn) return
     const eid = uuid()
-    flowEdges.value = [...flowEdges.value, { id: eid, source, sourceHandle, target: newId, targetHandle: execIn.id, class: 'metteur-edge--exec', animated: false }]
+    flowEdges.value = [
+      ...flowEdges.value,
+      {
+        id: eid,
+        source,
+        sourceHandle,
+        target: newId,
+        targetHandle: execIn.id,
+        class: 'metteur-edge--exec',
+        animated: false,
+      },
+    ]
     dirty.value = true
     return
   }
   if (srcPin.kind === 'data-out') {
     const node = flowNodes.value.find((n) => n.id === newId)
-    const target = node?.data?.inputs?.find((p: BlueprintPin) => p.kind === 'data-in' && isPinCompatible(srcPin.type, p.type))
+    const target = node?.data?.inputs?.find(
+      (p: BlueprintPin) => p.kind === 'data-in' && isPinCompatible(srcPin.type, p.type),
+    )
     if (target) {
       const eid = uuid()
       const visual = edgeVisual(sourceHandle, source)
-      flowEdges.value = [...flowEdges.value, { source, sourceHandle, target: newId, targetHandle: target.id, id: eid, class: visual.class, animated: visual.animated, style: visual.style }]
+      flowEdges.value = [
+        ...flowEdges.value,
+        {
+          source,
+          sourceHandle,
+          target: newId,
+          targetHandle: target.id,
+          id: eid,
+          class: visual.class,
+          animated: visual.animated,
+          style: visual.style,
+        },
+      ]
       dirty.value = true
     }
   }
@@ -881,7 +1000,9 @@ function addNodeAt(pos: { x: number; y: number }, kind: string): string | null {
   const signature = signatureOf(entry ? 'CallFunction' : kind)
   if (!signature) return null
   commit()
-  const node = entry ? makeCallFunctionNode(entry, signature, pos, id) : makeFlowNode(signature, pos, id)
+  const node = entry
+    ? makeCallFunctionNode(entry, signature, pos, id)
+    : makeFlowNode(signature, pos, id)
   flowNodes.value = [...flowNodes.value, node]
   selectedId.value = id
   selectedEdgeId.value = null
@@ -910,27 +1031,48 @@ function addReferenceNode(filePath: string) {
 }
 
 function consumePromptNodes() {
-  if(!signatureOf('PromptResource') || !signatureOf('ContextMerge')) return
-  const pending=prompts.pendingBlueprint.filter(item=>item.file===fileKey.value)
-  for(const item of pending){
+  if (!signatureOf('PromptResource') || !signatureOf('ContextMerge')) return
+  const pending = prompts.pendingBlueprint.filter((item) => item.file === fileKey.value)
+  for (const item of pending) {
     commit()
-    const y=Math.max(120,...flowNodes.value.map(existing=>existing.position.y+220))
-    const node=makeFlowNode(signatureOf('PromptResource')!,{x:120,y},item.nodeId)
-    node.data!.data={snapshot_id:item.snapshot.id};node.data!.title=`${item.snapshot.reference.scope.scope} / ${item.snapshot.name} · r${item.snapshot.reference.revision}`
-    const merge=makeFlowNode(signatureOf('ContextMerge')!,{x:420,y},uuid())
-    const role=merge.data!.inputs.find((pin:BlueprintPin)=>pin.name==='Role')
-    if(role)merge.data!.values={[role.id]:'user'}
-    flowNodes.value.push(node as SelectableFlowNode,merge as SelectableFlowNode)
-    flowEdges.value.push({id:uuid(),source:node.id,sourceHandle:node.data!.outputs.find((pin:BlueprintPin)=>pin.name==='Text')?.id,target:merge.id,targetHandle:merge.data!.inputs.find((pin:BlueprintPin)=>pin.name==='Text')?.id})
-    dirty.value=true
+    const y = Math.max(120, ...flowNodes.value.map((existing) => existing.position.y + 220))
+    const node = makeFlowNode(signatureOf('PromptResource')!, { x: 120, y }, item.nodeId)
+    node.data!.data = { snapshot_id: item.snapshot.id }
+    node.data!.title = `${item.snapshot.reference.scope.scope} / ${item.snapshot.name} · r${item.snapshot.reference.revision}`
+    const merge = makeFlowNode(signatureOf('ContextMerge')!, { x: 420, y }, uuid())
+    const role = merge.data!.inputs.find((pin: BlueprintPin) => pin.name === 'Role')
+    if (role) merge.data!.values = { [role.id]: 'user' }
+    flowNodes.value.push(node as SelectableFlowNode, merge as SelectableFlowNode)
+    flowEdges.value.push({
+      id: uuid(),
+      source: node.id,
+      sourceHandle: node.data!.outputs.find((pin: BlueprintPin) => pin.name === 'Text')?.id,
+      target: merge.id,
+      targetHandle: merge.data!.inputs.find((pin: BlueprintPin) => pin.name === 'Text')?.id,
+    })
+    dirty.value = true
   }
-  prompts.pendingBlueprint=prompts.pendingBlueprint.filter(item=>item.file!==fileKey.value)
+  prompts.pendingBlueprint = prompts.pendingBlueprint.filter((item) => item.file !== fileKey.value)
 }
-watch(()=>prompts.pendingBlueprint.length,consumePromptNodes)
-async function dropPrompt(event:DragEvent){
-  const raw=event.dataTransfer?.getData('application/x-metteur-prompt');if(!raw)return
+watch(() => prompts.pendingBlueprint.length, consumePromptNodes)
+async function dropPrompt(event: DragEvent) {
+  const raw = event.dataTransfer?.getData('application/x-metteur-prompt')
+  if (!raw) return
   event.preventDefault()
-  try{const nodeId=uuid();const graph=store.uuidFor(fileKey.value);if(!graph)throw new Error('Save or load a blueprint first');const snapshot=await prompts.select(JSON.parse(raw),{kind:'blueprint',blueprint_id:graph,node_id:nodeId});prompts.pendingBlueprint.push({file:fileKey.value,snapshot,nodeId});consumePromptNodes()}catch(error){prompts.error=String(error)}
+  try {
+    const nodeId = uuid()
+    const graph = store.uuidFor(fileKey.value)
+    if (!graph) throw new Error('Save or load a blueprint first')
+    const snapshot = await prompts.select(JSON.parse(raw), {
+      kind: 'blueprint',
+      blueprint_id: graph,
+      node_id: nodeId,
+    })
+    prompts.pendingBlueprint.push({ file: fileKey.value, snapshot, nodeId })
+    consumePromptNodes()
+  } catch (error) {
+    prompts.error = String(error)
+  }
 }
 
 function duplicateNode(id: string, offset = 32) {
@@ -976,7 +1118,12 @@ function recaseNode(id: string, cases: string[]) {
   const existing = new Set(kept.map((p) => p.name))
   const added: BlueprintPin[] = cases
     .filter((c) => !existing.has(`Case_${c}`))
-    .map((c) => ({ id: uuid(), key: `x-out-Case_${c}`, name: `Case_${c}`, kind: 'exec-out' as const }))
+    .map((c) => ({
+      id: uuid(),
+      key: `x-out-Case_${c}`,
+      name: `Case_${c}`,
+      kind: 'exec-out' as const,
+    }))
   if (node?.data) {
     node.data.outputs = [...kept, ...added]
     // Drop wires from removed outlets.
@@ -1017,9 +1164,7 @@ function removeExecOutput(id: string) {
   const pinId = node.data.outputs[last.i].id
   node.data.outputs = node.data.outputs.filter((_: { kind: string }, i: number) => i !== last.i)
   // Drop any wires feeding the removed outlet.
-  flowEdges.value = flowEdges.value.filter(
-    (e) => !(e.source === id && e.sourceHandle === pinId),
-  )
+  flowEdges.value = flowEdges.value.filter((e) => !(e.source === id && e.sourceHandle === pinId))
   dirty.value = true
 }
 
@@ -1027,6 +1172,7 @@ function removeExecOutput(id: string) {
 
 function onKeydown(e: KeyboardEvent) {
   const t = e.target as HTMLElement
+  if (canvasLoading.value || !flowWrap.value?.closest('[data-editor-pane]')?.contains(t)) return
   if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return
 
   if (e.key === 'Escape') dismissMenu()
@@ -1145,7 +1291,8 @@ function onCanvasMouseDown(e: MouseEvent) {
     return
   }
   const el = e.target as HTMLElement
-  if (el.closest('.vue-flow__node, .vue-flow__handle, .vue-flow__edge-component, .vue-flow__edge')) return
+  if (el.closest('.vue-flow__node, .vue-flow__handle, .vue-flow__edge-component, .vue-flow__edge'))
+    return
   startMarquee(e)
 }
 
@@ -1168,7 +1315,8 @@ function startMarquee(e: MouseEvent) {
     if (marquee.value) {
       marquee.value.x2 = ev.clientX - offX
       marquee.value.y2 = ev.clientY - offY
-      if (Math.abs(ev.clientX - startClient.x) > 4 || Math.abs(ev.clientY - startClient.y) > 4) moved = true
+      if (Math.abs(ev.clientX - startClient.x) > 4 || Math.abs(ev.clientY - startClient.y) > 4)
+        moved = true
     }
   }
   const up = () => {
@@ -1259,9 +1407,9 @@ function onPaneContextMenu(ev: MouseEvent) {
 async function handleSave(): Promise<boolean> {
   const ws = workspace.active
   const file = fileKey.value
-  if (!ws || store.saving[file]) return false
-  store.nodes = flowNodes.value.map(toBpNode)
-  store.edges = flowEdges.value.map((e) => ({
+  if (!ws || canvasLoading.value || store.saving[file]) return false
+  const draftNodes = flowNodes.value.map(toBpNode)
+  const draftEdges = flowEdges.value.map((e) => ({
     id: e.id,
     source: e.source,
     sourceHandle: e.sourceHandle ?? undefined,
@@ -1269,12 +1417,14 @@ async function handleSave(): Promise<boolean> {
     targetHandle: e.targetHandle ?? undefined,
     label: typeof e.label === 'string' ? e.label : undefined,
   }))
-  const ok = await store.save(ws.path, file, entryNodeIdOf())
+  const ok = await store.save(ws.path, file, entryNodeIdOf(), {
+    nodes: draftNodes,
+    edges: draftEdges,
+  })
   if (workspace.active?.path === ws.path && fileKey.value === file) {
     // Recompute against the fresh baseline instead of forcing false, so the
     // dot and the baseline can never disagree.
     dirty.value = graphKey() !== savedBaseline.value
-    if (props.filePath) tabs.markDirty(props.filePath, dirty.value)
   }
   if (!ok) feedback.toast('error', 'Blueprint not synchronized', store.saveErrors[file])
   return ok
@@ -1283,14 +1433,17 @@ async function handleSave(): Promise<boolean> {
 async function handleRun() {
   const ws = workspace.active
   if (!ws) return
-  if (execution.running) { openExecutionSurface('execution'); return }
+  if (execution.running) {
+    openExecutionSurface('execution')
+    return
+  }
   const file = fileKey.value
   const key = graphKey()
   // A failed file write or mirror must stop Run, with the draft left intact.
-  if (!await handleSave()) return
+  if (!(await handleSave())) return
   if (workspace.active?.path !== ws.path || fileKey.value !== file) return
   if (graphKey() !== key) {
-    store.saveErrors[file] = 'The graph changed while saving. Save again before running.'
+    store.setError(ws.path, file, 'The graph changed while saving. Save again before running.')
     return
   }
   const id = store.uuidFor(fileKey.value) ?? uuid()
@@ -1299,8 +1452,13 @@ async function handleRun() {
     // The name matches what `save` mirrors, so both agree on the identity.
     name: fileNameOf(fileKey.value),
     entryNodeId: entryNodeIdOf(),
-    nodes: store.nodes,
-    edges: store.edges,
+    nodes: flowNodes.value.map(toBpNode),
+    edges: flowEdges.value.map((e) => ({
+      ...e,
+      sourceHandle: e.sourceHandle ?? undefined,
+      targetHandle: e.targetHandle ?? undefined,
+      label: typeof e.label === 'string' ? e.label : undefined,
+    })),
   }
   openExecutionSurface('execution')
   try {
@@ -1388,16 +1546,19 @@ async function importDslFrom(filePath: string) {
 
 /** Save-mode confirm: write the exported DSL into the picked directory. */
 async function onDslExportConfirm(p: FilePick) {
-  dslSaveOpen.value = false
   const ws = workspace.active
   if (!ws || !p.name) return
+  const file = fileKey.value
   const dsl = await dslExportText()
-  if (dsl === null) return
+  if (dsl === null || workspace.active?.path !== ws.path || fileKey.value !== file) return
   const base = p.name.toLowerCase().endsWith('.mbp') ? p.name : `${p.name}.mbp`
   const rel = p.dir ? `${p.dir}/${base}` : base
-  const r = await gateway.writeFile(ws.path, rel, dsl)
-  if (r.ok) feedback.toast('success', 'DSL exported', rel)
-  else feedback.toast('error', 'DSL export failed', r.error)
+  const r = await gateway.writeFile(ws.path, rel, dsl, { createOnly: true })
+  if (workspace.active?.path !== ws.path || fileKey.value !== file) return
+  if (r.ok) {
+    dslSaveOpen.value = false
+    feedback.toast('success', 'DSL exported', rel)
+  } else feedback.toast('error', 'DSL export failed', r.error)
 }
 
 /** Open-mode confirm: import the picked `.mbp` file. */
@@ -1409,31 +1570,56 @@ async function onDslImportConfirm(p: FilePick) {
 
 /** Open the per-file version history in the closable right-hand panel. */
 function openVersionPanel() {
-  if (props.filePath) rightPanel.show(FileVersionPanel, 'Version History', { filePath: props.filePath })
+  if (props.filePath)
+    rightPanel.show(FileVersionPanel, 'Version History', { filePath: props.filePath })
 }
 </script>
 
 <template>
   <div class="flex h-full flex-col">
-    <p v-if="store.saveErrors[fileKey]" role="alert" data-testid="blueprint-save-error" class="border-b border-divider px-3 py-2 text-xs text-danger">{{ store.saveErrors[fileKey] }}</p>
-    <p v-if="store.catalogMessage" data-testid="node-catalog-status" class="border-b border-divider px-3 py-2 text-xs text-muted-foreground">{{ store.catalogMessage }}</p>
+    <div
+      v-if="canvasDocument.deleted"
+      role="status"
+      class="flex items-center gap-3 border-b border-divider px-3 py-2 text-xs text-danger"
+    >
+      This file was deleted. Your canvas is preserved.
+      <button class="btn btn-outline" :disabled="canvasDocument.saving" @click="handleSave">
+        Save to Restore
+      </button>
+    </div>
+    <p
+      v-else-if="canvasDocument.conflict"
+      role="alert"
+      class="border-b border-divider px-3 py-2 text-xs text-danger"
+    >
+      This file changed on disk. Your canvas is preserved; saving checks the original version before
+      writing.
+    </p>
+    <p
+      v-if="store.saveErrors[fileKey]"
+      role="alert"
+      data-testid="blueprint-save-error"
+      class="border-b border-divider px-3 py-2 text-xs text-danger"
+    >
+      {{ store.saveErrors[fileKey] }}
+    </p>
+    <p
+      v-if="store.catalogMessage"
+      data-testid="node-catalog-status"
+      class="border-b border-divider px-3 py-2 text-xs text-muted-foreground"
+    >
+      {{ store.catalogMessage }}
+    </p>
     <!-- Editor toolbar -->
     <div class="flex h-11 shrink-0 items-center gap-2 border-b border-divider px-3">
       <Workflow class="h-4 w-4 text-muted-foreground" />
       <span class="text-[13px] font-medium">{{ blueprintTitle }}</span>
-      <span
-        v-if="dirty"
-        class="h-1.5 w-1.5 rounded-full"
-        style="background: var(--primary)"
-      />
+      <button class="btn" type="button" @click="startTemplate">Start from template</button>
+      <span v-if="dirty" class="h-1.5 w-1.5 rounded-full" style="background: var(--primary)" />
       <span v-else class="h-1.5 w-1.5 rounded-full bg-subtle" />
 
       <!-- Run state: chip + controls run the graph in place (Unreal debug). -->
-      <span
-        v-if="execution.status !== 'idle'"
-        class="chip ml-1"
-        :class="statusChip"
-      >
+      <span v-if="execution.status !== 'idle'" class="chip ml-1" :class="statusChip">
         <span
           v-if="execution.status === 'running'"
           class="h-1.5 w-1.5 animate-pulse rounded-full bg-primary"
@@ -1496,7 +1682,14 @@ function openVersionPanel() {
         >
           <GitBranch class="h-4 w-4" />
         </button>
-        <button class="editor-tool-icon" type="button" title="Save (Ctrl+S)" aria-label="Save" :disabled="store.saving[fileKey]" @click="handleSave">
+        <button
+          class="editor-tool-icon"
+          type="button"
+          title="Save (Ctrl+S)"
+          aria-label="Save"
+          :disabled="canvasLoading || store.saving[fileKey]"
+          @click="handleSave"
+        >
           <Save class="h-4 w-4" />
         </button>
         <button
@@ -1504,6 +1697,7 @@ function openVersionPanel() {
           type="button"
           title="Export blueprint as DSL file"
           aria-label="Export DSL"
+          :disabled="canvasLoading"
           @click="dslSaveOpen = true"
         >
           <FileDown class="h-4 w-4" />
@@ -1513,6 +1707,7 @@ function openVersionPanel() {
           type="button"
           title="Import blueprint from .mbp file"
           aria-label="Import DSL"
+          :disabled="canvasLoading"
           @click="dslPickOpen = true"
         >
           <FileUp class="h-4 w-4" />
@@ -1532,7 +1727,7 @@ function openVersionPanel() {
           type="button"
           title="Run (Ctrl+Enter)"
           aria-label="Run"
-          :disabled="store.saving[fileKey]"
+          :disabled="canvasLoading || store.saving[fileKey]"
           style="background: var(--primary)"
           @click="handleRun"
         >
@@ -1542,8 +1737,16 @@ function openVersionPanel() {
     </div>
 
     <!-- Canvas -->
-    <div ref="flowWrap" class="relative min-w-0 flex-1" @dragover.prevent @drop="dropPrompt">
+    <div
+      ref="flowWrap"
+      class="relative min-w-0 flex-1"
+      :inert="canvasLoading"
+      :aria-busy="canvasLoading"
+      @dragover.prevent
+      @drop="dropPrompt"
+    >
       <VueFlow
+        :id="canvasId"
         ref="flowRef"
         :only-render-visible-elements="true"
         v-model:nodes="flowNodes"
@@ -1570,6 +1773,7 @@ function openVersionPanel() {
         @edge-context-menu="onEdgeContextMenu"
         @pane-click="onPaneClick"
         @pane-context-menu="onPaneContextMenu"
+        @viewport-change-end="saveViewport"
       >
         <!-- Gap/dot scale with the inverse zoom so dots keep a fixed on-screen
              size & spacing; colour from --grid-dot (readable in both themes). -->
@@ -1627,7 +1831,7 @@ function openVersionPanel() {
       v-if="workspace.active && dslSaveOpen"
       :open="dslSaveOpen"
       mode="save"
-      title="Export blueprint as DSL"
+      title="Export Blueprint as DSL"
       :workspace-path="workspace.active.path"
       :extensions="['.mbp']"
       @close="dslSaveOpen = false"
@@ -1637,7 +1841,7 @@ function openVersionPanel() {
       v-if="workspace.active && dslPickOpen"
       :open="dslPickOpen"
       mode="open"
-      title="Import blueprint from DSL"
+      title="Import Blueprint from DSL"
       :workspace-path="workspace.active.path"
       :extensions="['.mbp']"
       @close="dslPickOpen = false"

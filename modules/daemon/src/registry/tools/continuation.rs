@@ -114,7 +114,7 @@ impl Tool for StartSubAgent {
             .get(handle.id)?
             .ok_or_else(|| DaemonError::Execution("Task missing".into()))?;
         let mut child = ctx.child_nested();
-        child.read_only_tools=true;
+        child.read_only_tools = true;
         child.global_db = None;
         child.parent_context = None;
         child.addon_fragments.clear();
@@ -162,13 +162,12 @@ impl Tool for StartSubAgent {
             ..Default::default()
         };
         let id = source.clone();
-        tokio::spawn(async move {
+        ctx.jobs.track_receipt(async move {
             let control = handle.clone();
             let stop = async move {
-                let mut tick = tokio::time::interval(std::time::Duration::from_millis(200));
+                let mut changes = control.store.subscribe_changes();
                 loop {
-                    tick.tick().await;
-                    match control.store.get(control.id) {
+                    let expires = match control.store.get(control.id) {
                         Ok(Some(r))
                             if r.task.generation == control.generation
                                 && r.task.policy_active
@@ -178,8 +177,22 @@ impl Tool for StartSubAgent {
                                     crate::continuation::state::TaskState::Stopped
                                         | crate::continuation::state::TaskState::Completed
                                         | crate::continuation::state::TaskState::NeedsAttention
-                                ) => {}
+                                ) =>
+                        {
+                            r.policy.map(|policy| policy.expires_ms)
+                        }
                         _ => break,
+                    };
+                    let Some(expires) = expires else {
+                        break;
+                    };
+                    let now = chrono::Utc::now().timestamp_millis().max(0) as u64;
+                    if expires <= now {
+                        break;
+                    }
+                    tokio::select! {
+                        change = changes.changed() => if change.is_err() { break; },
+                        _ = tokio::time::sleep(std::time::Duration::from_millis(expires - now)) => break,
                     }
                 }
             };

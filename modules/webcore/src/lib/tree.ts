@@ -32,6 +32,8 @@ export interface TreeCreateApi {
   active: { kind: 'file' | 'folder'; dir: string } | null
   /** Live name field of the inline input. */
   name: string
+  error: string
+  busy: boolean
   /** Commit the current name (Enter / blur). */
   confirm(): void
   /** Abort creation (Escape). */

@@ -1,0 +1,5186 @@
+{
+  "schema_version": 1,
+  "state": "TECHNICAL_REVIEW_COMPLETE_OWNER_VISUAL_PENDING",
+  "base_commit": "fb3bb9fa985b5f9a32a7064e994e1801ff4850aa",
+  "mandate": "2026-10-21: user requests a fresh audit against the complete task and design documents, underlying repairs, consistent UI and comprehensive regression verification.",
+  "sources": [
+    {
+      "file": "F:\\space\\06_Projects\\Agent\\incoming\\metteur-cloud-ff7b795-20261015\\package\\authority-history\\TASKS.md",
+      "sha256": "6ca2a7dbf2f91f53d2db9a51baae002c4206d8879cb7ece2037b998be6ab0d19"
+    },
+    {
+      "file": "F:\\space\\06_Projects\\Agent\\incoming\\metteur-cloud-ff7b795-20261015\\package\\authority-history\\SPEC.md",
+      "sha256": "12f45b60171f0c4e710ff05916b0221cdf2466ee59910bd6260843357678b4ff"
+    }
+  ],
+  "rules": [
+    "Historical completion is not current proof.",
+    "Code review, automated checks, native production integration and owner signoff are separate.",
+    "Never infer scenario coverage from aggregate test totals.",
+    "No extra UI framework, permission system, database or executor.",
+    "Existing paid evaluation remains historical; no new paid calls are implied."
+  ],
+  "tasks": [
+    {
+      "id": "NX-00",
+      "title": "冻结真实起点与基线",
+      "scope": "仓库 HEAD／分支、CI、工具链、README、现有测试。  ",
+      "acceptance_ids": [
+        "E2E-05"
+      ],
+      "execution": "核对 upstream HEAD 和未提交改动；不覆盖用户工作树。保存 commit、环境与首轮测试结果；读取可授权的模型配置元数据。  ",
+      "status": "CODE_REVIEWED_AND_SCENARIO_EVIDENCE_BOUND",
+      "implementation_review": [
+        {
+          "group": "foundation",
+          "review": "核对实际分支、锁文件、原生/WSL工具链与日志；资源迁移先建一致备份再写 schema，CAS 与重放回执同批持久化，未知 schema 拒绝写。原始云端完成标记不作为本轮证据。跨平台缺失用例、历史模型结果与人工视觉确认分别记录。"
+        }
+      ],
+      "verification": [
+        {
+          "scenario": "E2E-05"
+        }
+      ],
+      "findings": []
+    },
+    {
+      "id": "NX-01",
+      "title": "修复 Addon 权限测试的假绿与过紧预算",
+      "scope": "addon/functions_tests.rs、nodes_tests.rs；独立 tests。  ",
+      "acceptance_ids": [
+        "AD-01",
+        "AD-03"
+      ],
+      "execution": "先复现原 40ms 场景；将权限拒绝改为具体错误断言，拆开超时用例；核对实际文件和 journal。合理调整夹具预算，保留失败诊断。  ",
+      "status": "CODE_REVIEWED_AND_SCENARIO_EVIDENCE_BOUND",
+      "implementation_review": [
+        {
+          "group": "addon",
+          "review": "权限拒绝断言具体原因；人工等待与 CPU/I/O timeout 分离，核对文件/journal 保留已发生效果。包按已验证不可变字节执行，Windows junction 也拒绝。Bridge 的身份/nonce/lease/方法/schema/能力逐次核对，iframe 无主站同源权限。检查目标和 human acceptance 绑定 preview revision，acceptance 不授予运行权限；入口移至 Settings。"
+        }
+      ],
+      "verification": [
+        {
+          "scenario": "AD-01"
+        },
+        {
+          "scenario": "AD-03"
+        }
+      ],
+      "findings": []
+    },
+    {
+      "id": "NX-02",
+      "title": "修复缓存请求的断点与排序",
+      "scope": "llm/provider/anthropic.rs、harness 装配与协议测试。  ",
+      "acceptance_ids": [
+        "HC-01",
+        "HC-02",
+        "HC-04"
+      ],
+      "execution": "对最终 serialized body 计数；tools/system/messages 共用断点预算；统一排序；测试空片段、长上下文、启用／禁用缓存。  ",
+      "status": "CODE_REVIEWED_AND_SCENARIO_EVIDENCE_BOUND",
+      "implementation_review": [
+        {
+          "group": "cache",
+          "review": "核对最终序列化请求，tools/system/messages 共用 marker 预算并排序，日期不污染稳定前缀；本地 HTTP 验证流/非流和工具第二轮。缓存/用量未报告保持 coverage unknown，历史账本不追溯改写。"
+        }
+      ],
+      "verification": [
+        {
+          "scenario": "HC-01"
+        },
+        {
+          "scenario": "HC-02"
+        },
+        {
+          "scenario": "HC-04"
+        }
+      ],
+      "findings": []
+    },
+    {
+      "id": "NX-03",
+      "title": "建立可复现验证门槛",
+      "scope": ".github/workflows/ci.yml、测试脚本、README、playwright config。  ",
+      "acceptance_ids": [
+        "E2E-05"
+      ],
+      "execution": "核对 PR #6 当前运行；固定依赖和工具链；区分无重试首轮与诊断重跑；修 README 脚本断点；参数化 live 路径／端口并规划目标 Windows。  ",
+      "status": "CODE_REVIEWED_AND_SCENARIO_EVIDENCE_BOUND",
+      "implementation_review": [
+        {
+          "group": "foundation",
+          "review": "核对实际分支、锁文件、原生/WSL工具链与日志；资源迁移先建一致备份再写 schema，CAS 与重放回执同批持久化，未知 schema 拒绝写。原始云端完成标记不作为本轮证据。跨平台缺失用例、历史模型结果与人工视觉确认分别记录。"
+        }
+      ],
+      "verification": [
+        {
+          "scenario": "E2E-05"
+        }
+      ],
+      "findings": []
+    },
+    {
+      "id": "NX-04",
+      "title": "冻结共同身份、权限与数据契约",
+      "scope": "shared 逻辑类型；原位 SPEC 契约/ADR 记录（不迁入 Git）；实际 proto 入口。  ",
+      "acceptance_ids": [
+        "EV-09",
+        "PF-01",
+        "BB-04"
+      ],
+      "execution": "落实 INV-01..16；定义 task/session/turn/generation、资源 scope、origin、event schema、effect lease 与升级策略；标注建议名称与实际代码映射。  ",
+      "status": "CODE_REVIEWED_AND_SCENARIO_EVIDENCE_BOUND",
+      "implementation_review": [
+        {
+          "group": "foundation",
+          "review": "核对实际分支、锁文件、原生/WSL工具链与日志；资源迁移先建一致备份再写 schema，CAS 与重放回执同批持久化，未知 schema 拒绝写。原始云端完成标记不作为本轮证据。跨平台缺失用例、历史模型结果与人工视觉确认分别记录。"
+        }
+      ],
+      "verification": [
+        {
+          "scenario": "EV-09"
+        },
+        {
+          "scenario": "PF-01"
+        },
+        {
+          "scenario": "BB-04"
+        }
+      ],
+      "findings": []
+    },
+    {
+      "id": "NX-05",
+      "title": "建立隔离前端预览工作流",
+      "scope": "webcore/src/previews/next（拟新增）、preview fixtures／记录。  ",
+      "acceptance_ids": [
+        "UI-01",
+        "UI-02",
+        "UI-03"
+      ],
+      "execution": "基于现有 Vue 组件做可浏览预览容器，明确 fixture；列出 PV-01..07 场景。保存 preview revision/反馈；未批准时不接正式路由和真实服务。  ",
+      "status": "CODE_REVIEWED_AND_SCENARIO_EVIDENCE_BOUND",
+      "implementation_review": [
+        {
+          "group": "ui",
+          "review": "复用原 Vue/Tailwind/theme/Lucide，不新增 UI 框架或依赖。六个主入口，公用页面留白/标题/页签/按钮，静态标题 Title Case；Prompt 文件进入通用编辑器。文档跨 tab/工作区保留，关闭明确确认丢弃，删除可恢复；Explorer 行内输入具备焦点/键盘/失败状态。PWA 监听已在安装和未来更新，保留用户控制的刷新。"
+        }
+      ],
+      "verification": [
+        {
+          "scenario": "UI-01"
+        },
+        {
+          "scenario": "UI-02"
+        },
+        {
+          "scenario": "UI-03"
+        }
+      ],
+      "findings": [
+        "See regression root-cause report; UI restructuring follows the owner's latest explicit requirements."
+      ]
+    },
+    {
+      "id": "NX-06",
+      "title": "增加版本化持久记录与迁移",
+      "scope": "现有 storage DB；memory/prompt/continuation key namespace（拟新增）。  ",
+      "acceptance_ids": [
+        "BB-07",
+        "E2E-06"
+      ],
+      "execution": "添加 schema_version、原子写批次／intent、备份与只读检查；旧数据默认兼容且不产生自动长期任务。避免与 rewind 同库记录误回退。  ",
+      "status": "CODE_REVIEWED_AND_SCENARIO_EVIDENCE_BOUND",
+      "implementation_review": [
+        {
+          "group": "foundation",
+          "review": "核对实际分支、锁文件、原生/WSL工具链与日志；资源迁移先建一致备份再写 schema，CAS 与重放回执同批持久化，未知 schema 拒绝写。原始云端完成标记不作为本轮证据。跨平台缺失用例、历史模型结果与人工视觉确认分别记录。"
+        }
+      ],
+      "verification": [
+        {
+          "scenario": "BB-07"
+        },
+        {
+          "scenario": "E2E-06"
+        }
+      ],
+      "findings": []
+    },
+    {
+      "id": "NX-07",
+      "title": "项目记忆与证据引用服务",
+      "scope": "project_memory（拟新增）、execution/blackboard 投影复用。  ",
+      "acceptance_ids": [
+        "BB-01",
+        "BB-02",
+        "BB-03",
+        "BB-04",
+        "BB-05",
+        "BB-06",
+        "BB-07"
+      ],
+      "execution": "实现笔记、约定、交接、证据引用；并发 revision；用户提升确认；文件变化失效；查询上限、分页、脱敏和项目隔离。  ",
+      "status": "CODE_REVIEWED_AND_SCENARIO_EVIDENCE_BOUND",
+      "implementation_review": [
+        {
+          "group": "memory",
+          "review": "按规范化项目身份绑定记录；模型笔记不能写入执行事实/用户身份/确认字段；正文编辑清除确认，提升绑定精确 revision/digest；文件证据有大小和目录限制，查询有分页/字节预算，迟到 UI 请求不能重定向草稿。"
+        }
+      ],
+      "verification": [
+        {
+          "scenario": "BB-01"
+        },
+        {
+          "scenario": "BB-02"
+        },
+        {
+          "scenario": "BB-03"
+        },
+        {
+          "scenario": "BB-04"
+        },
+        {
+          "scenario": "BB-05"
+        },
+        {
+          "scenario": "BB-06"
+        },
+        {
+          "scenario": "BB-07"
+        }
+      ],
+      "findings": []
+    },
+    {
+      "id": "NX-08",
+      "title": "记忆查询／写笔记工具",
+      "scope": "registry/tools 薄适配、角色目录。  ",
+      "acceptance_ids": [
+        "BB-02",
+        "BB-04",
+        "EV-09"
+      ],
+      "execution": "添加带来源的查询和普通笔记工具；禁止写权威状态和用户身份；监督/客服按 scope 只读或专用意见路径；工具 schema 对齐。  ",
+      "status": "CODE_REVIEWED_AND_SCENARIO_EVIDENCE_BOUND",
+      "implementation_review": [
+        {
+          "group": "memory",
+          "review": "按规范化项目身份绑定记录；模型笔记不能写入执行事实/用户身份/确认字段；正文编辑清除确认，提升绑定精确 revision/digest；文件证据有大小和目录限制，查询有分页/字节预算，迟到 UI 请求不能重定向草稿。"
+        }
+      ],
+      "verification": [
+        {
+          "scenario": "BB-02"
+        },
+        {
+          "scenario": "BB-04"
+        },
+        {
+          "scenario": "EV-09"
+        }
+      ],
+      "findings": []
+    },
+    {
+      "id": "NX-09",
+      "title": "批准后接入项目黑板 UI",
+      "scope": "approved memory components、gateway、E2E。  ",
+      "acceptance_ids": [
+        "UI-02",
+        "UI-03",
+        "UI-04",
+        "UI-05",
+        "BB-01"
+      ],
+      "execution": "先提供 PV-01 并取得指定 revision 的确认；然后接服务；覆盖失效、冲突、来源和固定规则确认。接入后与预览对照。  ",
+      "status": "CODE_REVIEWED_AND_SCENARIO_EVIDENCE_BOUND",
+      "implementation_review": [
+        {
+          "group": "memory",
+          "review": "按规范化项目身份绑定记录；模型笔记不能写入执行事实/用户身份/确认字段；正文编辑清除确认，提升绑定精确 revision/digest；文件证据有大小和目录限制，查询有分页/字节预算，迟到 UI 请求不能重定向草稿。"
+        }
+      ],
+      "verification": [
+        {
+          "scenario": "UI-02"
+        },
+        {
+          "scenario": "UI-03"
+        },
+        {
+          "scenario": "UI-04"
+        },
+        {
+          "scenario": "UI-05"
+        },
+        {
+          "scenario": "BB-01"
+        }
+      ],
+      "findings": [
+        "See regression root-cause report; UI restructuring follows the owner's latest explicit requirements."
+      ]
+    },
+    {
+      "id": "NX-10",
+      "title": "双作用域 Prompt 资源服务",
+      "scope": "prompt_resource（拟新增）、受限文件服务、现有全局 DB。  ",
+      "acceptance_ids": [
+        "PF-01",
+        "PF-02",
+        "PF-08",
+        "PF-09",
+        "PF-10"
+      ],
+      "execution": "实现 .prompt.md 解析、项目/个人索引、scoped ID、复制和受限读写；不开放 .metteur 整树或个人任意目录；当前文件与快照分离。  ",
+      "status": "CODE_REVIEWED_AND_SCENARIO_EVIDENCE_BOUND",
+      "implementation_review": [
+        {
+          "group": "prompts",
+          "review": "项目/个人库按 scoped ID 选择；文件与索引用 durable intent 对账，显式选择正文冻结为 user-level snapshot；历史/run manifest 不追随新源。新增 Windows junction 拒绝和精确 tombstone 修订恢复；正文在统一编辑器保存，元数据并发变更需先审阅当前修订。"
+        }
+      ],
+      "verification": [
+        {
+          "scenario": "PF-01"
+        },
+        {
+          "scenario": "PF-02"
+        },
+        {
+          "scenario": "PF-08"
+        },
+        {
+          "scenario": "PF-09"
+        },
+        {
+          "scenario": "PF-10"
+        }
+      ],
+      "findings": []
+    },
+    {
+      "id": "NX-11",
+      "title": "Prompt 快照与 Chat/蓝图上下文接入",
+      "scope": "chat context、shared resource snapshot、node catalog、ContextMerge。  ",
+      "acceptance_ids": [
+        "PF-03",
+        "PF-04",
+        "PF-05",
+        "PF-06",
+        "PF-07",
+        "PF-10"
+      ],
+      "execution": "冻结发送／运行版本，保存 source/derived origin；资源节点复用 Text，运行读 manifest；保留用户级语义，防模型写资源后自动升级。  ",
+      "status": "CODE_REVIEWED_AND_SCENARIO_EVIDENCE_BOUND",
+      "implementation_review": [
+        {
+          "group": "prompts",
+          "review": "项目/个人库按 scoped ID 选择；文件与索引用 durable intent 对账，显式选择正文冻结为 user-level snapshot；历史/run manifest 不追随新源。新增 Windows junction 拒绝和精确 tombstone 修订恢复；正文在统一编辑器保存，元数据并发变更需先审阅当前修订。"
+        }
+      ],
+      "verification": [
+        {
+          "scenario": "PF-03"
+        },
+        {
+          "scenario": "PF-04"
+        },
+        {
+          "scenario": "PF-05"
+        },
+        {
+          "scenario": "PF-06"
+        },
+        {
+          "scenario": "PF-07"
+        },
+        {
+          "scenario": "PF-10"
+        }
+      ],
+      "findings": []
+    },
+    {
+      "id": "NX-12",
+      "title": "批准后接入 Prompt 资源 UI",
+      "scope": "resource picker、composer chips、blueprint palette、gateway。  ",
+      "acceptance_ids": [
+        "UI-03",
+        "UI-04",
+        "UI-06",
+        "PF-01",
+        "PF-03",
+        "PF-06"
+      ],
+      "execution": "PV-02 同时预览 Project/Personal 与两种拖入；获批后接入；显示同名、版本变化、缺失、复制和删除影响，兼顾键盘。  ",
+      "status": "CODE_REVIEWED_AND_SCENARIO_EVIDENCE_BOUND",
+      "implementation_review": [
+        {
+          "group": "prompts",
+          "review": "项目/个人库按 scoped ID 选择；文件与索引用 durable intent 对账，显式选择正文冻结为 user-level snapshot；历史/run manifest 不追随新源。新增 Windows junction 拒绝和精确 tombstone 修订恢复；正文在统一编辑器保存，元数据并发变更需先审阅当前修订。"
+        }
+      ],
+      "verification": [
+        {
+          "scenario": "UI-03"
+        },
+        {
+          "scenario": "UI-04"
+        },
+        {
+          "scenario": "UI-06"
+        },
+        {
+          "scenario": "PF-01"
+        },
+        {
+          "scenario": "PF-03"
+        },
+        {
+          "scenario": "PF-06"
+        }
+      ],
+      "findings": [
+        "See regression root-cause report; UI restructuring follows the owner's latest explicit requirements."
+      ]
+    },
+    {
+      "id": "NX-13",
+      "title": "抽取宿主拥有的回合生命周期",
+      "scope": "grpc/service/chat.rs、chat/turn runner（拟提取）、execution/react.rs。  ",
+      "acceptance_ids": [
+        "EV-01",
+        "EV-15",
+        "EV-16",
+        "LF-02"
+      ],
+      "execution": "统一手动和事件回合入口；增加 Waiting outcome 与 deferred yield；持久化不依赖浏览器流；普通聊天断流和结束兼容保留。  ",
+      "status": "CODE_REVIEWED_AND_SCENARIO_EVIDENCE_BOUND",
+      "implementation_review": [
+        {
+          "group": "turn",
+          "review": "宿主在完整工具批次结果持久化后提交 WAITING 并释放前台槽位；host event 与用户授权不同源，恢复不从 UI 重建上下文。修正 assistant/tool 段边界，直播/恢复均按调用顺序；整轮耗时保留一次，context 的未知值与零值分开显示。"
+        }
+      ],
+      "verification": [
+        {
+          "scenario": "EV-01"
+        },
+        {
+          "scenario": "EV-15"
+        },
+        {
+          "scenario": "EV-16"
+        },
+        {
+          "scenario": "LF-02"
+        }
+      ],
+      "findings": []
+    },
+    {
+      "id": "NX-14",
+      "title": "持久化事件、outbox 与 inbox",
+      "scope": "continuation/event/store/outbox/inbox（拟新增）。  ",
+      "acceptance_ids": [
+        "EV-02",
+        "EV-03",
+        "EV-09",
+        "EV-10",
+        "EV-14"
+      ],
+      "execution": "宿主生成 event ID 与 source binding；终态先提交后通知；实现幂等扫描、artifact 引用和 envelope 校验，不接受模型任意事件。  ",
+      "status": "CODE_REVIEWED_AND_SCENARIO_EVIDENCE_BOUND",
+      "implementation_review": [
+        {
+          "group": "events",
+          "review": "source/event/dispatch 身份和代次由宿主生成；wait/context 和 dispatch ack 原子提交；已启动不明进入 InDoubt，不能因租约过期重放副作用。Stop/预算/新用户修订在准入复核。数据库提交发合并失效通知，页面手动/推送读取共用队列；宿主等待通知或最近截止时间，移除资源高频轮询。"
+        }
+      ],
+      "verification": [
+        {
+          "scenario": "EV-02"
+        },
+        {
+          "scenario": "EV-03"
+        },
+        {
+          "scenario": "EV-09"
+        },
+        {
+          "scenario": "EV-10"
+        },
+        {
+          "scenario": "EV-14"
+        }
+      ],
+      "findings": []
+    },
+    {
+      "id": "NX-15",
+      "title": "任务状态机、订阅与等待提交",
+      "scope": "continuation/state/subscriptions、chat/session snapshot。  ",
+      "acceptance_ids": [
+        "EV-01",
+        "EV-02",
+        "EV-04",
+        "EV-05",
+        "EV-15"
+      ],
+      "execution": "支持 any/all、终态匹配、deadline；等待保存上下文/参数/schema/revision；登记时查 source 已有终态；UI 状态保持宿主权威。  ",
+      "status": "CODE_REVIEWED_AND_SCENARIO_EVIDENCE_BOUND",
+      "implementation_review": [
+        {
+          "group": "events",
+          "review": "source/event/dispatch 身份和代次由宿主生成；wait/context 和 dispatch ack 原子提交；已启动不明进入 InDoubt，不能因租约过期重放副作用。Stop/预算/新用户修订在准入复核。数据库提交发合并失效通知，页面手动/推送读取共用队列；宿主等待通知或最近截止时间，移除资源高频轮询。"
+        }
+      ],
+      "verification": [
+        {
+          "scenario": "EV-01"
+        },
+        {
+          "scenario": "EV-02"
+        },
+        {
+          "scenario": "EV-04"
+        },
+        {
+          "scenario": "EV-05"
+        },
+        {
+          "scenario": "EV-15"
+        }
+      ],
+      "findings": []
+    },
+    {
+      "id": "NX-16",
+      "title": "统一准入、dispatch 与副作用租约",
+      "scope": "workspace activity_gate、continuation/dispatcher、effect lease（拟新增）。  ",
+      "acceptance_ids": [
+        "EV-06",
+        "EV-13",
+        "LF-04",
+        "LF-08"
+      ],
+      "execution": "manual/dispatch/blueprint 共用准入；claim/started/committed 分离；锁内不 await 模型；背景写 Job 阻断冲突写；用户控制高优先。  ",
+      "status": "CODE_REVIEWED_AND_SCENARIO_EVIDENCE_BOUND",
+      "implementation_review": [
+        {
+          "group": "events",
+          "review": "source/event/dispatch 身份和代次由宿主生成；wait/context 和 dispatch ack 原子提交；已启动不明进入 InDoubt，不能因租约过期重放副作用。Stop/预算/新用户修订在准入复核。数据库提交发合并失效通知，页面手动/推送读取共用队列；宿主等待通知或最近截止时间，移除资源高频轮询。"
+        }
+      ],
+      "verification": [
+        {
+          "scenario": "EV-06"
+        },
+        {
+          "scenario": "EV-13"
+        },
+        {
+          "scenario": "LF-04"
+        },
+        {
+          "scenario": "LF-08"
+        }
+      ],
+      "findings": []
+    },
+    {
+      "id": "NX-17",
+      "title": "Job 完成源与 owner 转移",
+      "scope": "execution/jobs.rs、chat cleanup、continuation/source_jobs（拟新增）。  ",
+      "acceptance_ids": [
+        "LF-01",
+        "LF-03",
+        "LF-04",
+        "LF-07",
+        "EV-02"
+      ],
+      "execution": "登记 TaskOwned，WAITING 提交成功后避开 turn cleanup；保留未登记清理；终态真实映射；重启未知不假成功，输出有界。  ",
+      "status": "CODE_REVIEWED_AND_SCENARIO_EVIDENCE_BOUND",
+      "implementation_review": [
+        {
+          "group": "jobs",
+          "review": "仅已登记来源转移为 TaskOwned；普通聊天断开仍清理。取消按 task/workspace owner 隔离；重启的旧 PID 不能证明结果，写副作用未知需人工处理。watch lag/客户端关闭显式结束订阅，不持有过期工作区锁。"
+        }
+      ],
+      "verification": [
+        {
+          "scenario": "LF-01"
+        },
+        {
+          "scenario": "LF-03"
+        },
+        {
+          "scenario": "LF-04"
+        },
+        {
+          "scenario": "LF-07"
+        },
+        {
+          "scenario": "EV-02"
+        }
+      ],
+      "findings": []
+    },
+    {
+      "id": "NX-18",
+      "title": "异步子代理句柄与完成事件",
+      "scope": "registry/tools/subagent.rs、child task runner（拟新增）。  ",
+      "acceptance_ids": [
+        "LF-05",
+        "LF-06",
+        "LF-07",
+        "EV-11"
+      ],
+      "execution": "保留同步 SpawnSubAgent；添加后台启动/状态/结果；只读 default allowlist、预算和来源归属；写任务串行准入，不共享任意 child context。  ",
+      "status": "CODE_REVIEWED_AND_SCENARIO_EVIDENCE_BOUND",
+      "implementation_review": [
+        {
+          "group": "child",
+          "review": "后台子代理的 read-only allowlist 由宿主固定，清除个人库、父上下文和 Addon 片段，费用计入根账本。子代理取消改为 DB 通知/授权截止时间，Stop 取消进行中模型 future，未知用量保留 reservation，不能退款或当零。同步工具保持兼容。"
+        }
+      ],
+      "verification": [
+        {
+          "scenario": "LF-05"
+        },
+        {
+          "scenario": "LF-06"
+        },
+        {
+          "scenario": "LF-07"
+        },
+        {
+          "scenario": "EV-11"
+        }
+      ],
+      "findings": []
+    },
+    {
+      "id": "NX-19",
+      "title": "定时规则与 fake clock 测试",
+      "scope": "continuation/timer rules（拟新增）、现有时区/时间依赖。  ",
+      "acceptance_ids": [
+        "TM-01",
+        "TM-02",
+        "TM-03",
+        "TM-04",
+        "TM-08"
+      ],
+      "execution": "实现 once/after/interval/daily/weekly、UTC+IANA、稳定 occurrence、终止条件；明确 DST、clock rollback 与 misfire。  ",
+      "status": "CODE_REVIEWED_AND_SCENARIO_EVIDENCE_BOUND",
+      "implementation_review": [
+        {
+          "group": "timer",
+          "review": "时区/DST/回拨由确定性时间参数测试；occurrence 绑定规则和任务代次；离线按 coalesce/skip，关闭不自动重新打开目录。编辑采用精确 revision/digest 确认。Schedules 作为 Tasks 页签，保存和推送共用刷新队列。"
+        }
+      ],
+      "verification": [
+        {
+          "scenario": "TM-01"
+        },
+        {
+          "scenario": "TM-02"
+        },
+        {
+          "scenario": "TM-03"
+        },
+        {
+          "scenario": "TM-04"
+        },
+        {
+          "scenario": "TM-08"
+        }
+      ],
+      "findings": []
+    },
+    {
+      "id": "NX-20",
+      "title": "持久化调度器与启动/关闭集成",
+      "scope": "continuation/timer dispatcher、startup、workspace lifecycle。  ",
+      "acceptance_ids": [
+        "TM-04",
+        "TM-05",
+        "TM-06",
+        "TM-08"
+      ],
+      "execution": "对账到期计划、提交 outbox；编辑递增代次；工作区关闭暂停；核查 passive daemon 启动；不承诺 OS 电源唤醒。  ",
+      "status": "CODE_REVIEWED_AND_SCENARIO_EVIDENCE_BOUND",
+      "implementation_review": [
+        {
+          "group": "timer",
+          "review": "时区/DST/回拨由确定性时间参数测试；occurrence 绑定规则和任务代次；离线按 coalesce/skip，关闭不自动重新打开目录。编辑采用精确 revision/digest 确认。Schedules 作为 Tasks 页签，保存和推送共用刷新队列。"
+        }
+      ],
+      "verification": [
+        {
+          "scenario": "TM-04"
+        },
+        {
+          "scenario": "TM-05"
+        },
+        {
+          "scenario": "TM-06"
+        },
+        {
+          "scenario": "TM-08"
+        }
+      ],
+      "findings": []
+    },
+    {
+      "id": "NX-21",
+      "title": "续跑授权、根预算和 Stop",
+      "scope": "continuation/policy、现有 budget/approval 复用、Stop receipts。  ",
+      "acceptance_ids": [
+        "EV-07",
+        "EV-08",
+        "EV-11",
+        "EV-12",
+        "TM-07"
+      ],
+      "execution": "明确单次任务许可与周期授权；权限撤销重核；Stop 作废后续代次；多层预算、unknown 用量、背压/次数/深度限制不被 rewind 重置。  ",
+      "status": "CODE_REVIEWED_AND_SCENARIO_EVIDENCE_BOUND",
+      "implementation_review": [
+        {
+          "group": "events",
+          "review": "source/event/dispatch 身份和代次由宿主生成；wait/context 和 dispatch ack 原子提交；已启动不明进入 InDoubt，不能因租约过期重放副作用。Stop/预算/新用户修订在准入复核。数据库提交发合并失效通知，页面手动/推送读取共用队列；宿主等待通知或最近截止时间，移除资源高频轮询。"
+        }
+      ],
+      "verification": [
+        {
+          "scenario": "EV-07"
+        },
+        {
+          "scenario": "EV-08"
+        },
+        {
+          "scenario": "EV-11"
+        },
+        {
+          "scenario": "EV-12"
+        },
+        {
+          "scenario": "TM-07"
+        }
+      ],
+      "findings": []
+    },
+    {
+      "id": "NX-22",
+      "title": "事件参数与模型上下文适配",
+      "scope": "shared MessageOrigin、chat transcript、provider message adapters。  ",
+      "acceptance_ids": [
+        "EV-09",
+        "EV-10",
+        "EV-16",
+        "HC-02",
+        "HC-07"
+      ],
+      "execution": "宿主事件作为来源数据追加；小摘要+结构化结果+refs；不冒充 human，不伪造 tool result；完整恢复推理/上下文。  ",
+      "status": "CODE_REVIEWED_AND_SCENARIO_EVIDENCE_BOUND",
+      "implementation_review": [
+        {
+          "group": "turn",
+          "review": "宿主在完整工具批次结果持久化后提交 WAITING 并释放前台槽位；host event 与用户授权不同源，恢复不从 UI 重建上下文。修正 assistant/tool 段边界，直播/恢复均按调用顺序；整轮耗时保留一次，context 的未知值与零值分开显示。"
+        }
+      ],
+      "verification": [
+        {
+          "scenario": "EV-09"
+        },
+        {
+          "scenario": "EV-10"
+        },
+        {
+          "scenario": "EV-16"
+        },
+        {
+          "scenario": "HC-02"
+        },
+        {
+          "scenario": "HC-07"
+        }
+      ],
+      "findings": []
+    },
+    {
+      "id": "NX-23",
+      "title": "三类源恢复与崩溃窗口收口",
+      "scope": "continuation/recovery、fault injection fixtures。  ",
+      "acceptance_ids": [
+        "EV-02",
+        "EV-03",
+        "EV-13",
+        "EV-14",
+        "EV-15",
+        "LF-03",
+        "LF-08",
+        "PFM-03"
+      ],
+      "execution": "覆盖提交前后、source 先完成、acked 未提交与反向情况、Stop/rewind、worker 不明；终态与副作用证据关联，不盲目重放。  ",
+      "status": "CODE_REVIEWED_AND_SCENARIO_EVIDENCE_BOUND",
+      "implementation_review": [
+        {
+          "group": "events",
+          "review": "source/event/dispatch 身份和代次由宿主生成；wait/context 和 dispatch ack 原子提交；已启动不明进入 InDoubt，不能因租约过期重放副作用。Stop/预算/新用户修订在准入复核。数据库提交发合并失效通知，页面手动/推送读取共用队列；宿主等待通知或最近截止时间，移除资源高频轮询。"
+        }
+      ],
+      "verification": [
+        {
+          "scenario": "EV-02"
+        },
+        {
+          "scenario": "EV-03"
+        },
+        {
+          "scenario": "EV-13"
+        },
+        {
+          "scenario": "EV-14"
+        },
+        {
+          "scenario": "EV-15"
+        },
+        {
+          "scenario": "LF-03"
+        },
+        {
+          "scenario": "LF-08"
+        },
+        {
+          "scenario": "PFM-03"
+        }
+      ],
+      "findings": []
+    },
+    {
+      "id": "NX-24",
+      "title": "批准后接入任务等待/唤起 UI",
+      "scope": "task status panel、chat continuation cards、gateway。  ",
+      "acceptance_ids": [
+        "UI-02",
+        "UI-03",
+        "UI-04",
+        "UI-05",
+        "UI-07"
+      ],
+      "execution": "先 PV-03；确认后接入任务状态、来源/参数摘要、预算、暂停/Stop；断开和新用户消息均可理解，不自动抢页面。  ",
+      "status": "CODE_REVIEWED_AND_SCENARIO_EVIDENCE_BOUND",
+      "implementation_review": [
+        {
+          "group": "events",
+          "review": "source/event/dispatch 身份和代次由宿主生成；wait/context 和 dispatch ack 原子提交；已启动不明进入 InDoubt，不能因租约过期重放副作用。Stop/预算/新用户修订在准入复核。数据库提交发合并失效通知，页面手动/推送读取共用队列；宿主等待通知或最近截止时间，移除资源高频轮询。"
+        }
+      ],
+      "verification": [
+        {
+          "scenario": "UI-02"
+        },
+        {
+          "scenario": "UI-03"
+        },
+        {
+          "scenario": "UI-04"
+        },
+        {
+          "scenario": "UI-05"
+        },
+        {
+          "scenario": "UI-07"
+        }
+      ],
+      "findings": [
+        "See regression root-cause report; UI restructuring follows the owner's latest explicit requirements."
+      ]
+    },
+    {
+      "id": "NX-25",
+      "title": "批准后接入定时管理 UI",
+      "scope": "schedule editor/list/approval、gateway。  ",
+      "acceptance_ids": [
+        "TM-02",
+        "TM-05",
+        "TM-07",
+        "UI-03",
+        "UI-07"
+      ],
+      "execution": "先 PV-04；展示时区、下一次、错过处理、次数/预算和授权范围；确认后接入真正 scheduler，不从浏览器 setTimeout 充当调度。  ",
+      "status": "CODE_REVIEWED_AND_SCENARIO_EVIDENCE_BOUND",
+      "implementation_review": [
+        {
+          "group": "timer",
+          "review": "时区/DST/回拨由确定性时间参数测试；occurrence 绑定规则和任务代次；离线按 coalesce/skip，关闭不自动重新打开目录。编辑采用精确 revision/digest 确认。Schedules 作为 Tasks 页签，保存和推送共用刷新队列。"
+        }
+      ],
+      "verification": [
+        {
+          "scenario": "TM-02"
+        },
+        {
+          "scenario": "TM-05"
+        },
+        {
+          "scenario": "TM-07"
+        },
+        {
+          "scenario": "UI-03"
+        },
+        {
+          "scenario": "UI-07"
+        }
+      ],
+      "findings": [
+        "See regression root-cause report; UI restructuring follows the owner's latest explicit requirements."
+      ]
+    },
+    {
+      "id": "NX-26",
+      "title": "唤起基础完整验收",
+      "scope": "daemon integration、Web live fixtures。  ",
+      "acceptance_ids": [
+        "E2E-02",
+        "E2E-03",
+        "EV-01",
+        "EV-06"
+      ],
+      "execution": "真实 daemon 跑 Job、异步子代理、timer；对照正常/失败/取消/等待先后；先不用付费 API；确认没有长期未结束 chat RPC。  ",
+      "status": "CODE_REVIEWED_AND_SCENARIO_EVIDENCE_BOUND",
+      "implementation_review": [
+        {
+          "group": "events",
+          "review": "source/event/dispatch 身份和代次由宿主生成；wait/context 和 dispatch ack 原子提交；已启动不明进入 InDoubt，不能因租约过期重放副作用。Stop/预算/新用户修订在准入复核。数据库提交发合并失效通知，页面手动/推送读取共用队列；宿主等待通知或最近截止时间，移除资源高频轮询。"
+        }
+      ],
+      "verification": [
+        {
+          "scenario": "E2E-02"
+        },
+        {
+          "scenario": "E2E-03"
+        },
+        {
+          "scenario": "EV-01"
+        },
+        {
+          "scenario": "EV-06"
+        }
+      ],
+      "findings": []
+    },
+    {
+      "id": "NX-27",
+      "title": "交接记录与版本依赖清单",
+      "scope": "handoff service、blueprint dependency manifest、会话引用。  ",
+      "acceptance_ids": [
+        "BP-01",
+        "BP-05",
+        "PF-07"
+      ],
+      "execution": "冻结目标/约束/消息终点、Prompt 与函数/插件版本；监督按需有界读取，原始角色与模型总结区分。  ",
+      "status": "CODE_REVIEWED_AND_SCENARIO_EVIDENCE_BOUND",
+      "implementation_review": [
+        {
+          "group": "launch",
+          "review": "确认绑定文件、Prompt、函数、Addon manifest 的内容身份；源消息只读固定终点且默认不开放完整会话；安全 yield 后领取蓝图槽位，intent 重放查询同一 run。终态结算后恢复原会话；失败/Stop/report-only 不自动重复执行。画布改用 workspace 文档草稿、CAS 和独立 canvas ID。"
+        }
+      ],
+      "verification": [
+        {
+          "scenario": "BP-01"
+        },
+        {
+          "scenario": "BP-05"
+        },
+        {
+          "scenario": "PF-07"
+        }
+      ],
+      "findings": []
+    },
+    {
+      "id": "NX-28",
+      "title": "蓝图运行提案与具体确认",
+      "scope": "launch service、RequestBlueprintRun tool、现有 approval broker。  ",
+      "acceptance_ids": [
+        "BP-01",
+        "BP-02",
+        "BP-04",
+        "EV-09"
+      ],
+      "execution": "生成 LaunchIntent 与幂等 request ID；显式确认精确 digest；版本变化过期；completion resume policy 可见，默认不扩权。  ",
+      "status": "CODE_REVIEWED_AND_SCENARIO_EVIDENCE_BOUND",
+      "implementation_review": [
+        {
+          "group": "launch",
+          "review": "确认绑定文件、Prompt、函数、Addon manifest 的内容身份；源消息只读固定终点且默认不开放完整会话；安全 yield 后领取蓝图槽位，intent 重放查询同一 run。终态结算后恢复原会话；失败/Stop/report-only 不自动重复执行。画布改用 workspace 文档草稿、CAS 和独立 canvas ID。"
+        }
+      ],
+      "verification": [
+        {
+          "scenario": "BP-01"
+        },
+        {
+          "scenario": "BP-02"
+        },
+        {
+          "scenario": "BP-04"
+        },
+        {
+          "scenario": "EV-09"
+        }
+      ],
+      "findings": []
+    },
+    {
+      "id": "NX-29",
+      "title": "安全 yield 后启动蓝图",
+      "scope": "chat outcome、launch admission、现有 interpreter spawn。  ",
+      "acceptance_ids": [
+        "BP-03",
+        "BP-04",
+        "BP-08",
+        "EV-15"
+      ],
+      "execution": "保存全工具批次/上下文/ownership/交接/订阅后释放聊天槽；绑定 run intent 再启动；断线可查询 launch，不锁内自调 RPC。  ",
+      "status": "CODE_REVIEWED_AND_SCENARIO_EVIDENCE_BOUND",
+      "implementation_review": [
+        {
+          "group": "launch",
+          "review": "确认绑定文件、Prompt、函数、Addon manifest 的内容身份；源消息只读固定终点且默认不开放完整会话；安全 yield 后领取蓝图槽位，intent 重放查询同一 run。终态结算后恢复原会话；失败/Stop/report-only 不自动重复执行。画布改用 workspace 文档草稿、CAS 和独立 canvas ID。"
+        }
+      ],
+      "verification": [
+        {
+          "scenario": "BP-03"
+        },
+        {
+          "scenario": "BP-04"
+        },
+        {
+          "scenario": "BP-08"
+        },
+        {
+          "scenario": "EV-15"
+        }
+      ],
+      "findings": []
+    },
+    {
+      "id": "NX-30",
+      "title": "蓝图终态事件与父会话续跑",
+      "scope": "blueprint finalization/outbox、continuation adapter。  ",
+      "acceptance_ids": [
+        "BP-06",
+        "BP-07",
+        "BP-08",
+        "EV-07",
+        "EV-14"
+      ],
+      "execution": "终态与实际副作用结算后投递；恢复原 session 新 turn；人工停止默认只留通知/attention，不能自动再启动蓝图。  ",
+      "status": "CODE_REVIEWED_AND_SCENARIO_EVIDENCE_BOUND",
+      "implementation_review": [
+        {
+          "group": "launch",
+          "review": "确认绑定文件、Prompt、函数、Addon manifest 的内容身份；源消息只读固定终点且默认不开放完整会话；安全 yield 后领取蓝图槽位，intent 重放查询同一 run。终态结算后恢复原会话；失败/Stop/report-only 不自动重复执行。画布改用 workspace 文档草稿、CAS 和独立 canvas ID。"
+        }
+      ],
+      "verification": [
+        {
+          "scenario": "BP-06"
+        },
+        {
+          "scenario": "BP-07"
+        },
+        {
+          "scenario": "BP-08"
+        },
+        {
+          "scenario": "EV-07"
+        },
+        {
+          "scenario": "EV-14"
+        }
+      ],
+      "findings": []
+    },
+    {
+      "id": "NX-31",
+      "title": "批准后接入运行确认与交接 UI",
+      "scope": "Chat launch card、Execution 入口／结果链接、gateway。  ",
+      "acceptance_ids": [
+        "UI-03",
+        "UI-04",
+        "UI-05",
+        "UI-07",
+        "BP-01"
+      ],
+      "execution": "先 PV-05；确认后显示具体资源版本、交接范围和完成唤起选项；只在用户启动后跳转，完成不会抢其他页面；陈旧提案解释明确。  ",
+      "status": "CODE_REVIEWED_AND_SCENARIO_EVIDENCE_BOUND",
+      "implementation_review": [
+        {
+          "group": "launch",
+          "review": "确认绑定文件、Prompt、函数、Addon manifest 的内容身份；源消息只读固定终点且默认不开放完整会话；安全 yield 后领取蓝图槽位，intent 重放查询同一 run。终态结算后恢复原会话；失败/Stop/report-only 不自动重复执行。画布改用 workspace 文档草稿、CAS 和独立 canvas ID。"
+        }
+      ],
+      "verification": [
+        {
+          "scenario": "UI-03"
+        },
+        {
+          "scenario": "UI-04"
+        },
+        {
+          "scenario": "UI-05"
+        },
+        {
+          "scenario": "UI-07"
+        },
+        {
+          "scenario": "BP-01"
+        }
+      ],
+      "findings": [
+        "See regression root-cause report; UI restructuring follows the owner's latest explicit requirements."
+      ]
+    },
+    {
+      "id": "NX-32",
+      "title": "聊天—蓝图—聊天集成验收",
+      "scope": "real daemon/provider fixture、Web production live。  ",
+      "acceptance_ids": [
+        "E2E-01",
+        "E2E-03",
+        "E2E-04",
+        "BP-08"
+      ],
+      "execution": "覆盖两级 Prompt、黑板、审批、yield、真实蓝图执行、结果唤起；成功/失败/Stop/断线/重启均保留原始证据。  ",
+      "status": "CODE_REVIEWED_AND_SCENARIO_EVIDENCE_BOUND",
+      "implementation_review": [
+        {
+          "group": "launch",
+          "review": "确认绑定文件、Prompt、函数、Addon manifest 的内容身份；源消息只读固定终点且默认不开放完整会话；安全 yield 后领取蓝图槽位，intent 重放查询同一 run。终态结算后恢复原会话；失败/Stop/report-only 不自动重复执行。画布改用 workspace 文档草稿、CAS 和独立 canvas ID。"
+        }
+      ],
+      "verification": [
+        {
+          "scenario": "E2E-01"
+        },
+        {
+          "scenario": "E2E-03"
+        },
+        {
+          "scenario": "E2E-04"
+        },
+        {
+          "scenario": "BP-08"
+        }
+      ],
+      "findings": []
+    },
+    {
+      "id": "NX-33",
+      "title": "选择两类实际模型与冻结任务集",
+      "scope": "脱敏配置/用量、eval fixture/task manifests（拟新增）。  ",
+      "acceptance_ids": [
+        "HC-06",
+        "HC-07"
+      ],
+      "execution": "根据实际可用端点选择两类；保存版本、参数、工具与任务划分；旧代码基线和新功能可比基线分开；付费预算未批准则不运行。  ",
+      "status": "CODE_REVIEWED_AND_SCENARIO_EVIDENCE_BOUND",
+      "implementation_review": [
+        {
+          "group": "models",
+          "review": "角色工具边界在宿主目录收口，不靠 Prompt 扩大权限。保留两类 DeepSeek 配对/留出和所有首次失败、用量回执；本轮未新增付费调用，不把旧模型测量称为当前二进制的新性能评测。自动模型选择由有效配置/default/fallback 驱动，删除配置后不保留失效模型。"
+        }
+      ],
+      "verification": [
+        {
+          "scenario": "HC-06"
+        },
+        {
+          "scenario": "HC-07"
+        }
+      ],
+      "findings": [
+        "Original paid evidence retained with limitations; no new model-quality or billing claim for this candidate."
+      ]
+    },
+    {
+      "id": "NX-34",
+      "title": "请求结构/缓存/用量观测",
+      "scope": "provider adapters、billing、审计投影。  ",
+      "acceptance_ids": [
+        "HC-01",
+        "HC-02",
+        "HC-05",
+        "HC-07"
+      ],
+      "execution": "记录稳定结构指纹、来源字段和 cache coverage；分模型/端点/角色/冷热；未知不填零，原始 Prompt 和 key 不入普通日志。  ",
+      "status": "CODE_REVIEWED_AND_SCENARIO_EVIDENCE_BOUND",
+      "implementation_review": [
+        {
+          "group": "cache",
+          "review": "核对最终序列化请求，tools/system/messages 共用 marker 预算并排序，日期不污染稳定前缀；本地 HTTP 验证流/非流和工具第二轮。缓存/用量未报告保持 coverage unknown，历史账本不追溯改写。"
+        }
+      ],
+      "verification": [
+        {
+          "scenario": "HC-01"
+        },
+        {
+          "scenario": "HC-02"
+        },
+        {
+          "scenario": "HC-05"
+        },
+        {
+          "scenario": "HC-07"
+        }
+      ],
+      "findings": []
+    },
+    {
+      "id": "NX-35",
+      "title": "共享底座与模型/角色适配",
+      "scope": "harness/prompts、assembly、角色工具目录。  ",
+      "acceptance_ids": [
+        "HC-03",
+        "HC-04",
+        "HC-06"
+      ],
+      "execution": "先形成可比较旧/新 Prompt；根据实际失败改行为与示例；公开参考标许可/版本；客服与监督不引入执行权限，事件目标表达清楚。  ",
+      "status": "CODE_REVIEWED_AND_SCENARIO_EVIDENCE_BOUND",
+      "implementation_review": [
+        {
+          "group": "models",
+          "review": "角色工具边界在宿主目录收口，不靠 Prompt 扩大权限。保留两类 DeepSeek 配对/留出和所有首次失败、用量回执；本轮未新增付费调用，不把旧模型测量称为当前二进制的新性能评测。自动模型选择由有效配置/default/fallback 驱动，删除配置后不保留失效模型。"
+        }
+      ],
+      "verification": [
+        {
+          "scenario": "HC-03"
+        },
+        {
+          "scenario": "HC-04"
+        },
+        {
+          "scenario": "HC-06"
+        }
+      ],
+      "findings": []
+    },
+    {
+      "id": "NX-36",
+      "title": "必要工具增量与权限目录收口",
+      "scope": "registry/tools、tool catalog、schema/proto clients。  ",
+      "acceptance_ids": [
+        "HC-03",
+        "EV-09",
+        "LF-05",
+        "BB-04"
+      ],
+      "execution": "统一记忆、资源、等待、启动、状态、diff/validation 查询；不重复命令执行器；为每角色固定最小工具集合、边界和输出上限。  ",
+      "status": "CODE_REVIEWED_AND_SCENARIO_EVIDENCE_BOUND",
+      "implementation_review": [
+        {
+          "group": "child",
+          "review": "后台子代理的 read-only allowlist 由宿主固定，清除个人库、父上下文和 Addon 片段，费用计入根账本。子代理取消改为 DB 通知/授权截止时间，Stop 取消进行中模型 future，未知用量保留 reservation，不能退款或当零。同步工具保持兼容。"
+        }
+      ],
+      "verification": [
+        {
+          "scenario": "HC-03"
+        },
+        {
+          "scenario": "EV-09"
+        },
+        {
+          "scenario": "LF-05"
+        },
+        {
+          "scenario": "BB-04"
+        }
+      ],
+      "findings": []
+    },
+    {
+      "id": "NX-37",
+      "title": "真实模型匹配对照验收",
+      "scope": "评测报告与实际请求追踪。  ",
+      "acceptance_ids": [
+        "HC-06",
+        "HC-05",
+        "E2E-01"
+      ],
+      "execution": "获批预算后用同任务同配置比较；执行源路径/版本一致；失败分类、人工介入、正确性、费用/TTFT/缓存分开统计；保留不显著结论。  ",
+      "status": "CODE_REVIEWED_AND_SCENARIO_EVIDENCE_BOUND",
+      "implementation_review": [
+        {
+          "group": "models",
+          "review": "角色工具边界在宿主目录收口，不靠 Prompt 扩大权限。保留两类 DeepSeek 配对/留出和所有首次失败、用量回执；本轮未新增付费调用，不把旧模型测量称为当前二进制的新性能评测。自动模型选择由有效配置/default/fallback 驱动，删除配置后不保留失效模型。"
+        }
+      ],
+      "verification": [
+        {
+          "scenario": "HC-06"
+        },
+        {
+          "scenario": "HC-05"
+        },
+        {
+          "scenario": "E2E-01"
+        }
+      ],
+      "findings": [
+        "Original paid evidence retained with limitations; no new model-quality or billing claim for this candidate."
+      ]
+    },
+    {
+      "id": "NX-38",
+      "title": "Addon 生产取消与审批等待语义",
+      "scope": "addon/runtime.rs、host capability adapters、现有 approvals/journal。  ",
+      "acceptance_ids": [
+        "AD-02",
+        "AD-03",
+        "LF-08"
+      ],
+      "execution": "验证实际 Extism 中断语义，区分运行/I/O/人工等待；迟到批准失效；超时核对副作用；不凭 expired lease 重放 worker。  ",
+      "status": "CODE_REVIEWED_AND_SCENARIO_EVIDENCE_BOUND",
+      "implementation_review": [
+        {
+          "group": "addon",
+          "review": "权限拒绝断言具体原因；人工等待与 CPU/I/O timeout 分离，核对文件/journal 保留已发生效果。包按已验证不可变字节执行，Windows junction 也拒绝。Bridge 的身份/nonce/lease/方法/schema/能力逐次核对，iframe 无主站同源权限。检查目标和 human acceptance 绑定 preview revision，acceptance 不授予运行权限；入口移至 Settings。"
+        }
+      ],
+      "verification": [
+        {
+          "scenario": "AD-02"
+        },
+        {
+          "scenario": "AD-03"
+        },
+        {
+          "scenario": "LF-08"
+        }
+      ],
+      "findings": []
+    },
+    {
+      "id": "NX-39",
+      "title": "页面 manifest、隔离 Bridge 与生命周期",
+      "scope": "addon/ui（拟新增）、manifest/package assets、受限 server endpoints。  ",
+      "acceptance_ids": [
+        "AD-04",
+        "AD-05",
+        "AD-06"
+      ],
+      "execution": "签名包声明 pages；资源 admission；实例/nonce/lease 绑定；校验 schema/速率/大小；CSP 与独立隔离；撤销后不能继续调用。  ",
+      "status": "CODE_REVIEWED_AND_SCENARIO_EVIDENCE_BOUND",
+      "implementation_review": [
+        {
+          "group": "addon",
+          "review": "权限拒绝断言具体原因；人工等待与 CPU/I/O timeout 分离，核对文件/journal 保留已发生效果。包按已验证不可变字节执行，Windows junction 也拒绝。Bridge 的身份/nonce/lease/方法/schema/能力逐次核对，iframe 无主站同源权限。检查目标和 human acceptance 绑定 preview revision，acceptance 不授予运行权限；入口移至 Settings。"
+        }
+      ],
+      "verification": [
+        {
+          "scenario": "AD-04"
+        },
+        {
+          "scenario": "AD-05"
+        },
+        {
+          "scenario": "AD-06"
+        }
+      ],
+      "findings": []
+    },
+    {
+      "id": "NX-40",
+      "title": "批准后接入 Addon 页面宿主 UI",
+      "scope": "addon page container、navigation、settings。  ",
+      "acceptance_ids": [
+        "UI-03",
+        "UI-04",
+        "AD-04",
+        "AD-06"
+      ],
+      "execution": "先 PV-06；确认后接入真实包页；显示失效/权限状态；禁止覆盖核心路由或暴露 RPC client。  ",
+      "status": "CODE_REVIEWED_AND_SCENARIO_EVIDENCE_BOUND",
+      "implementation_review": [
+        {
+          "group": "addon",
+          "review": "权限拒绝断言具体原因；人工等待与 CPU/I/O timeout 分离，核对文件/journal 保留已发生效果。包按已验证不可变字节执行，Windows junction 也拒绝。Bridge 的身份/nonce/lease/方法/schema/能力逐次核对，iframe 无主站同源权限。检查目标和 human acceptance 绑定 preview revision，acceptance 不授予运行权限；入口移至 Settings。"
+        }
+      ],
+      "verification": [
+        {
+          "scenario": "UI-03"
+        },
+        {
+          "scenario": "UI-04"
+        },
+        {
+          "scenario": "AD-04"
+        },
+        {
+          "scenario": "AD-06"
+        }
+      ],
+      "findings": [
+        "See regression root-cause report; UI restructuring follows the owner's latest explicit requirements."
+      ]
+    },
+    {
+      "id": "NX-41",
+      "title": "预览检查样例与独立成果验收",
+      "scope": "受控 preview target service、示例 Addon、检查工具。  ",
+      "acceptance_ids": [
+        "AD-07",
+        "AD-08",
+        "UI-03",
+        "UI-07"
+      ],
+      "execution": "先 PV-07；确认后做选择目标/截图或诊断/报告/用户成果验收；检查不能操纵宿主审批；改动动作仍走权限 broker。  ",
+      "status": "CODE_REVIEWED_AND_SCENARIO_EVIDENCE_BOUND",
+      "implementation_review": [
+        {
+          "group": "addon",
+          "review": "权限拒绝断言具体原因；人工等待与 CPU/I/O timeout 分离，核对文件/journal 保留已发生效果。包按已验证不可变字节执行，Windows junction 也拒绝。Bridge 的身份/nonce/lease/方法/schema/能力逐次核对，iframe 无主站同源权限。检查目标和 human acceptance 绑定 preview revision，acceptance 不授予运行权限；入口移至 Settings。"
+        }
+      ],
+      "verification": [
+        {
+          "scenario": "AD-07"
+        },
+        {
+          "scenario": "AD-08"
+        },
+        {
+          "scenario": "UI-03"
+        },
+        {
+          "scenario": "UI-07"
+        }
+      ],
+      "findings": [
+        "See regression root-cause report; UI restructuring follows the owner's latest explicit requirements."
+      ]
+    },
+    {
+      "id": "NX-42",
+      "title": "冻结候选并执行全链路验收",
+      "scope": "workspace+web 全门槛、integration、source snapshots。  ",
+      "acceptance_ids": [
+        "E2E-01",
+        "E2E-02",
+        "E2E-03",
+        "E2E-04",
+        "E2E-05"
+      ],
+      "execution": "冻结 RC；统一记录首轮/诊断重跑；跑权限、恢复、四类事件、两级资源与插件链路；mock/local HTTP/live provider 分清，不混算。  ",
+      "status": "CODE_REVIEWED_AND_SCENARIO_EVIDENCE_BOUND",
+      "implementation_review": [
+        {
+          "group": "foundation",
+          "review": "核对实际分支、锁文件、原生/WSL工具链与日志；资源迁移先建一致备份再写 schema，CAS 与重放回执同批持久化，未知 schema 拒绝写。原始云端完成标记不作为本轮证据。跨平台缺失用例、历史模型结果与人工视觉确认分别记录。"
+        }
+      ],
+      "verification": [
+        {
+          "scenario": "E2E-01"
+        },
+        {
+          "scenario": "E2E-02"
+        },
+        {
+          "scenario": "E2E-03"
+        },
+        {
+          "scenario": "E2E-04"
+        },
+        {
+          "scenario": "E2E-05"
+        }
+      ],
+      "findings": []
+    },
+    {
+      "id": "NX-43",
+      "title": "规模、平台与迁移回退演练",
+      "scope": "perf fixtures、Windows/Linux runner、迁移样本。  ",
+      "acceptance_ids": [
+        "PFM-01",
+        "PFM-02",
+        "PFM-03",
+        "E2E-05",
+        "E2E-06"
+      ],
+      "execution": "测大图/长日志/事件风暴/重启；根据基线决定优化，不未测先重构；迁移/功能关闭/降级只读演练；清理不伤用户原数据。  ",
+      "status": "CODE_REVIEWED_AND_SCENARIO_EVIDENCE_BOUND",
+      "implementation_review": [
+        {
+          "group": "foundation",
+          "review": "核对实际分支、锁文件、原生/WSL工具链与日志；资源迁移先建一致备份再写 schema，CAS 与重放回执同批持久化，未知 schema 拒绝写。原始云端完成标记不作为本轮证据。跨平台缺失用例、历史模型结果与人工视觉确认分别记录。"
+        }
+      ],
+      "verification": [
+        {
+          "scenario": "PFM-01"
+        },
+        {
+          "scenario": "PFM-02"
+        },
+        {
+          "scenario": "PFM-03"
+        },
+        {
+          "scenario": "E2E-05"
+        },
+        {
+          "scenario": "E2E-06"
+        }
+      ],
+      "findings": []
+    },
+    {
+      "id": "NX-44",
+      "title": "最终交付与状态审计",
+      "scope": "四份原位文档、release snapshot、任务/预览登记册。  ",
+      "acceptance_ids": [
+        "E2E-06",
+        "UI-01",
+        "UI-03"
+      ],
+      "execution": "逐条核对需求/任务/测试/审批；同步 SPEC/TASKS/BASELINE/CODEX_START 四份原位文档的真实状态；交付可读源码、脚本、记录、配置示例；未通过不标 Done。  ",
+      "status": "CODE_REVIEWED_AND_SCENARIO_EVIDENCE_BOUND",
+      "implementation_review": [
+        {
+          "group": "foundation",
+          "review": "核对实际分支、锁文件、原生/WSL工具链与日志；资源迁移先建一致备份再写 schema，CAS 与重放回执同批持久化，未知 schema 拒绝写。原始云端完成标记不作为本轮证据。跨平台缺失用例、历史模型结果与人工视觉确认分别记录。"
+        }
+      ],
+      "verification": [
+        {
+          "scenario": "E2E-06"
+        },
+        {
+          "scenario": "UI-01"
+        },
+        {
+          "scenario": "UI-03"
+        }
+      ],
+      "findings": [
+        "See regression root-cause report; UI restructuring follows the owner's latest explicit requirements."
+      ]
+    }
+  ],
+  "scenarios": [
+    {
+      "id": "BB-01",
+      "title": "项目隔离与归属",
+      "expected": "A 项目无法读取 B 的条目／会话引用；同名不构成相同身份。",
+      "status": "TECHNICAL_VERIFIED",
+      "evidence": [
+        {
+          "kind": "rust_assertion",
+          "ref": "scoped_revisions_confirmation_invalidation_and_tombstone"
+        }
+      ]
+    },
+    {
+      "id": "BB-02",
+      "title": "模型笔记与用户约定",
+      "expected": "Agent 只能产生未验证笔记；提升需精确 revision 的人工确认。",
+      "status": "TECHNICAL_VERIFIED",
+      "evidence": [
+        {
+          "kind": "rust_assertion",
+          "ref": "scoped_revisions_confirmation_invalidation_and_tombstone"
+        },
+        {
+          "kind": "rust_assertion",
+          "ref": "registered_tools_enforce_host_role_and_strict_arguments"
+        }
+      ]
+    },
+    {
+      "id": "BB-03",
+      "title": "约定编辑和确认失效",
+      "expected": "正文改变生成新修订，旧确认不能覆盖新内容。",
+      "status": "TECHNICAL_VERIFIED",
+      "evidence": [
+        {
+          "kind": "rust_assertion",
+          "ref": "scoped_revisions_confirmation_invalidation_and_tombstone"
+        }
+      ]
+    },
+    {
+      "id": "BB-04",
+      "title": "事实投影防伪",
+      "expected": "普通写入不能伪造 Validator passed、来源 run 或用户身份。",
+      "status": "TECHNICAL_VERIFIED",
+      "evidence": [
+        {
+          "kind": "rust_assertion",
+          "ref": "query_limits_strict_inputs_and_role_denials"
+        },
+        {
+          "kind": "rust_assertion",
+          "ref": "rpc_controls_bind_workspace_and_reject_forged_fields"
+        }
+      ]
+    },
+    {
+      "id": "BB-05",
+      "title": "文件版本失效",
+      "expected": "旧版本结论保留适用范围；变更、回滚和重试不显示成当前通过。",
+      "status": "TECHNICAL_VERIFIED",
+      "evidence": [
+        {
+          "kind": "rust_assertion",
+          "ref": "scoped_revisions_confirmation_invalidation_and_tombstone"
+        },
+        {
+          "kind": "rust_assertion",
+          "ref": "blackboard_rpc_is_workspace_scoped_redacted_bounded_and_read_only"
+        }
+      ]
+    },
+    {
+      "id": "BB-06",
+      "title": "并发编辑／读取上限",
+      "expected": "expected_revision 冲突可诊断；查询分页、条目长度和检索预算生效。",
+      "status": "TECHNICAL_VERIFIED",
+      "evidence": [
+        {
+          "kind": "rust_assertion",
+          "ref": "query_limits_strict_inputs_and_role_denials"
+        }
+      ]
+    },
+    {
+      "id": "BB-07",
+      "title": "归档删除与恢复",
+      "expected": "引用 tombstone 不指向其他记录；迁移与重复恢复幂等。",
+      "status": "TECHNICAL_VERIFIED",
+      "evidence": [
+        {
+          "kind": "rust_assertion",
+          "ref": "scoped_revisions_confirmation_invalidation_and_tombstone"
+        },
+        {
+          "kind": "rust_assertion",
+          "ref": "additive_migration_cas_replay_restart_and_rollback"
+        }
+      ]
+    },
+    {
+      "id": "PF-01",
+      "title": "项目与个人同名",
+      "expected": "显示作用域；按 scoped ID 选择，不静默覆盖或跨库注入。",
+      "status": "TECHNICAL_VERIFIED",
+      "evidence": [
+        {
+          "kind": "rust_assertion",
+          "ref": "same_names_scopes_file_authority_and_revision_conflicts"
+        }
+      ]
+    },
+    {
+      "id": "PF-02",
+      "title": "格式与非法内容",
+      "expected": "TOML front matter 与正文边界确定；未知危险字段、脚本／远程 include 拒绝。",
+      "status": "TECHNICAL_VERIFIED",
+      "evidence": [
+        {
+          "kind": "rust_assertion",
+          "ref": "parser_rejects_authority_and_unsafe_metadata_without_normalizing_bytes"
+        }
+      ]
+    },
+    {
+      "id": "PF-03",
+      "title": "拖入 Chat 的用户级语义",
+      "expected": "发送内容是显式选择的 user-level fragment，不是 ReadFile 结果；origin 保留。",
+      "status": "TECHNICAL_VERIFIED",
+      "evidence": [
+        {
+          "kind": "rust_assertion",
+          "ref": "real_resource_and_context_executors_use_frozen_text_at_user_role"
+        },
+        {
+          "kind": "browser_assertion",
+          "gate": "browser_full",
+          "file": "modules/webcore/e2e/resource-concurrency.spec.ts",
+          "line": 221,
+          "test": "filtering the resource list cannot retarget an existing edit draft (3.3s)"
+        },
+        {
+          "kind": "browser_assertion",
+          "gate": "headings",
+          "file": "modules/webcore/e2e/resource-concurrency.spec.ts",
+          "line": 221,
+          "test": "filtering the resource list cannot retarget an existing edit draft (3.8s)"
+        }
+      ]
+    },
+    {
+      "id": "PF-04",
+      "title": "待发送内容变化",
+      "expected": "chip 提示变更，发送绑定用户实际确认版本。",
+      "status": "TECHNICAL_VERIFIED",
+      "evidence": [
+        {
+          "kind": "rust_assertion",
+          "ref": "selected_snapshots_and_run_manifests_survive_source_edit_delete_and_restart"
+        },
+        {
+          "kind": "browser_assertion",
+          "gate": "browser_full",
+          "file": "modules/webcore/e2e/resource-concurrency.spec.ts",
+          "line": 3,
+          "test": "returning to the same workspace cannot revive an obsolete selection request (596ms)"
+        },
+        {
+          "kind": "browser_assertion",
+          "gate": "browser_full",
+          "file": "modules/webcore/e2e/resource-concurrency.spec.ts",
+          "line": 52,
+          "test": "replacing selections during validation cannot certify an unchecked new selection (619ms)"
+        },
+        {
+          "kind": "browser_assertion",
+          "gate": "headings",
+          "file": "modules/webcore/e2e/resource-concurrency.spec.ts",
+          "line": 3,
+          "test": "returning to the same workspace cannot revive an obsolete selection request (806ms)"
+        },
+        {
+          "kind": "browser_assertion",
+          "gate": "headings",
+          "file": "modules/webcore/e2e/resource-concurrency.spec.ts",
+          "line": 52,
+          "test": "replacing selections during validation cannot certify an unchecked new selection (697ms)"
+        }
+      ]
+    },
+    {
+      "id": "PF-05",
+      "title": "历史不可变与删除源",
+      "expected": "既有消息保持当时快照；删除影响与历史清除语义明确。",
+      "status": "TECHNICAL_VERIFIED",
+      "evidence": [
+        {
+          "kind": "rust_assertion",
+          "ref": "selected_snapshots_and_run_manifests_survive_source_edit_delete_and_restart"
+        },
+        {
+          "kind": "rust_assertion",
+          "ref": "deleted_prompt_restore_requires_the_current_tombstone_revision"
+        },
+        {
+          "kind": "browser_assertion",
+          "gate": "browser_full",
+          "file": "modules/webcore/e2e/workspace-reliability.spec.ts",
+          "line": 287,
+          "test": "prompt metadata changes require review and a save binds the reviewed revision (1.1s)"
+        }
+      ]
+    },
+    {
+      "id": "PF-06",
+      "title": "蓝图资源节点与 ContextMerge",
+      "expected": "两个作用域均可拖入；实际输入等于 run manifest 冻结正文。",
+      "status": "TECHNICAL_VERIFIED",
+      "evidence": [
+        {
+          "kind": "rust_assertion",
+          "ref": "real_resource_and_context_executors_use_frozen_text_at_user_role"
+        }
+      ]
+    },
+    {
+      "id": "PF-07",
+      "title": "运行中修改文件",
+      "expected": "不会让后续节点静默读新版本；再次运行须重新解析／确认。",
+      "status": "TECHNICAL_VERIFIED",
+      "evidence": [
+        {
+          "kind": "rust_assertion",
+          "ref": "selected_snapshots_and_run_manifests_survive_source_edit_delete_and_restart"
+        }
+      ]
+    },
+    {
+      "id": "PF-08",
+      "title": "目录与元数据防越界",
+      "expected": "path traversal、symlink、scope 伪造不能读写其他目录或 .metteur 内部状态。",
+      "status": "TECHNICAL_VERIFIED",
+      "evidence": [
+        {
+          "kind": "rust_assertion",
+          "ref": "symlinks_cannot_escape_prompt_subtrees"
+        },
+        {
+          "kind": "rust_assertion",
+          "ref": "windows_junctions_cannot_escape_prompt_subtrees"
+        }
+      ]
+    },
+    {
+      "id": "PF-09",
+      "title": "复制／个人隐私",
+      "expected": "复制新 ID 带来源；用户未选个人片段不暴露给项目记忆／Addon。",
+      "status": "TECHNICAL_VERIFIED",
+      "evidence": [
+        {
+          "kind": "rust_assertion",
+          "ref": "same_names_scopes_file_authority_and_revision_conflicts"
+        },
+        {
+          "kind": "rust_assertion",
+          "ref": "background_child_uses_host_allowlist_and_root_ledger"
+        }
+      ]
+    },
+    {
+      "id": "PF-10",
+      "title": "故障与来源派生",
+      "expected": "文件／索引写失败可恢复；经文本加工标 derived，不假称用户原文。",
+      "status": "TECHNICAL_VERIFIED",
+      "evidence": [
+        {
+          "kind": "rust_assertion",
+          "ref": "pending_file_intent_is_diagnostic_and_recoverable"
+        },
+        {
+          "kind": "rust_assertion",
+          "ref": "selected_snapshots_and_run_manifests_survive_source_edit_delete_and_restart"
+        }
+      ]
+    },
+    {
+      "id": "EV-01",
+      "title": "真正结束回合",
+      "expected": "WAITING 后不占前台、没有待完成模型调用／RPC；可观察预算不增加。",
+      "status": "TECHNICAL_VERIFIED",
+      "evidence": [
+        {
+          "kind": "rust_assertion",
+          "ref": "real_job_yields_saves_entire_batch_and_resumes_once_in_same_session"
+        },
+        {
+          "kind": "rust_assertion",
+          "ref": "persisted_timer_runs_once_without_an_open_chat_stream"
+        },
+        {
+          "kind": "browser_assertion",
+          "gate": "browser_full",
+          "file": "modules/webcore/e2e/workspace-reliability.spec.ts",
+          "line": 140,
+          "test": "idle tasks perform no polling and schedules share their navigation entry (1.2s)"
+        }
+      ]
+    },
+    {
+      "id": "EV-02",
+      "title": "完成早于等待",
+      "expected": "source 在等待登记前完成，提交等待后仍触发一次，不丢事件。",
+      "status": "TECHNICAL_VERIFIED",
+      "evidence": [
+        {
+          "kind": "rust_assertion",
+          "ref": "terminal_before_wait_deduplicates_and_stop_fences_dispatch"
+        }
+      ]
+    },
+    {
+      "id": "EV-03",
+      "title": "重复投递",
+      "expected": "同一事件重复通知／outbox 重扫只生成一个逻辑 dispatch。",
+      "status": "TECHNICAL_VERIFIED",
+      "evidence": [
+        {
+          "kind": "rust_assertion",
+          "ref": "terminal_before_wait_deduplicates_and_stop_fences_dispatch"
+        },
+        {
+          "kind": "rust_assertion",
+          "ref": "nx_m6_bounded_duplicate_burst_and_repeated_recovery"
+        }
+      ]
+    },
+    {
+      "id": "EV-04",
+      "title": "多来源 any／all",
+      "expected": "any 合并规则确定；all 包含失败终态并可结束等待；每条源收据保留。",
+      "status": "TECHNICAL_VERIFIED",
+      "evidence": [
+        {
+          "kind": "rust_assertion",
+          "ref": "all_sources_conflict_and_unknown_usage_are_not_success"
+        },
+        {
+          "kind": "rust_assertion",
+          "ref": "wait_any_finished_supports_multiple_jobs"
+        }
+      ]
+    },
+    {
+      "id": "EV-05",
+      "title": "新消息替代旧上下文",
+      "expected": "revision/generation 不匹配阻断旧续跑，不覆盖人工新指令。",
+      "status": "TECHNICAL_VERIFIED",
+      "evidence": [
+        {
+          "kind": "rust_assertion",
+          "ref": "newer_user_message_fences_and_retires_the_old_wait_context"
+        }
+      ]
+    },
+    {
+      "id": "EV-06",
+      "title": "工作区准入互斥",
+      "expected": "手动聊天、蓝图、dispatcher 竞争不出现双前台或锁内自 RPC 死锁。",
+      "status": "TECHNICAL_VERIFIED",
+      "evidence": [
+        {
+          "kind": "rust_assertion",
+          "ref": "smoke_chat_single_slot_per_workspace"
+        },
+        {
+          "kind": "rust_assertion",
+          "ref": "confirmed_saved_blueprint_runs_once_and_returns_actual_outputs_to_parent"
+        }
+      ]
+    },
+    {
+      "id": "EV-07",
+      "title": "Stop 抢占队列",
+      "expected": "Stop 持久后已排队事件不再触发；崩溃恢复也不复活。",
+      "status": "TECHNICAL_VERIFIED",
+      "evidence": [
+        {
+          "kind": "rust_assertion",
+          "ref": "terminal_before_wait_deduplicates_and_stop_fences_dispatch"
+        },
+        {
+          "kind": "rust_assertion",
+          "ref": "owner_stop_cancels_an_inflight_child_and_preserves_unknown_reservations"
+        }
+      ]
+    },
+    {
+      "id": "EV-08",
+      "title": "暂停与继续",
+      "expected": "暂停阻止新恢复但保留事件；继续重核权限、预算与代次。",
+      "status": "TECHNICAL_VERIFIED",
+      "evidence": [
+        {
+          "kind": "rust_assertion",
+          "ref": "persisted_timer_runs_once_without_an_open_chat_stream"
+        }
+      ]
+    },
+    {
+      "id": "EV-09",
+      "title": "不伪造用户授权",
+      "expected": "stdout／报告／params 中“已批准”等文本无授权效果。",
+      "status": "TECHNICAL_VERIFIED",
+      "evidence": [
+        {
+          "kind": "rust_assertion",
+          "ref": "rpc_controls_bind_workspace_and_reject_forged_fields"
+        },
+        {
+          "kind": "rust_assertion",
+          "ref": "registered_tools_enforce_host_role_and_strict_arguments"
+        }
+      ]
+    },
+    {
+      "id": "EV-10",
+      "title": "数据上限与引用",
+      "expected": "参数 schema、大小、深度和 artifact 访问限制有效，缺失不可填造。",
+      "status": "TECHNICAL_VERIFIED",
+      "evidence": [
+        {
+          "kind": "rust_assertion",
+          "ref": "failed_wait_is_atomic_and_stopped_recovery_retains_artifacts"
+        }
+      ]
+    },
+    {
+      "id": "EV-11",
+      "title": "回合与根预算不重置",
+      "expected": "新 turn／checkpoint rewind 不重置累计预算，unknown usage 不变成零。",
+      "status": "TECHNICAL_VERIFIED",
+      "evidence": [
+        {
+          "kind": "rust_assertion",
+          "ref": "all_sources_conflict_and_unknown_usage_are_not_success"
+        },
+        {
+          "kind": "rust_assertion",
+          "ref": "background_child_uses_host_allowlist_and_root_ledger"
+        }
+      ]
+    },
+    {
+      "id": "EV-12",
+      "title": "过期／背压／无限循环",
+      "expected": "到期、队列满、次数或深度耗尽进入明确阻断状态，无静默丢终态。",
+      "status": "TECHNICAL_VERIFIED",
+      "evidence": [
+        {
+          "kind": "rust_assertion",
+          "ref": "nx_m6_bounded_duplicate_burst_and_repeated_recovery"
+        },
+        {
+          "kind": "rust_assertion",
+          "ref": "crash_windows_timeout_and_stop_never_duplicate_dispatch"
+        }
+      ]
+    },
+    {
+      "id": "EV-13",
+      "title": "claim 与启动崩溃",
+      "expected": "能证明未启动才重调度；已启动不明状态进入 InDoubt。",
+      "status": "TECHNICAL_VERIFIED",
+      "evidence": [
+        {
+          "kind": "rust_assertion",
+          "ref": "crash_windows_timeout_and_stop_never_duplicate_dispatch"
+        },
+        {
+          "kind": "rust_assertion",
+          "ref": "failed_node_with_unsettled_fence_requires_review_without_replay"
+        }
+      ]
+    },
+    {
+      "id": "EV-14",
+      "title": "提交成功而 ack 中断",
+      "expected": "只补消费 ack，不再调用模型／重做文件操作。",
+      "status": "TECHNICAL_VERIFIED",
+      "evidence": [
+        {
+          "kind": "rust_assertion",
+          "ref": "crash_windows_timeout_and_stop_never_duplicate_dispatch"
+        },
+        {
+          "kind": "rust_assertion",
+          "ref": "confirmed_saved_blueprint_runs_once_and_returns_actual_outputs_to_parent"
+        },
+        {
+          "kind": "browser_assertion",
+          "gate": "browser_full",
+          "file": "modules/webcore/e2e/chat-sequence.spec.ts",
+          "line": 3,
+          "test": "assistant reasoning, tools and the next answer retain their sequence live and after restore (1.3s)"
+        }
+      ]
+    },
+    {
+      "id": "EV-15",
+      "title": "等待提交失败",
+      "expected": "不宣称 WAITING；未转移 ownership 的源得到明确清理或人工处理。",
+      "status": "TECHNICAL_VERIFIED",
+      "evidence": [
+        {
+          "kind": "rust_assertion",
+          "ref": "failed_wait_is_atomic_and_stopped_recovery_retains_artifacts"
+        },
+        {
+          "kind": "rust_assertion",
+          "ref": "failed_batch_records_every_tool_result_before_returning_error"
+        }
+      ]
+    },
+    {
+      "id": "EV-16",
+      "title": "协议与上下文恢复",
+      "expected": "真实 tool call/result 成对保存；host event 追加不伪造 tool_call_id，不从 UI 重建。",
+      "status": "TECHNICAL_VERIFIED",
+      "evidence": [
+        {
+          "kind": "rust_assertion",
+          "ref": "failed_batch_records_every_tool_result_before_returning_error"
+        },
+        {
+          "kind": "rust_assertion",
+          "ref": "real_job_yields_saves_entire_batch_and_resumes_once_in_same_session"
+        }
+      ]
+    },
+    {
+      "id": "LF-01",
+      "title": "Job owner 转移",
+      "expected": "已登记 TaskOwned Job 在正常 yield 后仍运行；普通未登记 Job 保持原清理。",
+      "status": "TECHNICAL_VERIFIED",
+      "evidence": [
+        {
+          "kind": "rust_assertion",
+          "ref": "real_job_yields_saves_entire_batch_and_resumes_once_in_same_session"
+        }
+      ]
+    },
+    {
+      "id": "LF-02",
+      "title": "浏览器断开",
+      "expected": "批准 detached 的任务继续且可重订阅；普通聊天不被默认无限后台化。",
+      "status": "TECHNICAL_VERIFIED",
+      "evidence": [
+        {
+          "kind": "rust_assertion",
+          "ref": "detached_observer_cannot_cancel_host_turn"
+        },
+        {
+          "kind": "rust_assertion",
+          "ref": "ordinary_disconnect_cancels_and_drains_partial_result"
+        }
+      ]
+    },
+    {
+      "id": "LF-03",
+      "title": "daemon 重启的 Job",
+      "expected": "未确认进程结果标 interrupted/indeterminate，不自动重跑或按旧 PID 错认。",
+      "status": "TECHNICAL_VERIFIED",
+      "evidence": [
+        {
+          "kind": "rust_assertion",
+          "ref": "restarted_job_is_indeterminate_without_pid_reuse_or_replay"
+        }
+      ]
+    },
+    {
+      "id": "LF-04",
+      "title": "后台写入互斥",
+      "expected": "潜在写 Job 持有 effect lease，新冲突写执行排队，控制与检查仍可用。",
+      "status": "TECHNICAL_VERIFIED",
+      "evidence": [
+        {
+          "kind": "rust_assertion",
+          "ref": "real_job_yields_saves_entire_batch_and_resumes_once_in_same_session"
+        }
+      ]
+    },
+    {
+      "id": "LF-05",
+      "title": "异步子代理 allowlist",
+      "expected": "工具权限是宿主子集；默认不执行命令、写文件、创建调度或读个人库。",
+      "status": "TECHNICAL_VERIFIED",
+      "evidence": [
+        {
+          "kind": "rust_assertion",
+          "ref": "background_child_uses_host_allowlist_and_root_ledger"
+        }
+      ]
+    },
+    {
+      "id": "LF-06",
+      "title": "子代理独立收尾",
+      "expected": "同步 SpawnSubAgent 保持兼容；后台句柄有真实结果、预算和完成事件。",
+      "status": "TECHNICAL_VERIFIED",
+      "evidence": [
+        {
+          "kind": "rust_assertion",
+          "ref": "background_child_uses_host_allowlist_and_root_ledger"
+        },
+        {
+          "kind": "rust_assertion",
+          "ref": "runs_sub_agent_with_mock_provider"
+        }
+      ]
+    },
+    {
+      "id": "LF-07",
+      "title": "取消范围",
+      "expected": "取消 task 只清理所属源，不能杀别的项目／任务；迟到结果保留为过期来源。",
+      "status": "TECHNICAL_VERIFIED",
+      "evidence": [
+        {
+          "kind": "rust_assertion",
+          "ref": "owner_stop_cancels_an_inflight_child_and_preserves_unknown_reservations"
+        }
+      ]
+    },
+    {
+      "id": "LF-08",
+      "title": "worker 存活不明",
+      "expected": "lease 到期不意味着可重启写调用；fencing 不被当成撤销外部效果。",
+      "status": "TECHNICAL_VERIFIED",
+      "evidence": [
+        {
+          "kind": "rust_assertion",
+          "ref": "restarted_job_is_indeterminate_without_pid_reuse_or_replay"
+        },
+        {
+          "kind": "rust_assertion",
+          "ref": "failed_node_with_unsettled_fence_requires_review_without_replay"
+        }
+      ]
+    },
+    {
+      "id": "TM-01",
+      "title": "一次性／相对时长",
+      "expected": "真实 fake clock 推进一次产生一个 occurrence，不靠真实 sleep 猜时序。",
+      "status": "TECHNICAL_VERIFIED",
+      "evidence": [
+        {
+          "kind": "rust_assertion",
+          "ref": "dst_gap_fold_and_intervals_are_deterministic"
+        },
+        {
+          "kind": "rust_assertion",
+          "ref": "persisted_timer_runs_once_without_an_open_chat_stream"
+        }
+      ]
+    },
+    {
+      "id": "TM-02",
+      "title": "周期规则",
+      "expected": "interval／daily／weekly 具备确定的 next_due、end/max_occurrence 与取消。",
+      "status": "TECHNICAL_VERIFIED",
+      "evidence": [
+        {
+          "kind": "rust_assertion",
+          "ref": "dst_gap_fold_and_intervals_are_deterministic"
+        }
+      ]
+    },
+    {
+      "id": "TM-03",
+      "title": "时区与 DST",
+      "expected": "本地展示与 UTC 一致；不存在时刻跳过、重复时刻至多一次且可追溯。",
+      "status": "TECHNICAL_VERIFIED",
+      "evidence": [
+        {
+          "kind": "rust_assertion",
+          "ref": "dst_gap_fold_and_intervals_are_deterministic"
+        }
+      ]
+    },
+    {
+      "id": "TM-04",
+      "title": "错过触发",
+      "expected": "sleep/offline 后按 coalesce_once 或 skip，不产生无限 catch-up。",
+      "status": "TECHNICAL_VERIFIED",
+      "evidence": [
+        {
+          "kind": "rust_assertion",
+          "ref": "coalesce_skip_rollback_and_stop_preserve_occurrence_identity"
+        }
+      ]
+    },
+    {
+      "id": "TM-05",
+      "title": "计划编辑代次",
+      "expected": "参数／目标／规则变更后旧 occurrence 无效，需对应授权与版本。",
+      "status": "TECHNICAL_VERIFIED",
+      "evidence": [
+        {
+          "kind": "rust_assertion",
+          "ref": "persisted_timer_runs_once_without_an_open_chat_stream"
+        }
+      ]
+    },
+    {
+      "id": "TM-06",
+      "title": "工作区关闭／恢复",
+      "expected": "关闭暂停，不自动打开任意目录；恢复正确显示错过触发与授权状态。",
+      "status": "TECHNICAL_VERIFIED",
+      "evidence": [
+        {
+          "kind": "rust_assertion",
+          "ref": "persisted_timer_runs_once_without_an_open_chat_stream"
+        }
+      ]
+    },
+    {
+      "id": "TM-07",
+      "title": "成本与取消",
+      "expected": "重复计划无有效 scope 不执行；达到次数／token／费用门槛停止。",
+      "status": "TECHNICAL_VERIFIED",
+      "evidence": [
+        {
+          "kind": "rust_assertion",
+          "ref": "persisted_timer_runs_once_without_an_open_chat_stream"
+        }
+      ]
+    },
+    {
+      "id": "TM-08",
+      "title": "时钟回拨与重启",
+      "expected": "稳定 occurrence ID 防重复；相对计时与墙钟恢复语义可解释。",
+      "status": "TECHNICAL_VERIFIED",
+      "evidence": [
+        {
+          "kind": "rust_assertion",
+          "ref": "coalesce_skip_rollback_and_stop_preserve_occurrence_identity"
+        },
+        {
+          "kind": "rust_assertion",
+          "ref": "persisted_timer_runs_once_without_an_open_chat_stream"
+        }
+      ]
+    },
+    {
+      "id": "BP-01",
+      "title": "版本绑定确认",
+      "expected": "confirm card 的蓝图／Prompt／函数／Addon digest 与实际 run 一致。",
+      "status": "TECHNICAL_VERIFIED",
+      "evidence": [
+        {
+          "kind": "rust_assertion",
+          "ref": "manifest_digest_is_stable_and_changes_with_graph_or_function_body"
+        },
+        {
+          "kind": "rust_assertion",
+          "ref": "approval_is_exact_idempotent_and_never_binds_a_second_run"
+        }
+      ]
+    },
+    {
+      "id": "BP-02",
+      "title": "确认后变更",
+      "expected": "任何受绑定资源变化均 Stale，不隐藏保存或执行新内容。",
+      "status": "TECHNICAL_VERIFIED",
+      "evidence": [
+        {
+          "kind": "rust_assertion",
+          "ref": "manifest_digest_is_stable_and_changes_with_graph_or_function_body"
+        }
+      ]
+    },
+    {
+      "id": "BP-03",
+      "title": "释放聊天后启动",
+      "expected": "无嵌套互斥等待；全部工具结果保存后 yield，再取得蓝图槽位。",
+      "status": "TECHNICAL_VERIFIED",
+      "evidence": [
+        {
+          "kind": "rust_assertion",
+          "ref": "confirmed_saved_blueprint_runs_once_and_returns_actual_outputs_to_parent"
+        }
+      ]
+    },
+    {
+      "id": "BP-04",
+      "title": "重复确认与断连",
+      "expected": "相同 intent 查回相同逻辑 launch，不创建第二个 run。",
+      "status": "TECHNICAL_VERIFIED",
+      "evidence": [
+        {
+          "kind": "rust_assertion",
+          "ref": "approval_is_exact_idempotent_and_never_binds_a_second_run"
+        }
+      ]
+    },
+    {
+      "id": "BP-05",
+      "title": "按需会话交接",
+      "expected": "监督只读固定消息终点／授权范围，默认不注入全对话。",
+      "status": "TECHNICAL_VERIFIED",
+      "evidence": [
+        {
+          "kind": "rust_assertion",
+          "ref": "fixed_endpoint_preserves_roles_and_deleted_sources_are_unavailable"
+        }
+      ]
+    },
+    {
+      "id": "BP-06",
+      "title": "真实完成唤起",
+      "expected": "蓝图提交终态及副作用结算后，携带真实检查／产物恢复原 session 新 turn。",
+      "status": "TECHNICAL_VERIFIED",
+      "evidence": [
+        {
+          "kind": "rust_assertion",
+          "ref": "confirmed_saved_blueprint_runs_once_and_returns_actual_outputs_to_parent"
+        }
+      ]
+    },
+    {
+      "id": "BP-07",
+      "title": "人工停止子蓝图",
+      "expected": "父任务不自动重跑；只显示结果或严格 report-only，总控制可阻断。",
+      "status": "TECHNICAL_VERIFIED",
+      "evidence": [
+        {
+          "kind": "rust_assertion",
+          "ref": "stopped_blueprint_never_automatically_resumes_parent"
+        },
+        {
+          "kind": "rust_assertion",
+          "ref": "report_only_completion_does_not_run_another_model_turn"
+        }
+      ]
+    },
+    {
+      "id": "BP-08",
+      "title": "启动／交接崩溃",
+      "expected": "intent／run／confirmation／handoff 对账，不明效果进入人工恢复。",
+      "status": "TECHNICAL_VERIFIED",
+      "evidence": [
+        {
+          "kind": "rust_assertion",
+          "ref": "failed_node_with_unsettled_fence_requires_review_without_replay"
+        },
+        {
+          "kind": "rust_assertion",
+          "ref": "approval_is_exact_idempotent_and_never_binds_a_second_run"
+        }
+      ]
+    },
+    {
+      "id": "HC-01",
+      "title": "最终请求断点计数",
+      "expected": "实际完整请求中所有 marker 统一预算，system/tools/messages 组合不超界。",
+      "status": "TECHNICAL_VERIFIED",
+      "evidence": [
+        {
+          "kind": "rust_assertion",
+          "ref": "final_http_requests_share_one_breakpoint_budget_and_canonical_prefix"
+        }
+      ]
+    },
+    {
+      "id": "HC-02",
+      "title": "稳定序列化",
+      "expected": "相同片段／目录产生相同顺序；非必要日期／事件变化不改写稳定前缀。",
+      "status": "TECHNICAL_VERIFIED",
+      "evidence": [
+        {
+          "kind": "rust_assertion",
+          "ref": "final_http_requests_share_one_breakpoint_budget_and_canonical_prefix"
+        },
+        {
+          "kind": "rust_assertion",
+          "ref": "tool_definitions_are_sorted_for_a_stable_request_body"
+        }
+      ]
+    },
+    {
+      "id": "HC-03",
+      "title": "角色与模型边界",
+      "expected": "主执行、客服、监督、只读子代理的工具与行为边界不因适配而扩大。",
+      "status": "TECHNICAL_VERIFIED",
+      "evidence": [
+        {
+          "kind": "rust_assertion",
+          "ref": "background_child_uses_host_allowlist_and_root_ledger"
+        },
+        {
+          "kind": "rust_assertion",
+          "ref": "registered_tools_enforce_host_role_and_strict_arguments"
+        }
+      ]
+    },
+    {
+      "id": "HC-04",
+      "title": "协议组合与第二轮",
+      "expected": "支持的 API、推理回放、工具第二轮、流式／非流式都用本地 HTTP 夹具验证。",
+      "status": "TECHNICAL_VERIFIED",
+      "evidence": [
+        {
+          "kind": "rust_assertion",
+          "ref": "final_http_requests_share_one_breakpoint_budget_and_canonical_prefix"
+        },
+        {
+          "kind": "rust_assertion",
+          "ref": "http_providers_share_streaming_and_nonstreaming_accounting"
+        },
+        {
+          "kind": "rust_assertion",
+          "ref": "thinking_blocks_are_replayed_before_tool_use"
+        }
+      ]
+    },
+    {
+      "id": "HC-05",
+      "title": "用量与缓存未知值",
+      "expected": "reported cache read/write 与 input 口径一致；未知字段单列 coverage 不填零。",
+      "status": "TECHNICAL_VERIFIED",
+      "evidence": [
+        {
+          "kind": "rust_assertion",
+          "ref": "nx_m4_unknown_cache_write_prevents_fabricated_cost"
+        },
+        {
+          "kind": "rust_assertion",
+          "ref": "run_usage_preserves_completeness_and_pending_requests"
+        },
+        {
+          "kind": "rust_assertion",
+          "ref": "missing_and_invalid_cache_are_not_reported_as_zero"
+        }
+      ]
+    },
+    {
+      "id": "HC-06",
+      "title": "真实模型匹配对照",
+      "expected": "同任务、工具、版本和预算比较旧／新 Prompt；保留失败与不同来源。",
+      "status": "HISTORICAL_MATCHED_EVALUATION_RETAINED",
+      "evidence": [
+        {
+          "kind": "historical_paid_evaluation",
+          "file": "docs/nx-m4/EVALUATION_20261021.md",
+          "sha256": "1a7dc833780782f54523098f9ff788ef29fea5108abc321f877f909d9ef540be",
+          "new_paid_calls": 0,
+          "reason": "Harness/Prompt/provider request assets unchanged; do not claim a new paid comparison of the rework binary."
+        }
+      ]
+    },
+    {
+      "id": "HC-07",
+      "title": "隐私与失效",
+      "expected": "日志不泄漏 Prompt／凭证；压缩／资源变更导致的合理 miss 不伪装修复。",
+      "status": "TECHNICAL_VERIFIED",
+      "evidence": [
+        {
+          "kind": "rust_assertion",
+          "ref": "nx_m4_provider_errors_do_not_echo_credentials_or_prompts"
+        },
+        {
+          "kind": "rust_assertion",
+          "ref": "keyed_diagnostics_preserve_structure_without_content"
+        }
+      ]
+    },
+    {
+      "id": "AD-01",
+      "title": "原始权限测试修复",
+      "expected": "复现原超时，权限拒绝断言为具体原因；无关错误不能假通过。",
+      "status": "TECHNICAL_VERIFIED",
+      "evidence": [
+        {
+          "kind": "rust_assertion",
+          "ref": "node_read_capability_rejection_is_not_an_invalid_pointer_or_timeout"
+        },
+        {
+          "kind": "rust_assertion",
+          "ref": "function_node_effects_cannot_bypass_run_approval_mode"
+        }
+      ]
+    },
+    {
+      "id": "AD-02",
+      "title": "超时与人工审批分离",
+      "expected": "执行/I/O/人工等待语义明确；迟到批准不能在已取消任务产生效果。",
+      "status": "TECHNICAL_VERIFIED",
+      "evidence": [
+        {
+          "kind": "rust_assertion",
+          "ref": "nx38_human_wait_is_separate_and_late_approval_cannot_write"
+        },
+        {
+          "kind": "rust_assertion",
+          "ref": "nx38_stop_interrupts_cpu_without_cancelling_parent_for_timeout"
+        }
+      ]
+    },
+    {
+      "id": "AD-03",
+      "title": "超时后副作用",
+      "expected": "核对实际文件与 journal；未知不能当未执行后重放。",
+      "status": "TECHNICAL_VERIFIED",
+      "evidence": [
+        {
+          "kind": "rust_assertion",
+          "ref": "node_timeout_preserves_actual_effects_and_journal_without_replay"
+        },
+        {
+          "kind": "rust_assertion",
+          "ref": "nx38_slow_http_stop_and_timeout_do_not_run_following_mutation"
+        }
+      ]
+    },
+    {
+      "id": "AD-04",
+      "title": "页面来源与身份",
+      "expected": "manifest／资源绑定签名包与实例；不可冒充别的包／工作区。",
+      "status": "TECHNICAL_VERIFIED",
+      "evidence": [
+        {
+          "kind": "rust_assertion",
+          "ref": "nx39_signed_page_binding_schema_replay_and_disable"
+        },
+        {
+          "kind": "rust_assertion",
+          "ref": "windows_package_junctions_are_rejected_before_reading_signed_bytes"
+        }
+      ]
+    },
+    {
+      "id": "AD-05",
+      "title": "Bridge schema 与权限",
+      "expected": "source/nonce/lease/能力逐次检查，拒绝任意 RPC／approval 字段／未知方法。",
+      "status": "TECHNICAL_VERIFIED",
+      "evidence": [
+        {
+          "kind": "rust_assertion",
+          "ref": "nx39_signed_page_binding_schema_replay_and_disable"
+        }
+      ]
+    },
+    {
+      "id": "AD-06",
+      "title": "隔离与撤销",
+      "expected": "不能访问主 DOM／凭证／个人库；disable/upgrade/uninstall/close 立即撤销旧桥。",
+      "status": "TECHNICAL_VERIFIED",
+      "evidence": [
+        {
+          "kind": "rust_assertion",
+          "ref": "nx39_signed_page_binding_schema_replay_and_disable"
+        },
+        {
+          "kind": "browser_assertion",
+          "gate": "browser_full",
+          "file": "modules/webcore/e2e/addon-page-ownership.spec.ts",
+          "line": 135,
+          "test": "a late open releases its original workspace lease without replacing the new page (1.6s)"
+        },
+        {
+          "kind": "browser_assertion",
+          "gate": "browser_full",
+          "file": "modules/webcore/e2e/addon-page-ownership.spec.ts",
+          "line": 162,
+          "test": "old review and heartbeat replies cannot accept or revoke a replacement page (3.5s)"
+        },
+        {
+          "kind": "browser_assertion",
+          "gate": "addon_ownership",
+          "file": "modules/webcore/e2e/addon-page-ownership.spec.ts",
+          "line": 135,
+          "test": "a late open releases its original workspace lease without replacing the new page (2.0s)"
+        },
+        {
+          "kind": "browser_assertion",
+          "gate": "addon_ownership",
+          "file": "modules/webcore/e2e/addon-page-ownership.spec.ts",
+          "line": 162,
+          "test": "old review and heartbeat replies cannot accept or revoke a replacement page (3.7s)"
+        }
+      ]
+    },
+    {
+      "id": "AD-07",
+      "title": "受控预览目标",
+      "expected": "检查只能操作登记 target，导航／重定向不越界，不能点宿主授权按钮。",
+      "status": "TECHNICAL_VERIFIED",
+      "evidence": [
+        {
+          "kind": "rust_assertion",
+          "ref": "nx41_selected_source_report_review_and_changed_revision"
+        }
+      ]
+    },
+    {
+      "id": "AD-08",
+      "title": "成果验收独立",
+      "expected": "human acceptance 绑定 preview revision，与系统权限 grant 严格不同。",
+      "status": "TECHNICAL_VERIFIED",
+      "evidence": [
+        {
+          "kind": "rust_assertion",
+          "ref": "nx41_selected_source_report_review_and_changed_revision"
+        }
+      ]
+    },
+    {
+      "id": "UI-01",
+      "title": "预览有明确版本",
+      "expected": "每项新功能有 preview ID/revision/fixture，NOT_PRESENTED 不能变 APPROVED。",
+      "status": "TECHNICAL_VERIFIED_OWNER_VISUAL_PENDING",
+      "evidence": [
+        {
+          "kind": "browser_assertion",
+          "gate": "browser_full",
+          "file": "modules/webcore/e2e/surface-design.spec.ts",
+          "line": 5,
+          "test": "shared page structure, controls and keyboard tabs in light at 1280px (1.8s)"
+        },
+        {
+          "kind": "browser_assertion",
+          "gate": "browser_full",
+          "file": "modules/webcore/e2e/surface-design.spec.ts",
+          "line": 5,
+          "test": "shared page structure, controls and keyboard tabs in light at 800px (1.6s)"
+        },
+        {
+          "kind": "browser_assertion",
+          "gate": "browser_full",
+          "file": "modules/webcore/e2e/surface-design.spec.ts",
+          "line": 5,
+          "test": "shared page structure, controls and keyboard tabs in dark at 1280px (1.7s)"
+        },
+        {
+          "kind": "browser_assertion",
+          "gate": "browser_full",
+          "file": "modules/webcore/e2e/surface-design.spec.ts",
+          "line": 5,
+          "test": "shared page structure, controls and keyboard tabs in dark at 800px (1.7s)"
+        },
+        {
+          "kind": "browser_assertion",
+          "gate": "headings",
+          "file": "modules/webcore/e2e/surface-design.spec.ts",
+          "line": 5,
+          "test": "shared page structure, controls and keyboard tabs in light at 1280px (2.1s)"
+        },
+        {
+          "kind": "browser_assertion",
+          "gate": "headings",
+          "file": "modules/webcore/e2e/surface-design.spec.ts",
+          "line": 5,
+          "test": "shared page structure, controls and keyboard tabs in light at 800px (2.0s)"
+        },
+        {
+          "kind": "browser_assertion",
+          "gate": "headings",
+          "file": "modules/webcore/e2e/surface-design.spec.ts",
+          "line": 5,
+          "test": "shared page structure, controls and keyboard tabs in dark at 1280px (2.2s)"
+        },
+        {
+          "kind": "browser_assertion",
+          "gate": "headings",
+          "file": "modules/webcore/e2e/surface-design.spec.ts",
+          "line": 5,
+          "test": "shared page structure, controls and keyboard tabs in dark at 800px (2.1s)"
+        },
+        {
+          "kind": "browser_assertion",
+          "gate": "addon_ownership",
+          "file": "modules/webcore/e2e/surface-design.spec.ts",
+          "line": 5,
+          "test": "shared page structure, controls and keyboard tabs in light at 1280px (2.1s)"
+        },
+        {
+          "kind": "browser_assertion",
+          "gate": "addon_ownership",
+          "file": "modules/webcore/e2e/surface-design.spec.ts",
+          "line": 5,
+          "test": "shared page structure, controls and keyboard tabs in light at 800px (1.9s)"
+        },
+        {
+          "kind": "browser_assertion",
+          "gate": "addon_ownership",
+          "file": "modules/webcore/e2e/surface-design.spec.ts",
+          "line": 5,
+          "test": "shared page structure, controls and keyboard tabs in dark at 1280px (2.0s)"
+        },
+        {
+          "kind": "browser_assertion",
+          "gate": "addon_ownership",
+          "file": "modules/webcore/e2e/surface-design.spec.ts",
+          "line": 5,
+          "test": "shared page structure, controls and keyboard tabs in dark at 800px (1.9s)"
+        },
+        {
+          "kind": "owner_decision",
+          "state": "PENDING_OWNER",
+          "candidate": "rework candidate; previous PV approvals do not approve this revision"
+        }
+      ]
+    },
+    {
+      "id": "UI-02",
+      "title": "状态覆盖",
+      "expected": "空、加载、错误、断线、只读、陈旧、等待审批、已应用等状态可预览。",
+      "status": "TECHNICAL_VERIFIED",
+      "evidence": [
+        {
+          "kind": "browser_assertion",
+          "gate": "browser_full",
+          "file": "modules/webcore/e2e/config-layers.spec.ts",
+          "line": 62,
+          "test": "settings show saved-but-unapplied errors and retain the edited layer (1.4s)"
+        },
+        {
+          "kind": "browser_assertion",
+          "gate": "browser_full",
+          "file": "modules/webcore/e2e/execution-failure.spec.ts",
+          "line": 3,
+          "test": "execution and resume persistence errors stay failed instead of finished (929ms)"
+        },
+        {
+          "kind": "browser_assertion",
+          "gate": "browser_full",
+          "file": "modules/webcore/e2e/execution-runtime.spec.ts",
+          "line": 3,
+          "test": "runtime graph follows recorded paths, stops motion offline, and uses live controls with exact run identity (1.7s)"
+        },
+        {
+          "kind": "browser_assertion",
+          "gate": "browser_full",
+          "file": "modules/webcore/e2e/workspace-reliability.spec.ts",
+          "line": 212,
+          "test": "context capacity distinguishes unknown, zero and full, and supports Escape (1.3s)"
+        },
+        {
+          "kind": "browser_assertion",
+          "gate": "headings",
+          "file": "modules/webcore/e2e/config-layers.spec.ts",
+          "line": 62,
+          "test": "settings show saved-but-unapplied errors and retain the edited layer (1.6s)"
+        }
+      ]
+    },
+    {
+      "id": "UI-03",
+      "title": "批准范围与差异",
+      "expected": "用户确认引用版本；未展示交互或显著变化需重新预览。",
+      "status": "TECHNICAL_VERIFIED_OWNER_VISUAL_PENDING",
+      "evidence": [
+        {
+          "kind": "browser_assertion",
+          "gate": "browser_full",
+          "file": "modules/webcore/e2e/surface-design.spec.ts",
+          "line": 5,
+          "test": "shared page structure, controls and keyboard tabs in light at 1280px (1.8s)"
+        },
+        {
+          "kind": "browser_assertion",
+          "gate": "browser_full",
+          "file": "modules/webcore/e2e/surface-design.spec.ts",
+          "line": 5,
+          "test": "shared page structure, controls and keyboard tabs in light at 800px (1.6s)"
+        },
+        {
+          "kind": "browser_assertion",
+          "gate": "browser_full",
+          "file": "modules/webcore/e2e/surface-design.spec.ts",
+          "line": 5,
+          "test": "shared page structure, controls and keyboard tabs in dark at 1280px (1.7s)"
+        },
+        {
+          "kind": "browser_assertion",
+          "gate": "browser_full",
+          "file": "modules/webcore/e2e/surface-design.spec.ts",
+          "line": 5,
+          "test": "shared page structure, controls and keyboard tabs in dark at 800px (1.7s)"
+        },
+        {
+          "kind": "browser_assertion",
+          "gate": "headings",
+          "file": "modules/webcore/e2e/surface-design.spec.ts",
+          "line": 5,
+          "test": "shared page structure, controls and keyboard tabs in light at 1280px (2.1s)"
+        },
+        {
+          "kind": "browser_assertion",
+          "gate": "headings",
+          "file": "modules/webcore/e2e/surface-design.spec.ts",
+          "line": 5,
+          "test": "shared page structure, controls and keyboard tabs in light at 800px (2.0s)"
+        },
+        {
+          "kind": "browser_assertion",
+          "gate": "headings",
+          "file": "modules/webcore/e2e/surface-design.spec.ts",
+          "line": 5,
+          "test": "shared page structure, controls and keyboard tabs in dark at 1280px (2.2s)"
+        },
+        {
+          "kind": "browser_assertion",
+          "gate": "headings",
+          "file": "modules/webcore/e2e/surface-design.spec.ts",
+          "line": 5,
+          "test": "shared page structure, controls and keyboard tabs in dark at 800px (2.1s)"
+        },
+        {
+          "kind": "browser_assertion",
+          "gate": "addon_ownership",
+          "file": "modules/webcore/e2e/surface-design.spec.ts",
+          "line": 5,
+          "test": "shared page structure, controls and keyboard tabs in light at 1280px (2.1s)"
+        },
+        {
+          "kind": "browser_assertion",
+          "gate": "addon_ownership",
+          "file": "modules/webcore/e2e/surface-design.spec.ts",
+          "line": 5,
+          "test": "shared page structure, controls and keyboard tabs in light at 800px (1.9s)"
+        },
+        {
+          "kind": "browser_assertion",
+          "gate": "addon_ownership",
+          "file": "modules/webcore/e2e/surface-design.spec.ts",
+          "line": 5,
+          "test": "shared page structure, controls and keyboard tabs in dark at 1280px (2.0s)"
+        },
+        {
+          "kind": "browser_assertion",
+          "gate": "addon_ownership",
+          "file": "modules/webcore/e2e/surface-design.spec.ts",
+          "line": 5,
+          "test": "shared page structure, controls and keyboard tabs in dark at 800px (1.9s)"
+        },
+        {
+          "kind": "owner_decision",
+          "state": "PENDING_OWNER",
+          "candidate": "rework candidate; previous PV approvals do not approve this revision"
+        }
+      ]
+    },
+    {
+      "id": "UI-04",
+      "title": "真实接入保真",
+      "expected": "接入后与已批准结构／交互一致，不把 fixture 数据留在生产路径。",
+      "status": "TECHNICAL_VERIFIED",
+      "evidence": [
+        {
+          "kind": "browser_assertion",
+          "gate": "browser_full",
+          "file": "modules/webcore/e2e/config-layers.spec.ts",
+          "line": 62,
+          "test": "settings show saved-but-unapplied errors and retain the edited layer (1.4s)"
+        },
+        {
+          "kind": "browser_assertion",
+          "gate": "browser_full",
+          "file": "modules/webcore/e2e/surface-design.spec.ts",
+          "line": 5,
+          "test": "shared page structure, controls and keyboard tabs in light at 1280px (1.8s)"
+        },
+        {
+          "kind": "browser_assertion",
+          "gate": "browser_full",
+          "file": "modules/webcore/e2e/surface-design.spec.ts",
+          "line": 5,
+          "test": "shared page structure, controls and keyboard tabs in light at 800px (1.6s)"
+        },
+        {
+          "kind": "browser_assertion",
+          "gate": "browser_full",
+          "file": "modules/webcore/e2e/surface-design.spec.ts",
+          "line": 5,
+          "test": "shared page structure, controls and keyboard tabs in dark at 1280px (1.7s)"
+        },
+        {
+          "kind": "browser_assertion",
+          "gate": "browser_full",
+          "file": "modules/webcore/e2e/surface-design.spec.ts",
+          "line": 5,
+          "test": "shared page structure, controls and keyboard tabs in dark at 800px (1.7s)"
+        },
+        {
+          "kind": "browser_assertion",
+          "gate": "browser_full",
+          "file": "modules/webcore/e2e/workspace-reliability.spec.ts",
+          "line": 170,
+          "test": "default model selection tracks valid workspace configuration and removed models (1.1s)"
+        },
+        {
+          "kind": "browser_assertion",
+          "gate": "headings",
+          "file": "modules/webcore/e2e/config-layers.spec.ts",
+          "line": 62,
+          "test": "settings show saved-but-unapplied errors and retain the edited layer (1.6s)"
+        },
+        {
+          "kind": "browser_assertion",
+          "gate": "headings",
+          "file": "modules/webcore/e2e/surface-design.spec.ts",
+          "line": 5,
+          "test": "shared page structure, controls and keyboard tabs in light at 1280px (2.1s)"
+        },
+        {
+          "kind": "browser_assertion",
+          "gate": "headings",
+          "file": "modules/webcore/e2e/surface-design.spec.ts",
+          "line": 5,
+          "test": "shared page structure, controls and keyboard tabs in light at 800px (2.0s)"
+        },
+        {
+          "kind": "browser_assertion",
+          "gate": "headings",
+          "file": "modules/webcore/e2e/surface-design.spec.ts",
+          "line": 5,
+          "test": "shared page structure, controls and keyboard tabs in dark at 1280px (2.2s)"
+        },
+        {
+          "kind": "browser_assertion",
+          "gate": "headings",
+          "file": "modules/webcore/e2e/surface-design.spec.ts",
+          "line": 5,
+          "test": "shared page structure, controls and keyboard tabs in dark at 800px (2.1s)"
+        },
+        {
+          "kind": "browser_assertion",
+          "gate": "addon_ownership",
+          "file": "modules/webcore/e2e/surface-design.spec.ts",
+          "line": 5,
+          "test": "shared page structure, controls and keyboard tabs in light at 1280px (2.1s)"
+        },
+        {
+          "kind": "browser_assertion",
+          "gate": "addon_ownership",
+          "file": "modules/webcore/e2e/surface-design.spec.ts",
+          "line": 5,
+          "test": "shared page structure, controls and keyboard tabs in light at 800px (1.9s)"
+        },
+        {
+          "kind": "browser_assertion",
+          "gate": "addon_ownership",
+          "file": "modules/webcore/e2e/surface-design.spec.ts",
+          "line": 5,
+          "test": "shared page structure, controls and keyboard tabs in dark at 1280px (2.0s)"
+        },
+        {
+          "kind": "browser_assertion",
+          "gate": "addon_ownership",
+          "file": "modules/webcore/e2e/surface-design.spec.ts",
+          "line": 5,
+          "test": "shared page structure, controls and keyboard tabs in dark at 800px (1.9s)"
+        }
+      ]
+    },
+    {
+      "id": "UI-05",
+      "title": "跨工作区与重连",
+      "expected": "旧请求晚到不更新新工作区；重连不会显示伪造成功或错误 run。",
+      "status": "TECHNICAL_VERIFIED",
+      "evidence": [
+        {
+          "kind": "browser_assertion",
+          "gate": "browser_full",
+          "file": "modules/webcore/e2e/addon-page-ownership.spec.ts",
+          "line": 135,
+          "test": "a late open releases its original workspace lease without replacing the new page (1.6s)"
+        },
+        {
+          "kind": "browser_assertion",
+          "gate": "browser_full",
+          "file": "modules/webcore/e2e/addon-page-ownership.spec.ts",
+          "line": 162,
+          "test": "old review and heartbeat replies cannot accept or revoke a replacement page (3.5s)"
+        },
+        {
+          "kind": "browser_assertion",
+          "gate": "browser_full",
+          "file": "modules/webcore/e2e/execution-runtime.spec.ts",
+          "line": 143,
+          "test": "late query responses cannot replace a newer workspace or newer run snapshot (1.0s)"
+        },
+        {
+          "kind": "browser_assertion",
+          "gate": "browser_full",
+          "file": "modules/webcore/e2e/file-write-boundaries.spec.ts",
+          "line": 19,
+          "test": "folder copies refuse their own descendants and clipboard paths keep their workspace owner (1.7s)"
+        },
+        {
+          "kind": "browser_assertion",
+          "gate": "browser_full",
+          "file": "modules/webcore/e2e/file-write-boundaries.spec.ts",
+          "line": 55,
+          "test": "DSL compilation cannot overwrite an existing canvas or retarget a late compile result (2.5s)"
+        },
+        {
+          "kind": "browser_assertion",
+          "gate": "browser_full",
+          "file": "modules/webcore/e2e/launch-review-concurrency.spec.ts",
+          "line": 87,
+          "test": "an old launch acknowledgement cannot resolve the replacement request (1.3s)"
+        },
+        {
+          "kind": "browser_assertion",
+          "gate": "browser_full",
+          "file": "modules/webcore/e2e/resource-concurrency.spec.ts",
+          "line": 201,
+          "test": "a late Project save cannot close a new Personal draft (3.7s)"
+        },
+        {
+          "kind": "browser_assertion",
+          "gate": "headings",
+          "file": "modules/webcore/e2e/launch-review-concurrency.spec.ts",
+          "line": 87,
+          "test": "an old launch acknowledgement cannot resolve the replacement request (1.6s)"
+        },
+        {
+          "kind": "browser_assertion",
+          "gate": "headings",
+          "file": "modules/webcore/e2e/resource-concurrency.spec.ts",
+          "line": 201,
+          "test": "a late Project save cannot close a new Personal draft (5.6s)"
+        },
+        {
+          "kind": "browser_assertion",
+          "gate": "addon_ownership",
+          "file": "modules/webcore/e2e/addon-page-ownership.spec.ts",
+          "line": 135,
+          "test": "a late open releases its original workspace lease without replacing the new page (2.0s)"
+        },
+        {
+          "kind": "browser_assertion",
+          "gate": "addon_ownership",
+          "file": "modules/webcore/e2e/addon-page-ownership.spec.ts",
+          "line": 162,
+          "test": "old review and heartbeat replies cannot accept or revoke a replacement page (3.7s)"
+        }
+      ]
+    },
+    {
+      "id": "UI-06",
+      "title": "可用性与文案",
+      "expected": "键盘／焦点／窄屏／主题／减少动画；固定英文文案，不改用户原文。",
+      "status": "TECHNICAL_VERIFIED",
+      "evidence": [
+        {
+          "kind": "browser_assertion",
+          "gate": "browser_full",
+          "file": "modules/webcore/e2e/chat-shell.spec.ts",
+          "line": 103,
+          "test": "a narrow short chat pane keeps the welcome heading and send control reachable (1.2s)"
+        },
+        {
+          "kind": "browser_assertion",
+          "gate": "browser_full",
+          "file": "modules/webcore/e2e/file-write-boundaries.spec.ts",
+          "line": 130,
+          "test": "DSL export refuses an existing file and retains the save dialog for correction (2.5s)"
+        },
+        {
+          "kind": "browser_assertion",
+          "gate": "browser_full",
+          "file": "modules/webcore/e2e/surface-design.spec.ts",
+          "line": 5,
+          "test": "shared page structure, controls and keyboard tabs in light at 1280px (1.8s)"
+        },
+        {
+          "kind": "browser_assertion",
+          "gate": "browser_full",
+          "file": "modules/webcore/e2e/surface-design.spec.ts",
+          "line": 5,
+          "test": "shared page structure, controls and keyboard tabs in light at 800px (1.6s)"
+        },
+        {
+          "kind": "browser_assertion",
+          "gate": "browser_full",
+          "file": "modules/webcore/e2e/surface-design.spec.ts",
+          "line": 5,
+          "test": "shared page structure, controls and keyboard tabs in dark at 1280px (1.7s)"
+        },
+        {
+          "kind": "browser_assertion",
+          "gate": "browser_full",
+          "file": "modules/webcore/e2e/surface-design.spec.ts",
+          "line": 5,
+          "test": "shared page structure, controls and keyboard tabs in dark at 800px (1.7s)"
+        },
+        {
+          "kind": "browser_assertion",
+          "gate": "browser_full",
+          "file": "modules/webcore/e2e/workspace-reliability.spec.ts",
+          "line": 75,
+          "test": "inline creation receives focus, cancels cleanly and retains errors (1.6s)"
+        },
+        {
+          "kind": "browser_assertion",
+          "gate": "headings",
+          "file": "modules/webcore/e2e/chat-shell.spec.ts",
+          "line": 103,
+          "test": "a narrow short chat pane keeps the welcome heading and send control reachable (1.4s)"
+        },
+        {
+          "kind": "browser_assertion",
+          "gate": "headings",
+          "file": "modules/webcore/e2e/surface-design.spec.ts",
+          "line": 5,
+          "test": "shared page structure, controls and keyboard tabs in light at 1280px (2.1s)"
+        },
+        {
+          "kind": "browser_assertion",
+          "gate": "headings",
+          "file": "modules/webcore/e2e/surface-design.spec.ts",
+          "line": 5,
+          "test": "shared page structure, controls and keyboard tabs in light at 800px (2.0s)"
+        },
+        {
+          "kind": "browser_assertion",
+          "gate": "headings",
+          "file": "modules/webcore/e2e/surface-design.spec.ts",
+          "line": 5,
+          "test": "shared page structure, controls and keyboard tabs in dark at 1280px (2.2s)"
+        },
+        {
+          "kind": "browser_assertion",
+          "gate": "headings",
+          "file": "modules/webcore/e2e/surface-design.spec.ts",
+          "line": 5,
+          "test": "shared page structure, controls and keyboard tabs in dark at 800px (2.1s)"
+        },
+        {
+          "kind": "browser_assertion",
+          "gate": "addon_ownership",
+          "file": "modules/webcore/e2e/surface-design.spec.ts",
+          "line": 5,
+          "test": "shared page structure, controls and keyboard tabs in light at 1280px (2.1s)"
+        },
+        {
+          "kind": "browser_assertion",
+          "gate": "addon_ownership",
+          "file": "modules/webcore/e2e/surface-design.spec.ts",
+          "line": 5,
+          "test": "shared page structure, controls and keyboard tabs in light at 800px (1.9s)"
+        },
+        {
+          "kind": "browser_assertion",
+          "gate": "addon_ownership",
+          "file": "modules/webcore/e2e/surface-design.spec.ts",
+          "line": 5,
+          "test": "shared page structure, controls and keyboard tabs in dark at 1280px (2.0s)"
+        },
+        {
+          "kind": "browser_assertion",
+          "gate": "addon_ownership",
+          "file": "modules/webcore/e2e/surface-design.spec.ts",
+          "line": 5,
+          "test": "shared page structure, controls and keyboard tabs in dark at 800px (1.9s)"
+        }
+      ]
+    },
+    {
+      "id": "UI-07",
+      "title": "取消与确认入口",
+      "expected": "Stop、Pause、Run、schedule approval、成果验收均由正确宿主动作处理。",
+      "status": "TECHNICAL_VERIFIED",
+      "evidence": [
+        {
+          "kind": "browser_assertion",
+          "gate": "browser_full",
+          "file": "modules/webcore/e2e/launch-review-concurrency.spec.ts",
+          "line": 114,
+          "test": "policy changes require fresh confirmation and send the exact reviewed binding (1.5s)"
+        },
+        {
+          "kind": "browser_assertion",
+          "gate": "browser_full",
+          "file": "modules/webcore/e2e/launch-review-concurrency.spec.ts",
+          "line": 155,
+          "test": "decline records a negative decision without requiring approval (1.2s)"
+        },
+        {
+          "kind": "browser_assertion",
+          "gate": "browser_full",
+          "file": "modules/webcore/e2e/task-panel.spec.ts",
+          "line": 3,
+          "test": "task continuation initializes without a setup error and opens its bounded task dialog (1.2s)"
+        },
+        {
+          "kind": "browser_assertion",
+          "gate": "headings",
+          "file": "modules/webcore/e2e/launch-review-concurrency.spec.ts",
+          "line": 114,
+          "test": "policy changes require fresh confirmation and send the exact reviewed binding (1.9s)"
+        },
+        {
+          "kind": "browser_assertion",
+          "gate": "headings",
+          "file": "modules/webcore/e2e/launch-review-concurrency.spec.ts",
+          "line": 155,
+          "test": "decline records a negative decision without requiring approval (1.4s)"
+        },
+        {
+          "kind": "browser_assertion",
+          "gate": "headings",
+          "file": "modules/webcore/e2e/task-panel.spec.ts",
+          "line": 3,
+          "test": "task continuation initializes without a setup error and opens its bounded task dialog (1.2s)"
+        }
+      ]
+    },
+    {
+      "id": "E2E-01",
+      "title": "完整主链路",
+      "expected": "个人/项目 Prompt → ReAct → 黑板 → 蓝图确认 → 执行 → event → 原会话续跑。",
+      "status": "TECHNICAL_VERIFIED",
+      "evidence": [
+        {
+          "kind": "native_full_resource_chain",
+          "file": "F:\\space\\06_Projects\\Agent\\workspace-review-2026-10-20\\synthetic-full-chain-current\\report-retry.json",
+          "sha256": "953b54f6fc68bba99760ca0f9503ff7aff0cc7e7a26f495566d01ec14eab75f6",
+          "gate": "full_resource_chain",
+          "paid_calls": 0
+        }
+      ]
+    },
+    {
+      "id": "E2E-02",
+      "title": "三类等待源",
+      "expected": "Job、异步子代理和 timer 各至少一条真实 daemon 完整链路。",
+      "status": "TECHNICAL_VERIFIED",
+      "evidence": [
+        {
+          "kind": "rust_assertion",
+          "ref": "real_job_yields_saves_entire_batch_and_resumes_once_in_same_session"
+        },
+        {
+          "kind": "rust_assertion",
+          "ref": "background_child_uses_host_allowlist_and_root_ledger"
+        },
+        {
+          "kind": "rust_assertion",
+          "ref": "persisted_timer_runs_once_without_an_open_chat_stream"
+        }
+      ]
+    },
+    {
+      "id": "E2E-03",
+      "title": "资源与权限负链路",
+      "expected": "未批准、资源变更、跨库访问、停止、预算不足都无未授权副作用。",
+      "status": "TECHNICAL_VERIFIED",
+      "evidence": [
+        {
+          "kind": "rust_assertion",
+          "ref": "query_limits_strict_inputs_and_role_denials"
+        },
+        {
+          "kind": "rust_assertion",
+          "ref": "failed_node_with_unsettled_fence_requires_review_without_replay"
+        },
+        {
+          "kind": "rust_assertion",
+          "ref": "stopped_blueprint_never_automatically_resumes_parent"
+        },
+        {
+          "kind": "browser_assertion",
+          "gate": "browser_full",
+          "file": "modules/webcore/e2e/file-write-boundaries.spec.ts",
+          "line": 19,
+          "test": "folder copies refuse their own descendants and clipboard paths keep their workspace owner (1.7s)"
+        },
+        {
+          "kind": "browser_assertion",
+          "gate": "browser_full",
+          "file": "modules/webcore/e2e/file-write-boundaries.spec.ts",
+          "line": 55,
+          "test": "DSL compilation cannot overwrite an existing canvas or retarget a late compile result (2.5s)"
+        },
+        {
+          "kind": "browser_assertion",
+          "gate": "browser_full",
+          "file": "modules/webcore/e2e/file-write-boundaries.spec.ts",
+          "line": 130,
+          "test": "DSL export refuses an existing file and retains the save dialog for correction (2.5s)"
+        }
+      ]
+    },
+    {
+      "id": "E2E-04",
+      "title": "生产 Web 全链路",
+      "expected": "生产 Web → grpc-web → daemon → 本地模型夹具；不由 demo gateway 替代。",
+      "status": "TECHNICAL_VERIFIED",
+      "evidence": [
+        {
+          "kind": "production_native_live",
+          "gate": "full_resource_chain",
+          "additional_reports": "Actual browser Job/yield/reload/blueprint evidence and current manual production review are in the rework report."
+        }
+      ]
+    },
+    {
+      "id": "E2E-05",
+      "title": "平台与冻结",
+      "expected": "固定提交、Linux 与目标 Windows，build/test/clippy 与 Web 全门槛有证据。",
+      "status": "TECHNICAL_VERIFIED",
+      "evidence": [
+        {
+          "kind": "platform_gate",
+          "gate": "native"
+        },
+        {
+          "kind": "platform_gate",
+          "gate": "linux"
+        },
+        {
+          "kind": "platform_gate",
+          "gate": "web_checks"
+        },
+        {
+          "kind": "platform_gate",
+          "gate": "browser_full"
+        },
+        {
+          "kind": "platform_gate",
+          "gate": "production_build"
+        }
+      ]
+    },
+    {
+      "id": "E2E-06",
+      "title": "升级／回退／维护",
+      "expected": "迁移备份、事件去重、旧会话兼容、文档和快照可恢复，未知结果列明。",
+      "status": "TECHNICAL_VERIFIED",
+      "evidence": [
+        {
+          "kind": "rust_assertion",
+          "ref": "additive_migration_cas_replay_restart_and_rollback"
+        },
+        {
+          "kind": "rust_assertion",
+          "ref": "durable_store_keeps_wait_context_and_receipts_across_restart"
+        },
+        {
+          "kind": "historical_recoverable_handoff",
+          "archive": "D:/BaiduNetdiskDownload/Metteur_本地收尾_fb3bb9f_20261021.zip",
+          "sha256": "813afc2d3b860527bc1065e2ccff1d27b95a2a31e5a6935e78af82cf068bfe1f",
+          "scope": "Historical archive remains immutable; current source freeze and audit are recorded separately."
+        }
+      ]
+    },
+    {
+      "id": "PFM-01",
+      "title": "长会话／大图",
+      "expected": "建议 1k 节点／10k 调用记录／长日志样本测交互与 payload，阈值在基线后确定。",
+      "status": "TECHNICAL_VERIFIED",
+      "evidence": [
+        {
+          "kind": "rust_assertion",
+          "ref": "thousand_nodes_ten_thousand_invocations_and_twelve_reopens"
+        }
+      ]
+    },
+    {
+      "id": "PFM-02",
+      "title": "事件风暴",
+      "expected": "重复事件与大量任务检验合并、背压、公平、内存界限，不丢终态。",
+      "status": "TECHNICAL_VERIFIED",
+      "evidence": [
+        {
+          "kind": "rust_assertion",
+          "ref": "nx_m6_bounded_duplicate_burst_and_repeated_recovery"
+        }
+      ]
+    },
+    {
+      "id": "PFM-03",
+      "title": "长时间恢复",
+      "expected": "多次重启、暂停、权限撤销、资源更新后任务不失控、不重复消费。",
+      "status": "TECHNICAL_VERIFIED",
+      "evidence": [
+        {
+          "kind": "rust_assertion",
+          "ref": "nx_m6_bounded_duplicate_burst_and_repeated_recovery"
+        },
+        {
+          "kind": "rust_assertion",
+          "ref": "thousand_nodes_ten_thousand_invocations_and_twelve_reopens"
+        }
+      ],
+      "limit": "Bounded repeated restart/recovery with resource changes and revocation; no multi-day soak is claimed."
+    }
+  ],
+  "review_groups": [
+    {
+      "id": "foundation",
+      "review": "核对实际分支、锁文件、原生/WSL工具链与日志；资源迁移先建一致备份再写 schema，CAS 与重放回执同批持久化，未知 schema 拒绝写。原始云端完成标记不作为本轮证据。跨平台缺失用例、历史模型结果与人工视觉确认分别记录。",
+      "sources": [
+        {
+          "file": "scripts/verify.py",
+          "sha256": "ea774b5fa3ccd5684f31ed49563a3e3d1f0eb819f2735d3a786ee8b5581ae24e"
+        },
+        {
+          "file": ".github/workflows/ci.yml",
+          "sha256": "6051698dcdf9eedab9eff0a196bf0414c5abcdeb0220d006b7bc0174db045498"
+        },
+        {
+          "file": "modules/shared/src/resources.rs",
+          "sha256": "0f396ab615ab6cd06589340d4626f9d76a5dd56398a26e7497a0b7d33c0309ff"
+        },
+        {
+          "file": "modules/daemon/src/storage/resources.rs",
+          "sha256": "972e9cf06939d0fa61ac6c0c79a7cef84f6067c7e62456176e98c7f21d05d137"
+        },
+        {
+          "file": "schema/proto/metteur.proto",
+          "sha256": "78a23c4bcf5307aff835830ab63771f5099ad5b0e6382ac6fa46de59dee610d4"
+        },
+        {
+          "file": "modules/webcore/playwright.config.ts",
+          "sha256": "ae156014a469ed05765ce92b74d64fa6e94fece365fb10c423d3ff0e796e18e7"
+        }
+      ]
+    },
+    {
+      "id": "memory",
+      "review": "按规范化项目身份绑定记录；模型笔记不能写入执行事实/用户身份/确认字段；正文编辑清除确认，提升绑定精确 revision/digest；文件证据有大小和目录限制，查询有分页/字节预算，迟到 UI 请求不能重定向草稿。",
+      "sources": [
+        {
+          "file": "modules/daemon/src/project_memory.rs",
+          "sha256": "566650dd925a0c054ad73c7e7e317f9287271c6d01145a9056531ac851c710c4"
+        },
+        {
+          "file": "modules/daemon/src/registry/tools/memory.rs",
+          "sha256": "c9b90601c7c9e5cca70e90d0f1fc0bc6e2946dab408ca459ab52baf6ec95701b"
+        },
+        {
+          "file": "modules/daemon/src/execution/blackboard.rs",
+          "sha256": "bb25973c72d52b609419ee4f4e2903c460f50f7f002c04ff9935e8dc2feeebbe"
+        },
+        {
+          "file": "modules/webcore/src/components/resources/MemoryPanel.vue",
+          "sha256": "2719bacffa86c300e2c41712bfcf4e296e7525b2953ce9abd3e27889ca649cdf"
+        }
+      ]
+    },
+    {
+      "id": "prompts",
+      "review": "项目/个人库按 scoped ID 选择；文件与索引用 durable intent 对账，显式选择正文冻结为 user-level snapshot；历史/run manifest 不追随新源。新增 Windows junction 拒绝和精确 tombstone 修订恢复；正文在统一编辑器保存，元数据并发变更需先审阅当前修订。",
+      "sources": [
+        {
+          "file": "modules/daemon/src/prompt_resource.rs",
+          "sha256": "866540f8b6503d39c3626a26bad3994afb7f1683cf65493f7647e42b0ab0e819"
+        },
+        {
+          "file": "modules/daemon/src/prompt_snapshots.rs",
+          "sha256": "c18f3aeeb1140b89f48337017e89bd292771d3d91f372f4e0f6875ee5659c7d7"
+        },
+        {
+          "file": "modules/daemon/src/grpc/service/resources.rs",
+          "sha256": "ffc1e6f2a78d2cf4a21558d62f6714bfba0be42902d6b2ae81ba5349b9f83bbe"
+        },
+        {
+          "file": "modules/webcore/src/lib/prompt-file.ts",
+          "sha256": "0444084e1be783de910b1cf774bcfaf1481b3c30b5d0b6a331c9f341aa512168"
+        },
+        {
+          "file": "modules/webcore/src/stores/prompt-resources.ts",
+          "sha256": "bee0d650637716f357b820f7d12045a383c405ddbd9b046b67d9e060163f309d"
+        },
+        {
+          "file": "modules/webcore/src/components/resources/PromptPanel.vue",
+          "sha256": "f3fe10b41e47374524e8fa9b0591f3e7d9f2c24eb0a764436d8c568052909379"
+        },
+        {
+          "file": "modules/webcore/src/stores/documents.ts",
+          "sha256": "07b144fd6fcc9db32400ad0f6f8bcdf06deec47add80944361aee044e6979b77"
+        }
+      ]
+    },
+    {
+      "id": "turn",
+      "review": "宿主在完整工具批次结果持久化后提交 WAITING 并释放前台槽位；host event 与用户授权不同源，恢复不从 UI 重建上下文。修正 assistant/tool 段边界，直播/恢复均按调用顺序；整轮耗时保留一次，context 的未知值与零值分开显示。",
+      "sources": [
+        {
+          "file": "modules/daemon/src/grpc/service/chat.rs",
+          "sha256": "7b5a3e3be4375521ad6dee952408886210162b729d832dc98b24b387f7e6e12c"
+        },
+        {
+          "file": "modules/daemon/src/execution/react.rs",
+          "sha256": "55b6bea260d4cdaabdd5d6327c441db03cbd21f2db205fd551935c1fc2ddd6cb"
+        },
+        {
+          "file": "modules/daemon/src/chat/session.rs",
+          "sha256": "17ff3237216e60cf79a0bd5c3bfe4c1c2733ee916aae15a9c8932fb1569a4b00"
+        },
+        {
+          "file": "modules/daemon/src/chat/transcript.rs",
+          "sha256": "9b0e95f2189ec222140882ace9bcaf5e1c12486ccd5db2d575713192301f2266"
+        },
+        {
+          "file": "modules/webcore/src/core/grpc-gateway.ts",
+          "sha256": "fb361f46c1121ae61184ab7c51a55e6f9a2440c2f8d16ee9447c81167719e720"
+        },
+        {
+          "file": "modules/webcore/src/components/chat/ChatThread.vue",
+          "sha256": "9f6bb257033896732142837ef44fd58a3c1c41b5f92016e41a736b4c24168950"
+        },
+        {
+          "file": "modules/webcore/src/components/chat/ContextMeter.vue",
+          "sha256": "fae38ec57134194b7f6c61526d0bee2b5efaf2181307c15df7b66bc9a0221f16"
+        }
+      ]
+    },
+    {
+      "id": "events",
+      "review": "source/event/dispatch 身份和代次由宿主生成；wait/context 和 dispatch ack 原子提交；已启动不明进入 InDoubt，不能因租约过期重放副作用。Stop/预算/新用户修订在准入复核。数据库提交发合并失效通知，页面手动/推送读取共用队列；宿主等待通知或最近截止时间，移除资源高频轮询。",
+      "sources": [
+        {
+          "file": "modules/daemon/src/continuation/state.rs",
+          "sha256": "970a3f3206729f3d71918065382681e69197e29b1bff261066ef4d08b454c26d"
+        },
+        {
+          "file": "modules/daemon/src/continuation/store.rs",
+          "sha256": "a688b3cc0260a3f62d0f3de8f215ec7635134ff867a015a591f1cc7567108b0f"
+        },
+        {
+          "file": "modules/daemon/src/continuation/policy.rs",
+          "sha256": "f1ec801917a108750f18bdacea8944d61cad36cc40eb86f57d25f2749820eee9"
+        },
+        {
+          "file": "modules/daemon/src/grpc/service/continuations.rs",
+          "sha256": "08ba48043fcee8dc61379a1c5a6a388842fbce2867a1f2198ae161761c0f8115"
+        },
+        {
+          "file": "modules/daemon/src/storage/persistence/db.rs",
+          "sha256": "d39018c1ba3f051a6b0fc7ce7567bd3397e523e5940e34e4b39fcbc79d7bd646"
+        },
+        {
+          "file": "modules/daemon/src/grpc/service/workspace.rs",
+          "sha256": "ec4516d84a4b2d90bc93628fab5cbec8de69f92aedf9b8839a9c15de8f2baba9"
+        },
+        {
+          "file": "modules/webcore/src/stores/workspace-events.ts",
+          "sha256": "ff3128e22fb62b47f1ce9d1196f4d50a344b94d72dfde9e418f0946424c7c6f7"
+        },
+        {
+          "file": "modules/webcore/src/lib/workspace-refresh.ts",
+          "sha256": "36ee075ffc8756ecef16cf770c7e0141e521c5e3e61f16914f97e74ff1be5577"
+        },
+        {
+          "file": "modules/webcore/src/components/continuations/TaskPanel.vue",
+          "sha256": "eeb7bfff7bfe1b576cb3b64599bb073cf73cc3149612486d72d790f9730faa18"
+        }
+      ]
+    },
+    {
+      "id": "jobs",
+      "review": "仅已登记来源转移为 TaskOwned；普通聊天断开仍清理。取消按 task/workspace owner 隔离；重启的旧 PID 不能证明结果，写副作用未知需人工处理。watch lag/客户端关闭显式结束订阅，不持有过期工作区锁。",
+      "sources": [
+        {
+          "file": "modules/daemon/src/execution/jobs.rs",
+          "sha256": "20c498c08e69b935b26fcdeb0b0f285b5dd6085a085a637246cc6cd206eeabe6"
+        },
+        {
+          "file": "modules/daemon/src/registry/tools/continuation.rs",
+          "sha256": "1994f5f090ef66b0580816256dabfa6f16d9004ee561977ac3190fea174cf960"
+        },
+        {
+          "file": "modules/daemon/src/grpc/service/jobs.rs",
+          "sha256": "39a80d5ff476ea8a03a7216ac5b9b906923af72f58db91d47d9af59a22456eae"
+        },
+        {
+          "file": "modules/daemon/src/grpc/service/chat.rs",
+          "sha256": "7b5a3e3be4375521ad6dee952408886210162b729d832dc98b24b387f7e6e12c"
+        }
+      ]
+    },
+    {
+      "id": "child",
+      "review": "后台子代理的 read-only allowlist 由宿主固定，清除个人库、父上下文和 Addon 片段，费用计入根账本。子代理取消改为 DB 通知/授权截止时间，Stop 取消进行中模型 future，未知用量保留 reservation，不能退款或当零。同步工具保持兼容。",
+      "sources": [
+        {
+          "file": "modules/daemon/src/registry/tools/continuation.rs",
+          "sha256": "1994f5f090ef66b0580816256dabfa6f16d9004ee561977ac3190fea174cf960"
+        },
+        {
+          "file": "modules/daemon/src/registry/tools/subagent.rs",
+          "sha256": "48e848fef1f9b5e95458629c63c0dba1af6c8173a7916454a5f2f32d54fa80df"
+        },
+        {
+          "file": "modules/daemon/src/registry/tools/memory.rs",
+          "sha256": "c9b90601c7c9e5cca70e90d0f1fc0bc6e2946dab408ca459ab52baf6ec95701b"
+        },
+        {
+          "file": "modules/daemon/src/registry/tools/launch.rs",
+          "sha256": "96d7364aa57b44b851b86e69dade3cff1247d0950ace6e03b4261955c62d4a54"
+        }
+      ]
+    },
+    {
+      "id": "timer",
+      "review": "时区/DST/回拨由确定性时间参数测试；occurrence 绑定规则和任务代次；离线按 coalesce/skip，关闭不自动重新打开目录。编辑采用精确 revision/digest 确认。Schedules 作为 Tasks 页签，保存和推送共用刷新队列。",
+      "sources": [
+        {
+          "file": "modules/daemon/src/continuation/timer.rs",
+          "sha256": "10c7e20842c5352ba6c94d1d0e8e03f0966a8d7e428d846643997b0a0bebff2b"
+        },
+        {
+          "file": "modules/daemon/src/grpc/service/continuations.rs",
+          "sha256": "08ba48043fcee8dc61379a1c5a6a388842fbce2867a1f2198ae161761c0f8115"
+        },
+        {
+          "file": "modules/webcore/src/components/continuations/SchedulePanel.vue",
+          "sha256": "15f93e277c0fbf0c97cb09313e72d5bc6805819207491c4624bbf6aa32fba61f"
+        }
+      ]
+    },
+    {
+      "id": "launch",
+      "review": "确认绑定文件、Prompt、函数、Addon manifest 的内容身份；源消息只读固定终点且默认不开放完整会话；安全 yield 后领取蓝图槽位，intent 重放查询同一 run。终态结算后恢复原会话；失败/Stop/report-only 不自动重复执行。画布改用 workspace 文档草稿、CAS 和独立 canvas ID。",
+      "sources": [
+        {
+          "file": "modules/daemon/src/continuation/handoff.rs",
+          "sha256": "a4f611f6fce1734168cd44c2bd2c387cf4f15e9bbc7d21290559a284964e719e"
+        },
+        {
+          "file": "modules/daemon/src/continuation/launch.rs",
+          "sha256": "f90eea382eb2143e31b854877133206c7d81bf11b3ae0d2c0bdcab3028b317e2"
+        },
+        {
+          "file": "modules/daemon/src/registry/tools/launch.rs",
+          "sha256": "96d7364aa57b44b851b86e69dade3cff1247d0950ace6e03b4261955c62d4a54"
+        },
+        {
+          "file": "modules/daemon/src/grpc/service/launches.rs",
+          "sha256": "d714cd7b43d53f6506be1bd349bd4e280bdc85f3e3d938314112ef9a68878d67"
+        },
+        {
+          "file": "modules/webcore/src/components/continuations/BlueprintLaunchReview.vue",
+          "sha256": "14d85e39fe9e9763cd14b6cda49ff709225824de2a09135d8c5f5d8f78f8bdb4"
+        },
+        {
+          "file": "modules/webcore/src/stores/blueprint.ts",
+          "sha256": "e96603aa250079524120bcdcc279a443f55017ad4d7254da960dc13857feeeb2"
+        },
+        {
+          "file": "modules/webcore/src/views/BlueprintView.vue",
+          "sha256": "312e3877814462a4f435b9f3a93abb33f69d7d7498ee531e71766a6ecf86bdf4"
+        }
+      ]
+    },
+    {
+      "id": "cache",
+      "review": "核对最终序列化请求，tools/system/messages 共用 marker 预算并排序，日期不污染稳定前缀；本地 HTTP 验证流/非流和工具第二轮。缓存/用量未报告保持 coverage unknown，历史账本不追溯改写。",
+      "sources": [
+        {
+          "file": "modules/daemon/src/llm/provider/anthropic.rs",
+          "sha256": "823c67204f072f95725ff7fe68b1b6823916bb1cb6110600cdaa65e5665e0377"
+        },
+        {
+          "file": "modules/daemon/src/llm/provider/openai_chat.rs",
+          "sha256": "f9cf4c22f579ffc12d7035341b7d42e3af734574c89754ddea441b6a639c7a59"
+        },
+        {
+          "file": "modules/daemon/src/llm/provider/openai_responses.rs",
+          "sha256": "2ee694cff449f00b63b58f561bf4f7b41bb0ffba59f17785fb2f77182dac45c1"
+        },
+        {
+          "file": "modules/daemon/src/llm/diagnostics.rs",
+          "sha256": "a0891da0a61e98e9c9220bc75d36e08f222cbcc70747e8e2b766fedbdbd09b96"
+        },
+        {
+          "file": "modules/daemon/src/llm/billing.rs",
+          "sha256": "73ad981d6e7058669c62322d2c6b03013b1534dba22c036a4acaa10ccdcdf9e4"
+        }
+      ]
+    },
+    {
+      "id": "models",
+      "review": "角色工具边界在宿主目录收口，不靠 Prompt 扩大权限。保留两类 DeepSeek 配对/留出和所有首次失败、用量回执；本轮未新增付费调用，不把旧模型测量称为当前二进制的新性能评测。自动模型选择由有效配置/default/fallback 驱动，删除配置后不保留失效模型。",
+      "sources": [
+        {
+          "file": "modules/daemon/src/harness.rs",
+          "sha256": "3d603eb79d92492cb702d0131b25350edcb68a2b1fad41d8dde10f359bd8b0b1"
+        },
+        {
+          "file": "docs/nx-m4/TOOL_ROLE_MATRIX.md",
+          "sha256": "1f8609f550bded748881ae4f009bf6cff2b438f18ec78ca9d165c4ae8d620c95"
+        },
+        {
+          "file": "docs/nx-m4/PROMPT_CHANGELOG.md",
+          "sha256": "974309f4e428f50f8a3d09c2e15c1781c3b8bb8ff738c88cbfe8a4f1423442bb"
+        },
+        {
+          "file": "docs/nx-m4/EVALUATION_20261021.md",
+          "sha256": "1a7dc833780782f54523098f9ff788ef29fea5108abc321f877f909d9ef540be"
+        },
+        {
+          "file": "modules/webcore/src/stores/config.ts",
+          "sha256": "a94382cf353f1c1f10323890049047d5b45ff036ebcee7f6e62761d43ac33bf7"
+        },
+        {
+          "file": "modules/webcore/src/views/ChatView.vue",
+          "sha256": "28831136204fe5d1f90dc4cb713a903eea9214f336aa390483d566a5bcf713c3"
+        }
+      ]
+    },
+    {
+      "id": "addon",
+      "review": "权限拒绝断言具体原因；人工等待与 CPU/I/O timeout 分离，核对文件/journal 保留已发生效果。包按已验证不可变字节执行，Windows junction 也拒绝。Bridge 的身份/nonce/lease/方法/schema/能力逐次核对，iframe 无主站同源权限。检查目标和 human acceptance 绑定 preview revision，acceptance 不授予运行权限；入口移至 Settings。",
+      "sources": [
+        {
+          "file": "modules/daemon/src/addon/runtime.rs",
+          "sha256": "11d7f68902b9912df416f51a104ea41bb24a26b371e8e6a309d9537f0082be86"
+        },
+        {
+          "file": "modules/daemon/src/addon/host.rs",
+          "sha256": "9322f07ba3781ac711cb0965f299e2a752ba61fe85421977e655edb0dd2421b7"
+        },
+        {
+          "file": "modules/daemon/src/addon/signature.rs",
+          "sha256": "fcd91b8bc30477fb2e7ef872aeac2763235c72c09d69b62cd74e86f6b26c8263"
+        },
+        {
+          "file": "modules/daemon/src/addon/ui.rs",
+          "sha256": "bc53788d9c5da2244491e25f742ab412d0c76a4c48b3c2935a0a643ee0a8e752"
+        },
+        {
+          "file": "modules/daemon/src/addon/preview_targets.rs",
+          "sha256": "6e699e805bcd866f915dd17e4b5d98377bac61d7b90c65539fbe7c377f632929"
+        },
+        {
+          "file": "modules/webcore/src/components/addons/AddonPagesPanel.vue",
+          "sha256": "c9ee646bb2d7f6f8ba9487c7f258322faf7e47c92dac0b0135caa7d89b3c4320"
+        }
+      ]
+    },
+    {
+      "id": "ui",
+      "review": "复用原 Vue/Tailwind/theme/Lucide，不新增 UI 框架或依赖。六个主入口，公用页面留白/标题/页签/按钮，静态标题 Title Case；Prompt 文件进入通用编辑器。文档跨 tab/工作区保留，关闭明确确认丢弃，删除可恢复；Explorer 行内输入具备焦点/键盘/失败状态。PWA 监听已在安装和未来更新，保留用户控制的刷新。",
+      "sources": [
+        {
+          "file": "modules/webcore/src/App.vue",
+          "sha256": "b79f9ab1b402b838ba31ccbafe6ea7deff718476b85fd39370d4c1f7eff62e3c"
+        },
+        {
+          "file": "modules/webcore/src/router.ts",
+          "sha256": "4c503831d424b8e254fd2e73b7c484773b5226d16f5de436d88ce016e843652a"
+        },
+        {
+          "file": "modules/webcore/src/components/PageHeader.vue",
+          "sha256": "e273278d3cc7f23f77fe62707f43df9c59a962c1248549424499a5c4d9b7a164"
+        },
+        {
+          "file": "modules/webcore/src/components/PageTabs.vue",
+          "sha256": "b6035db3cb3e2bff00dc5b85919bde5b53dbb22f8e6eb8f85236b7a1e22f6216"
+        },
+        {
+          "file": "modules/webcore/src/styles/surfaces.css",
+          "sha256": "15d8f8f891cd45bbb9c81aac0e8932206e1b1d7a53a9848a254564332cf92559"
+        },
+        {
+          "file": "modules/webcore/src/components/navigation/ActivityRail.vue",
+          "sha256": "bfe44373857ff6e92ccf9de5c323aafa8b2275db9cfb681904516f926a8bb29c"
+        },
+        {
+          "file": "modules/webcore/src/stores/tabs.ts",
+          "sha256": "44f90958b9e25f0b1be694179f61a40e31cb3ca359c69e6630452aabd3e43da8"
+        },
+        {
+          "file": "modules/webcore/src/components/FileTree.vue",
+          "sha256": "6be0b9837ff210771b5578147308d8cacff75cd295892ac593085e5bc15462d0"
+        },
+        {
+          "file": "modules/webcore/src/components/TreeNameInput.vue",
+          "sha256": "d85ac29729514b033f6e2dd3a2b90926933944d42587d299695c030c9bc02a84"
+        },
+        {
+          "file": "modules/webcore/src/views/EditorPane.vue",
+          "sha256": "f945afb0e8e47ac35211cb06f6435d785f6e7c513761b0641bd946cb1d1565ac"
+        },
+        {
+          "file": "modules/webcore/src/lib/service-worker-update.ts",
+          "sha256": "ba2aeae02c06497cac7acf055f22395c9c80006abb353ed5a1eae9012e78a563"
+        },
+        {
+          "file": "modules/webcore/src/stores/fileclip.ts",
+          "sha256": "800a7a6c154f454f3abcd012792fc1279fe2e2deb9367484f49d2476755f276c"
+        },
+        {
+          "file": "modules/webcore/src/components/FilePickerDialog.vue",
+          "sha256": "b6fa8edc4cf6adce97950d7fd65c769492428ce51bedd32a178c47c30d26fb63"
+        }
+      ]
+    }
+  ],
+  "gates": {
+    "native": {
+      "directory": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\reliability-native-candidate-full-ftz6060z",
+      "command": [
+        "py",
+        "-3.12",
+        "F:/space/06_Projects/Agent/workspace-review-2026-10-20/run_final_rust_gate.py",
+        "native"
+      ],
+      "exit_code": 0,
+      "output_sha256": "11425d8124c6a1a98354edce90b5c8706cce7c2c8fa6310acc0ae67642dfc482",
+      "elapsed_seconds": 670.447164,
+      "passed_tests": 908,
+      "result_suites": 73
+    },
+    "linux": {
+      "directory": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\reliability-linux-candidate-full-99i76vrq",
+      "command": [
+        "py",
+        "-3.12",
+        "F:/space/06_Projects/Agent/workspace-review-2026-10-20/run_final_rust_gate.py",
+        "linux"
+      ],
+      "exit_code": 0,
+      "output_sha256": "fadfd8e01c65f756aac308d6216f4070e42743d380ac743e29ead22b841330b4",
+      "elapsed_seconds": 1429.125306,
+      "passed_tests": 921,
+      "result_suites": 73
+    },
+    "browser_full": {
+      "directory": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\reliability-final-copy-full-browser-xewhtxk8",
+      "command": [
+        "corepack.cmd",
+        "pnpm@11.24.0",
+        "--dir",
+        "modules/webcore",
+        "exec",
+        "playwright",
+        "test",
+        "--project=e2e",
+        "--max-failures=0"
+      ],
+      "exit_code": 0,
+      "output_sha256": "13fa47e8c7f4f9a111733cd30e6b7b296ba5185a8c3590067fd511d289f9834f",
+      "elapsed_seconds": 267.697756
+    },
+    "headings": {
+      "directory": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\reliability-headings-final-il_eoxlh",
+      "command": [
+        "corepack.cmd",
+        "pnpm@11.24.0",
+        "--dir",
+        "modules/webcore",
+        "exec",
+        "playwright",
+        "test",
+        "e2e/chat-shell.spec.ts",
+        "e2e/config-layers.spec.ts",
+        "e2e/launch-review-concurrency.spec.ts",
+        "e2e/memory-concurrency.spec.ts",
+        "e2e/resource-concurrency.spec.ts",
+        "e2e/task-panel.spec.ts",
+        "e2e/surface-design.spec.ts",
+        "e2e/addon-functions.spec.ts",
+        "e2e/workspace-refresh.spec.ts",
+        "--project=e2e",
+        "--max-failures=0"
+      ],
+      "exit_code": 0,
+      "output_sha256": "e3ddd3043d06e5ed9831644ed85d79b45095c428ebd97163bf6198e4fe36e53f",
+      "elapsed_seconds": 70.798509
+    },
+    "addon_ownership": {
+      "directory": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\reliability-addon-ownership-third-6w58uu42",
+      "command": [
+        "corepack.cmd",
+        "pnpm@11.24.0",
+        "--dir",
+        "modules/webcore",
+        "exec",
+        "playwright",
+        "test",
+        "e2e/addon-page-ownership.spec.ts",
+        "e2e/surface-design.spec.ts",
+        "--project=e2e",
+        "--max-failures=0"
+      ],
+      "exit_code": 0,
+      "output_sha256": "d3524744b2c18778493a15cf9c4b12766a609cb6b3877d6193503638d696e65a",
+      "elapsed_seconds": 19.938834
+    },
+    "web_checks": {
+      "directory": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\reliability-web-final-copy-checks-wfgny66b",
+      "command": [
+        "py",
+        "-3.12",
+        "scripts/verify.py",
+        "--scope",
+        "checks",
+        "--evidence-dir",
+        "D:/BaiduNetdiskDownload/metteur-a7-work/tmp/local-acceptance-20261020/rework-final-copy-checks"
+      ],
+      "exit_code": 0,
+      "output_sha256": "9045f4050565997a7437a5bf458de9dd32cb74f5ddc08a9fdbd5bd253ae736d1",
+      "elapsed_seconds": 17.103931
+    },
+    "production_build": {
+      "directory": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\reliability-production-web-r8-kb8s1w89",
+      "command": [
+        "corepack.cmd",
+        "pnpm@11.24.0",
+        "--dir",
+        "modules/webcore",
+        "run",
+        "build",
+        "--outDir",
+        "D:/BaiduNetdiskDownload/metteur-a7-work/build/reliability-rework-web-r8"
+      ],
+      "exit_code": 0,
+      "output_sha256": "c8aceaa6a5e08f9896dffdbe1dcfeb37c60daafe9930b201673ba5f22e069e00",
+      "elapsed_seconds": 11.747598
+    },
+    "full_resource_chain": {
+      "directory": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\reliability-current-full-resource-chain-retry-9fn3t0ov",
+      "command": [
+        "node",
+        "F:/space/06_Projects/Agent/workspace-review-2026-10-20/synthetic-full-chain-current/check.mjs",
+        "F:/space/06_Projects/Agent/workspace-review-2026-10-20/synthetic-full-chain-current/chain-ready-retry.json",
+        "F:/space/06_Projects/Agent/workspace-review-2026-10-20/synthetic-full-chain-current/report-retry.json"
+      ],
+      "exit_code": 0,
+      "output_sha256": "aae24d443fa33d68628a2e5a3f7c15fb9940a690e40d13eec466ebfe9944f8bd",
+      "elapsed_seconds": 1.177478
+    },
+    "native_contracts": {
+      "directory": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\reliability-r7-native-contracts-b9rc8arg",
+      "exit_code": 0,
+      "command": [
+        "node",
+        "--experimental-strip-types",
+        "F:/space/06_Projects/Agent/workspace-review-2026-10-20/probe_rework_contracts.mjs",
+        "F:/space/06_Projects/Agent/workspace-review-2026-10-20/regression-services-20261021-210755/ready.json"
+      ],
+      "output_sha256": "1ec79346987b4b5f3237cbf18e83a2656897215f7549252e952564cafb8a0d66"
+    },
+    "native_job_and_decline": {
+      "directory": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\reliability-r7-native-job-current-labels-c2u16nwu",
+      "exit_code": 0,
+      "command": [
+        "node",
+        "--experimental-strip-types",
+        "F:/space/06_Projects/Agent/workspace-review-2026-10-20/check_live_nx.mjs",
+        "F:/space/06_Projects/Agent/workspace-review-2026-10-20/regression-services-20261021-210755/ready.json"
+      ],
+      "output_sha256": "1c4620bbfcb8946416f5496b9ccbcd3c89d788ca095c98c5f12dd76193d70bd8"
+    },
+    "native_blueprint_reload": {
+      "directory": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\reliability-r8-native-blueprint-reload-_w1qftpp",
+      "exit_code": 0,
+      "command": [
+        "node",
+        "--experimental-strip-types",
+        "F:/space/06_Projects/Agent/workspace-review-2026-10-20/check_live_blueprint.mjs",
+        "F:/space/06_Projects/Agent/workspace-review-2026-10-20/regression-services-20261021-210755/ready.json",
+        "--reload-after-yield"
+      ],
+      "output_sha256": "3e6f2c4a179700697cd4b95ca9f74ff6e8ac92e40073332e174b9eafd5f2cbab"
+    }
+  },
+  "rust_assertion_index": {
+    "additive_migration_cas_replay_restart_and_rollback": {
+      "definitions": [
+        {
+          "file": "modules/daemon/tests/nx_storage.rs",
+          "line": 7,
+          "file_sha256": "eae3504a2bc35fcf9a3de86b192652ce759af11c8403067ab6efa632e220d557"
+        }
+      ],
+      "passed_receipts": {
+        "native": [
+          "additive_migration_cas_replay_restart_and_rollback"
+        ],
+        "linux": [
+          "additive_migration_cas_replay_restart_and_rollback"
+        ]
+      }
+    },
+    "all_sources_conflict_and_unknown_usage_are_not_success": {
+      "definitions": [
+        {
+          "file": "modules/daemon/src/continuation/state.rs",
+          "line": 447,
+          "file_sha256": "970a3f3206729f3d71918065382681e69197e29b1bff261066ef4d08b454c26d"
+        }
+      ],
+      "passed_receipts": {
+        "native": [
+          "continuation::state::tests::all_sources_conflict_and_unknown_usage_are_not_success"
+        ],
+        "linux": [
+          "continuation::state::tests::all_sources_conflict_and_unknown_usage_are_not_success"
+        ]
+      }
+    },
+    "approval_is_exact_idempotent_and_never_binds_a_second_run": {
+      "definitions": [
+        {
+          "file": "modules/daemon/src/continuation/launch.rs",
+          "line": 357,
+          "file_sha256": "f90eea382eb2143e31b854877133206c7d81bf11b3ae0d2c0bdcab3028b317e2"
+        }
+      ],
+      "passed_receipts": {
+        "native": [
+          "continuation::launch::tests::approval_is_exact_idempotent_and_never_binds_a_second_run"
+        ],
+        "linux": [
+          "continuation::launch::tests::approval_is_exact_idempotent_and_never_binds_a_second_run"
+        ]
+      }
+    },
+    "background_child_uses_host_allowlist_and_root_ledger": {
+      "definitions": [
+        {
+          "file": "modules/daemon/tests/nx_continuation_live.rs",
+          "line": 287,
+          "file_sha256": "aca8b337653ad2fc5f0d9d560a9acb6e5414aa5050d8f626bb1edc856b1c0df1"
+        }
+      ],
+      "passed_receipts": {
+        "native": [
+          "background_child_uses_host_allowlist_and_root_ledger"
+        ],
+        "linux": [
+          "background_child_uses_host_allowlist_and_root_ledger"
+        ]
+      }
+    },
+    "blackboard_rpc_is_workspace_scoped_redacted_bounded_and_read_only": {
+      "definitions": [
+        {
+          "file": "modules/daemon/tests/blackboard_rpc.rs",
+          "line": 99,
+          "file_sha256": "9cebab4014e8b38e33dc913a293b36867da078fe7fa96cee2349feebb9f82fa5"
+        }
+      ],
+      "passed_receipts": {
+        "native": [
+          "blackboard_rpc_is_workspace_scoped_redacted_bounded_and_read_only"
+        ],
+        "linux": [
+          "blackboard_rpc_is_workspace_scoped_redacted_bounded_and_read_only"
+        ]
+      }
+    },
+    "coalesce_skip_rollback_and_stop_preserve_occurrence_identity": {
+      "definitions": [
+        {
+          "file": "modules/daemon/src/continuation/timer.rs",
+          "line": 282,
+          "file_sha256": "10c7e20842c5352ba6c94d1d0e8e03f0966a8d7e428d846643997b0a0bebff2b"
+        }
+      ],
+      "passed_receipts": {
+        "native": [
+          "continuation::timer::schedule_tests::coalesce_skip_rollback_and_stop_preserve_occurrence_identity"
+        ],
+        "linux": [
+          "continuation::timer::schedule_tests::coalesce_skip_rollback_and_stop_preserve_occurrence_identity"
+        ]
+      }
+    },
+    "confirmed_saved_blueprint_runs_once_and_returns_actual_outputs_to_parent": {
+      "definitions": [
+        {
+          "file": "modules/daemon/tests/nx_launch_live.rs",
+          "line": 173,
+          "file_sha256": "5c72d73d1e0f71654de6b55c503025fcba4da0347bbfa865e3451fe1a53bd3d8"
+        }
+      ],
+      "passed_receipts": {
+        "native": [
+          "confirmed_saved_blueprint_runs_once_and_returns_actual_outputs_to_parent"
+        ],
+        "linux": [
+          "confirmed_saved_blueprint_runs_once_and_returns_actual_outputs_to_parent"
+        ]
+      }
+    },
+    "crash_windows_timeout_and_stop_never_duplicate_dispatch": {
+      "definitions": [
+        {
+          "file": "modules/daemon/src/continuation/state.rs",
+          "line": 528,
+          "file_sha256": "970a3f3206729f3d71918065382681e69197e29b1bff261066ef4d08b454c26d"
+        }
+      ],
+      "passed_receipts": {
+        "native": [
+          "continuation::state::tests::crash_windows_timeout_and_stop_never_duplicate_dispatch"
+        ],
+        "linux": [
+          "continuation::state::tests::crash_windows_timeout_and_stop_never_duplicate_dispatch"
+        ]
+      }
+    },
+    "deleted_prompt_restore_requires_the_current_tombstone_revision": {
+      "definitions": [
+        {
+          "file": "modules/daemon/tests/nx_prompts.rs",
+          "line": 141,
+          "file_sha256": "abcab451bd6d2093b54e92d8d8667aa649f9a7e29a71878b86fff26bbe5fb3d2"
+        }
+      ],
+      "passed_receipts": {
+        "native": [
+          "deleted_prompt_restore_requires_the_current_tombstone_revision"
+        ],
+        "linux": [
+          "deleted_prompt_restore_requires_the_current_tombstone_revision"
+        ]
+      }
+    },
+    "detached_observer_cannot_cancel_host_turn": {
+      "definitions": [
+        {
+          "file": "modules/daemon/src/chat/turn.rs",
+          "line": 61,
+          "file_sha256": "56b1919f2cdcf608fefff17194b2768f77cc83b106434e5ccbb88b4b1826fcbf"
+        }
+      ],
+      "passed_receipts": {
+        "native": [
+          "chat::turn::tests::detached_observer_cannot_cancel_host_turn"
+        ],
+        "linux": [
+          "chat::turn::tests::detached_observer_cannot_cancel_host_turn"
+        ]
+      }
+    },
+    "dst_gap_fold_and_intervals_are_deterministic": {
+      "definitions": [
+        {
+          "file": "modules/daemon/src/continuation/timer.rs",
+          "line": 110,
+          "file_sha256": "10c7e20842c5352ba6c94d1d0e8e03f0966a8d7e428d846643997b0a0bebff2b"
+        }
+      ],
+      "passed_receipts": {
+        "native": [
+          "continuation::timer::tests::dst_gap_fold_and_intervals_are_deterministic"
+        ],
+        "linux": [
+          "continuation::timer::tests::dst_gap_fold_and_intervals_are_deterministic"
+        ]
+      }
+    },
+    "durable_store_keeps_wait_context_and_receipts_across_restart": {
+      "definitions": [
+        {
+          "file": "modules/daemon/src/continuation/state.rs",
+          "line": 475,
+          "file_sha256": "970a3f3206729f3d71918065382681e69197e29b1bff261066ef4d08b454c26d"
+        }
+      ],
+      "passed_receipts": {
+        "native": [
+          "continuation::state::tests::durable_store_keeps_wait_context_and_receipts_across_restart"
+        ],
+        "linux": [
+          "continuation::state::tests::durable_store_keeps_wait_context_and_receipts_across_restart"
+        ]
+      }
+    },
+    "failed_batch_records_every_tool_result_before_returning_error": {
+      "definitions": [
+        {
+          "file": "modules/daemon/tests/nx_continuation_live.rs",
+          "line": 711,
+          "file_sha256": "aca8b337653ad2fc5f0d9d560a9acb6e5414aa5050d8f626bb1edc856b1c0df1"
+        }
+      ],
+      "passed_receipts": {
+        "native": [
+          "failed_batch_records_every_tool_result_before_returning_error"
+        ],
+        "linux": [
+          "failed_batch_records_every_tool_result_before_returning_error"
+        ]
+      }
+    },
+    "failed_node_with_unsettled_fence_requires_review_without_replay": {
+      "definitions": [
+        {
+          "file": "modules/daemon/tests/nx_launch_live.rs",
+          "line": 177,
+          "file_sha256": "5c72d73d1e0f71654de6b55c503025fcba4da0347bbfa865e3451fe1a53bd3d8"
+        }
+      ],
+      "passed_receipts": {
+        "native": [
+          "failed_node_with_unsettled_fence_requires_review_without_replay"
+        ],
+        "linux": [
+          "failed_node_with_unsettled_fence_requires_review_without_replay"
+        ]
+      }
+    },
+    "failed_wait_is_atomic_and_stopped_recovery_retains_artifacts": {
+      "definitions": [
+        {
+          "file": "modules/daemon/src/continuation/state.rs",
+          "line": 563,
+          "file_sha256": "970a3f3206729f3d71918065382681e69197e29b1bff261066ef4d08b454c26d"
+        }
+      ],
+      "passed_receipts": {
+        "native": [
+          "continuation::state::tests::failed_wait_is_atomic_and_stopped_recovery_retains_artifacts"
+        ],
+        "linux": [
+          "continuation::state::tests::failed_wait_is_atomic_and_stopped_recovery_retains_artifacts"
+        ]
+      }
+    },
+    "final_http_requests_share_one_breakpoint_budget_and_canonical_prefix": {
+      "definitions": [
+        {
+          "file": "modules/daemon/tests/cache_requests.rs",
+          "line": 77,
+          "file_sha256": "af0ad4a485f7c0d2678739f355fc17d9082a1d08ff84194762d5f0325f89ab26"
+        }
+      ],
+      "passed_receipts": {
+        "native": [
+          "final_http_requests_share_one_breakpoint_budget_and_canonical_prefix"
+        ],
+        "linux": [
+          "final_http_requests_share_one_breakpoint_budget_and_canonical_prefix"
+        ]
+      }
+    },
+    "fixed_endpoint_preserves_roles_and_deleted_sources_are_unavailable": {
+      "definitions": [
+        {
+          "file": "modules/daemon/src/continuation/handoff.rs",
+          "line": 286,
+          "file_sha256": "a4f611f6fce1734168cd44c2bd2c387cf4f15e9bbc7d21290559a284964e719e"
+        }
+      ],
+      "passed_receipts": {
+        "native": [
+          "continuation::handoff::tests::fixed_endpoint_preserves_roles_and_deleted_sources_are_unavailable"
+        ],
+        "linux": [
+          "continuation::handoff::tests::fixed_endpoint_preserves_roles_and_deleted_sources_are_unavailable"
+        ]
+      }
+    },
+    "function_node_effects_cannot_bypass_run_approval_mode": {
+      "definitions": [
+        {
+          "file": "modules/daemon/src/addon/functions_tests.rs",
+          "line": 209,
+          "file_sha256": "2afbfe99e00e173a9189c76955f594e1a83175708512093f2d157a521f5509f8"
+        }
+      ],
+      "passed_receipts": {
+        "native": [
+          "addon::functions::tests::function_node_effects_cannot_bypass_run_approval_mode"
+        ],
+        "linux": [
+          "addon::functions::tests::function_node_effects_cannot_bypass_run_approval_mode"
+        ]
+      }
+    },
+    "http_providers_share_streaming_and_nonstreaming_accounting": {
+      "definitions": [
+        {
+          "file": "modules/daemon/tests/usage_accounting.rs",
+          "line": 16,
+          "file_sha256": "80d219a11e205fd36765379da56d2f8392f4b0ff5c342575986ce448cbb5bfb6"
+        }
+      ],
+      "passed_receipts": {
+        "native": [
+          "http_providers_share_streaming_and_nonstreaming_accounting"
+        ],
+        "linux": [
+          "http_providers_share_streaming_and_nonstreaming_accounting"
+        ]
+      }
+    },
+    "keyed_diagnostics_preserve_structure_without_content": {
+      "definitions": [
+        {
+          "file": "modules/daemon/src/llm/diagnostics.rs",
+          "line": 122,
+          "file_sha256": "a0891da0a61e98e9c9220bc75d36e08f222cbcc70747e8e2b766fedbdbd09b96"
+        }
+      ],
+      "passed_receipts": {
+        "native": [
+          "llm::diagnostics::tests::keyed_diagnostics_preserve_structure_without_content"
+        ],
+        "linux": [
+          "llm::diagnostics::tests::keyed_diagnostics_preserve_structure_without_content"
+        ]
+      }
+    },
+    "manifest_digest_is_stable_and_changes_with_graph_or_function_body": {
+      "definitions": [
+        {
+          "file": "modules/daemon/src/continuation/handoff.rs",
+          "line": 324,
+          "file_sha256": "a4f611f6fce1734168cd44c2bd2c387cf4f15e9bbc7d21290559a284964e719e"
+        }
+      ],
+      "passed_receipts": {
+        "native": [
+          "continuation::handoff::tests::manifest_digest_is_stable_and_changes_with_graph_or_function_body"
+        ],
+        "linux": [
+          "continuation::handoff::tests::manifest_digest_is_stable_and_changes_with_graph_or_function_body"
+        ]
+      }
+    },
+    "missing_and_invalid_cache_are_not_reported_as_zero": {
+      "definitions": [
+        {
+          "file": "modules/daemon/src/llm/diagnostics.rs",
+          "line": 155,
+          "file_sha256": "a0891da0a61e98e9c9220bc75d36e08f222cbcc70747e8e2b766fedbdbd09b96"
+        }
+      ],
+      "passed_receipts": {
+        "native": [
+          "llm::diagnostics::tests::missing_and_invalid_cache_are_not_reported_as_zero"
+        ],
+        "linux": [
+          "llm::diagnostics::tests::missing_and_invalid_cache_are_not_reported_as_zero"
+        ]
+      }
+    },
+    "newer_user_message_fences_and_retires_the_old_wait_context": {
+      "definitions": [
+        {
+          "file": "modules/daemon/tests/nx_final_boundaries.rs",
+          "line": 84,
+          "file_sha256": "aea456e80586c52268f2513b08346df2004506c67403a2c045d536a21b63a245"
+        }
+      ],
+      "passed_receipts": {
+        "native": [
+          "newer_user_message_fences_and_retires_the_old_wait_context"
+        ],
+        "linux": [
+          "newer_user_message_fences_and_retires_the_old_wait_context"
+        ]
+      }
+    },
+    "node_read_capability_rejection_is_not_an_invalid_pointer_or_timeout": {
+      "definitions": [
+        {
+          "file": "modules/daemon/src/addon/nodes_tests.rs",
+          "line": 444,
+          "file_sha256": "03d49f0fbaf2694951672290eb6242f599f36f5fd5e161145fbb11570318f62b"
+        }
+      ],
+      "passed_receipts": {
+        "native": [
+          "addon::nodes::tests::node_read_capability_rejection_is_not_an_invalid_pointer_or_timeout"
+        ],
+        "linux": [
+          "addon::nodes::tests::node_read_capability_rejection_is_not_an_invalid_pointer_or_timeout"
+        ]
+      }
+    },
+    "node_timeout_preserves_actual_effects_and_journal_without_replay": {
+      "definitions": [
+        {
+          "file": "modules/daemon/src/addon/nodes_tests.rs",
+          "line": 466,
+          "file_sha256": "03d49f0fbaf2694951672290eb6242f599f36f5fd5e161145fbb11570318f62b"
+        }
+      ],
+      "passed_receipts": {
+        "native": [
+          "addon::nodes::tests::node_timeout_preserves_actual_effects_and_journal_without_replay"
+        ],
+        "linux": [
+          "addon::nodes::tests::node_timeout_preserves_actual_effects_and_journal_without_replay"
+        ]
+      }
+    },
+    "nx38_human_wait_is_separate_and_late_approval_cannot_write": {
+      "definitions": [
+        {
+          "file": "modules/daemon/src/addon/lifecycle_tests.rs",
+          "line": 396,
+          "file_sha256": "2cbd87c7d4542174effa0275a1c29ffeda6ec14d8e90dc188bf71abc97f32bea"
+        }
+      ],
+      "passed_receipts": {
+        "native": [
+          "addon::lifecycle_tests::nx38_human_wait_is_separate_and_late_approval_cannot_write"
+        ],
+        "linux": [
+          "addon::lifecycle_tests::nx38_human_wait_is_separate_and_late_approval_cannot_write"
+        ]
+      }
+    },
+    "nx38_slow_http_stop_and_timeout_do_not_run_following_mutation": {
+      "definitions": [
+        {
+          "file": "modules/daemon/src/addon/lifecycle_tests.rs",
+          "line": 548,
+          "file_sha256": "2cbd87c7d4542174effa0275a1c29ffeda6ec14d8e90dc188bf71abc97f32bea"
+        }
+      ],
+      "passed_receipts": {
+        "native": [
+          "addon::lifecycle_tests::nx38_slow_http_stop_and_timeout_do_not_run_following_mutation"
+        ],
+        "linux": [
+          "addon::lifecycle_tests::nx38_slow_http_stop_and_timeout_do_not_run_following_mutation"
+        ]
+      }
+    },
+    "nx38_stop_interrupts_cpu_without_cancelling_parent_for_timeout": {
+      "definitions": [
+        {
+          "file": "modules/daemon/src/addon/lifecycle_tests.rs",
+          "line": 460,
+          "file_sha256": "2cbd87c7d4542174effa0275a1c29ffeda6ec14d8e90dc188bf71abc97f32bea"
+        }
+      ],
+      "passed_receipts": {
+        "native": [
+          "addon::lifecycle_tests::nx38_stop_interrupts_cpu_without_cancelling_parent_for_timeout"
+        ],
+        "linux": [
+          "addon::lifecycle_tests::nx38_stop_interrupts_cpu_without_cancelling_parent_for_timeout"
+        ]
+      }
+    },
+    "nx39_signed_page_binding_schema_replay_and_disable": {
+      "definitions": [
+        {
+          "file": "modules/daemon/src/addon/lifecycle_tests.rs",
+          "line": 483,
+          "file_sha256": "2cbd87c7d4542174effa0275a1c29ffeda6ec14d8e90dc188bf71abc97f32bea"
+        }
+      ],
+      "passed_receipts": {
+        "native": [
+          "addon::lifecycle_tests::nx39_signed_page_binding_schema_replay_and_disable"
+        ],
+        "linux": [
+          "addon::lifecycle_tests::nx39_signed_page_binding_schema_replay_and_disable"
+        ]
+      }
+    },
+    "nx41_selected_source_report_review_and_changed_revision": {
+      "definitions": [
+        {
+          "file": "modules/daemon/src/addon/lifecycle_tests.rs",
+          "line": 516,
+          "file_sha256": "2cbd87c7d4542174effa0275a1c29ffeda6ec14d8e90dc188bf71abc97f32bea"
+        }
+      ],
+      "passed_receipts": {
+        "native": [
+          "addon::lifecycle_tests::nx41_selected_source_report_review_and_changed_revision"
+        ],
+        "linux": [
+          "addon::lifecycle_tests::nx41_selected_source_report_review_and_changed_revision"
+        ]
+      }
+    },
+    "nx_m4_provider_errors_do_not_echo_credentials_or_prompts": {
+      "definitions": [
+        {
+          "file": "modules/daemon/src/llm/client.rs",
+          "line": 276,
+          "file_sha256": "55a01315d38477b45d83c83e72bbc4a1109ca46ca106d68d2204a09d4beeaaa2"
+        }
+      ],
+      "passed_receipts": {
+        "native": [
+          "llm::client::diagnostic_error_tests::nx_m4_provider_errors_do_not_echo_credentials_or_prompts"
+        ],
+        "linux": [
+          "llm::client::diagnostic_error_tests::nx_m4_provider_errors_do_not_echo_credentials_or_prompts"
+        ]
+      }
+    },
+    "nx_m4_unknown_cache_write_prevents_fabricated_cost": {
+      "definitions": [
+        {
+          "file": "modules/daemon/src/llm/billing.rs",
+          "line": 280,
+          "file_sha256": "73ad981d6e7058669c62322d2c6b03013b1534dba22c036a4acaa10ccdcdf9e4"
+        }
+      ],
+      "passed_receipts": {
+        "native": [
+          "llm::billing::tests::nx_m4_unknown_cache_write_prevents_fabricated_cost"
+        ],
+        "linux": [
+          "llm::billing::tests::nx_m4_unknown_cache_write_prevents_fabricated_cost"
+        ]
+      }
+    },
+    "nx_m6_bounded_duplicate_burst_and_repeated_recovery": {
+      "definitions": [
+        {
+          "file": "modules/daemon/src/continuation/state.rs",
+          "line": 616,
+          "file_sha256": "970a3f3206729f3d71918065382681e69197e29b1bff261066ef4d08b454c26d"
+        }
+      ],
+      "passed_receipts": {
+        "native": [
+          "continuation::state::tests::nx_m6_bounded_duplicate_burst_and_repeated_recovery"
+        ],
+        "linux": [
+          "continuation::state::tests::nx_m6_bounded_duplicate_burst_and_repeated_recovery"
+        ]
+      }
+    },
+    "ordinary_disconnect_cancels_and_drains_partial_result": {
+      "definitions": [
+        {
+          "file": "modules/daemon/src/chat/turn.rs",
+          "line": 44,
+          "file_sha256": "56b1919f2cdcf608fefff17194b2768f77cc83b106434e5ccbb88b4b1826fcbf"
+        }
+      ],
+      "passed_receipts": {
+        "native": [
+          "chat::turn::tests::ordinary_disconnect_cancels_and_drains_partial_result"
+        ],
+        "linux": [
+          "chat::turn::tests::ordinary_disconnect_cancels_and_drains_partial_result"
+        ]
+      }
+    },
+    "owner_stop_cancels_an_inflight_child_and_preserves_unknown_reservations": {
+      "definitions": [
+        {
+          "file": "modules/daemon/tests/nx_continuation_live.rs",
+          "line": 395,
+          "file_sha256": "aca8b337653ad2fc5f0d9d560a9acb6e5414aa5050d8f626bb1edc856b1c0df1"
+        }
+      ],
+      "passed_receipts": {
+        "native": [
+          "owner_stop_cancels_an_inflight_child_and_preserves_unknown_reservations"
+        ],
+        "linux": [
+          "owner_stop_cancels_an_inflight_child_and_preserves_unknown_reservations"
+        ]
+      }
+    },
+    "parser_rejects_authority_and_unsafe_metadata_without_normalizing_bytes": {
+      "definitions": [
+        {
+          "file": "modules/daemon/tests/nx_prompts.rs",
+          "line": 90,
+          "file_sha256": "abcab451bd6d2093b54e92d8d8667aa649f9a7e29a71878b86fff26bbe5fb3d2"
+        }
+      ],
+      "passed_receipts": {
+        "native": [
+          "parser_rejects_authority_and_unsafe_metadata_without_normalizing_bytes"
+        ],
+        "linux": [
+          "parser_rejects_authority_and_unsafe_metadata_without_normalizing_bytes"
+        ]
+      }
+    },
+    "pending_file_intent_is_diagnostic_and_recoverable": {
+      "definitions": [
+        {
+          "file": "modules/daemon/tests/nx_prompts.rs",
+          "line": 107,
+          "file_sha256": "abcab451bd6d2093b54e92d8d8667aa649f9a7e29a71878b86fff26bbe5fb3d2"
+        }
+      ],
+      "passed_receipts": {
+        "native": [
+          "pending_file_intent_is_diagnostic_and_recoverable"
+        ],
+        "linux": [
+          "pending_file_intent_is_diagnostic_and_recoverable"
+        ]
+      }
+    },
+    "persisted_timer_runs_once_without_an_open_chat_stream": {
+      "definitions": [
+        {
+          "file": "modules/daemon/tests/nx_continuation_live.rs",
+          "line": 521,
+          "file_sha256": "aca8b337653ad2fc5f0d9d560a9acb6e5414aa5050d8f626bb1edc856b1c0df1"
+        }
+      ],
+      "passed_receipts": {
+        "native": [
+          "persisted_timer_runs_once_without_an_open_chat_stream"
+        ],
+        "linux": [
+          "persisted_timer_runs_once_without_an_open_chat_stream"
+        ]
+      }
+    },
+    "query_limits_strict_inputs_and_role_denials": {
+      "definitions": [
+        {
+          "file": "modules/daemon/tests/nx_memory.rs",
+          "line": 41,
+          "file_sha256": "0929b10858287cf376d825a15fa1543f8c285837647e2373bb19b61fdc665314"
+        }
+      ],
+      "passed_receipts": {
+        "native": [
+          "query_limits_strict_inputs_and_role_denials"
+        ],
+        "linux": [
+          "query_limits_strict_inputs_and_role_denials"
+        ]
+      }
+    },
+    "real_job_yields_saves_entire_batch_and_resumes_once_in_same_session": {
+      "definitions": [
+        {
+          "file": "modules/daemon/tests/nx_continuation_live.rs",
+          "line": 113,
+          "file_sha256": "aca8b337653ad2fc5f0d9d560a9acb6e5414aa5050d8f626bb1edc856b1c0df1"
+        }
+      ],
+      "passed_receipts": {
+        "linux": [
+          "real_job_yields_saves_entire_batch_and_resumes_once_in_same_session"
+        ]
+      }
+    },
+    "real_resource_and_context_executors_use_frozen_text_at_user_role": {
+      "definitions": [
+        {
+          "file": "modules/daemon/tests/nx_prompt_snapshots.rs",
+          "line": 21,
+          "file_sha256": "99f93d1466a0fe839d671bd1122b1240839382e50a11837bab721a370b8f5b63"
+        }
+      ],
+      "passed_receipts": {
+        "native": [
+          "real_resource_and_context_executors_use_frozen_text_at_user_role"
+        ],
+        "linux": [
+          "real_resource_and_context_executors_use_frozen_text_at_user_role"
+        ]
+      }
+    },
+    "registered_tools_enforce_host_role_and_strict_arguments": {
+      "definitions": [
+        {
+          "file": "modules/daemon/tests/nx_memory_tools.rs",
+          "line": 5,
+          "file_sha256": "8027d4cf42046194e5d736b853e08b704d51051fe570059b5c5598b37dc451af"
+        }
+      ],
+      "passed_receipts": {
+        "native": [
+          "registered_tools_enforce_host_role_and_strict_arguments"
+        ],
+        "linux": [
+          "registered_tools_enforce_host_role_and_strict_arguments"
+        ]
+      }
+    },
+    "report_only_completion_does_not_run_another_model_turn": {
+      "definitions": [
+        {
+          "file": "modules/daemon/tests/nx_launch_live.rs",
+          "line": 185,
+          "file_sha256": "5c72d73d1e0f71654de6b55c503025fcba4da0347bbfa865e3451fe1a53bd3d8"
+        }
+      ],
+      "passed_receipts": {
+        "native": [
+          "report_only_completion_does_not_run_another_model_turn"
+        ],
+        "linux": [
+          "report_only_completion_does_not_run_another_model_turn"
+        ]
+      }
+    },
+    "restarted_job_is_indeterminate_without_pid_reuse_or_replay": {
+      "definitions": [
+        {
+          "file": "modules/daemon/tests/nx_final_boundaries.rs",
+          "line": 148,
+          "file_sha256": "aea456e80586c52268f2513b08346df2004506c67403a2c045d536a21b63a245"
+        }
+      ],
+      "passed_receipts": {
+        "native": [
+          "restarted_job_is_indeterminate_without_pid_reuse_or_replay"
+        ],
+        "linux": [
+          "restarted_job_is_indeterminate_without_pid_reuse_or_replay"
+        ]
+      }
+    },
+    "rpc_controls_bind_workspace_and_reject_forged_fields": {
+      "definitions": [
+        {
+          "file": "modules/daemon/tests/nx_memory.rs",
+          "line": 60,
+          "file_sha256": "0929b10858287cf376d825a15fa1543f8c285837647e2373bb19b61fdc665314"
+        }
+      ],
+      "passed_receipts": {
+        "native": [
+          "rpc_controls_bind_workspace_and_reject_forged_fields"
+        ],
+        "linux": [
+          "rpc_controls_bind_workspace_and_reject_forged_fields"
+        ]
+      }
+    },
+    "run_usage_preserves_completeness_and_pending_requests": {
+      "definitions": [
+        {
+          "file": "modules/daemon/src/llm/billing.rs",
+          "line": 402,
+          "file_sha256": "73ad981d6e7058669c62322d2c6b03013b1534dba22c036a4acaa10ccdcdf9e4"
+        }
+      ],
+      "passed_receipts": {
+        "native": [
+          "llm::billing::tests::run_usage_preserves_completeness_and_pending_requests"
+        ],
+        "linux": [
+          "llm::billing::tests::run_usage_preserves_completeness_and_pending_requests"
+        ]
+      }
+    },
+    "runs_sub_agent_with_mock_provider": {
+      "definitions": [
+        {
+          "file": "modules/daemon/src/registry/tools/subagent.rs",
+          "line": 283,
+          "file_sha256": "48e848fef1f9b5e95458629c63c0dba1af6c8173a7916454a5f2f32d54fa80df"
+        }
+      ],
+      "passed_receipts": {
+        "native": [
+          "registry::tools::subagent::tests::runs_sub_agent_with_mock_provider"
+        ],
+        "linux": [
+          "registry::tools::subagent::tests::runs_sub_agent_with_mock_provider"
+        ]
+      }
+    },
+    "same_names_scopes_file_authority_and_revision_conflicts": {
+      "definitions": [
+        {
+          "file": "modules/daemon/tests/nx_prompts.rs",
+          "line": 13,
+          "file_sha256": "abcab451bd6d2093b54e92d8d8667aa649f9a7e29a71878b86fff26bbe5fb3d2"
+        }
+      ],
+      "passed_receipts": {
+        "native": [
+          "same_names_scopes_file_authority_and_revision_conflicts"
+        ],
+        "linux": [
+          "same_names_scopes_file_authority_and_revision_conflicts"
+        ]
+      }
+    },
+    "scoped_revisions_confirmation_invalidation_and_tombstone": {
+      "definitions": [
+        {
+          "file": "modules/daemon/tests/nx_memory.rs",
+          "line": 13,
+          "file_sha256": "0929b10858287cf376d825a15fa1543f8c285837647e2373bb19b61fdc665314"
+        }
+      ],
+      "passed_receipts": {
+        "native": [
+          "scoped_revisions_confirmation_invalidation_and_tombstone"
+        ],
+        "linux": [
+          "scoped_revisions_confirmation_invalidation_and_tombstone"
+        ]
+      }
+    },
+    "selected_snapshots_and_run_manifests_survive_source_edit_delete_and_restart": {
+      "definitions": [
+        {
+          "file": "modules/daemon/tests/nx_prompt_snapshots.rs",
+          "line": 5,
+          "file_sha256": "99f93d1466a0fe839d671bd1122b1240839382e50a11837bab721a370b8f5b63"
+        }
+      ],
+      "passed_receipts": {
+        "native": [
+          "selected_snapshots_and_run_manifests_survive_source_edit_delete_and_restart"
+        ],
+        "linux": [
+          "selected_snapshots_and_run_manifests_survive_source_edit_delete_and_restart"
+        ]
+      }
+    },
+    "smoke_chat_single_slot_per_workspace": {
+      "definitions": [
+        {
+          "file": "modules/daemon/tests/smoke.rs",
+          "line": 2476,
+          "file_sha256": "f00573060dd681a4df5cac04dcd280a7ae4b7ed5f48fe305835b5059201980dd"
+        }
+      ],
+      "passed_receipts": {
+        "native": [
+          "smoke_chat_single_slot_per_workspace"
+        ],
+        "linux": [
+          "smoke_chat_single_slot_per_workspace"
+        ]
+      }
+    },
+    "stopped_blueprint_never_automatically_resumes_parent": {
+      "definitions": [
+        {
+          "file": "modules/daemon/tests/nx_launch_live.rs",
+          "line": 181,
+          "file_sha256": "5c72d73d1e0f71654de6b55c503025fcba4da0347bbfa865e3451fe1a53bd3d8"
+        }
+      ],
+      "passed_receipts": {
+        "native": [
+          "stopped_blueprint_never_automatically_resumes_parent"
+        ],
+        "linux": [
+          "stopped_blueprint_never_automatically_resumes_parent"
+        ]
+      }
+    },
+    "symlinks_cannot_escape_prompt_subtrees": {
+      "definitions": [
+        {
+          "file": "modules/daemon/tests/nx_prompts.rs",
+          "line": 166,
+          "file_sha256": "abcab451bd6d2093b54e92d8d8667aa649f9a7e29a71878b86fff26bbe5fb3d2"
+        }
+      ],
+      "passed_receipts": {
+        "linux": [
+          "symlinks_cannot_escape_prompt_subtrees"
+        ]
+      }
+    },
+    "terminal_before_wait_deduplicates_and_stop_fences_dispatch": {
+      "definitions": [
+        {
+          "file": "modules/daemon/src/continuation/state.rs",
+          "line": 418,
+          "file_sha256": "970a3f3206729f3d71918065382681e69197e29b1bff261066ef4d08b454c26d"
+        }
+      ],
+      "passed_receipts": {
+        "native": [
+          "continuation::state::tests::terminal_before_wait_deduplicates_and_stop_fences_dispatch"
+        ],
+        "linux": [
+          "continuation::state::tests::terminal_before_wait_deduplicates_and_stop_fences_dispatch"
+        ]
+      }
+    },
+    "thinking_blocks_are_replayed_before_tool_use": {
+      "definitions": [
+        {
+          "file": "modules/daemon/src/llm/provider/anthropic.rs",
+          "line": 820,
+          "file_sha256": "823c67204f072f95725ff7fe68b1b6823916bb1cb6110600cdaa65e5665e0377"
+        }
+      ],
+      "passed_receipts": {
+        "native": [
+          "llm::provider::anthropic::tests::thinking_blocks_are_replayed_before_tool_use"
+        ],
+        "linux": [
+          "llm::provider::anthropic::tests::thinking_blocks_are_replayed_before_tool_use"
+        ]
+      }
+    },
+    "thousand_nodes_ten_thousand_invocations_and_twelve_reopens": {
+      "definitions": [
+        {
+          "file": "modules/daemon/tests/nx_scale.rs",
+          "line": 13,
+          "file_sha256": "bffdd2d6502eeae5b9d843f7b75e4047688e62c2a2a6cbc2676e837e76da35f6"
+        }
+      ],
+      "passed_receipts": {
+        "native": [
+          "thousand_nodes_ten_thousand_invocations_and_twelve_reopens"
+        ],
+        "linux": [
+          "thousand_nodes_ten_thousand_invocations_and_twelve_reopens"
+        ]
+      }
+    },
+    "tool_definitions_are_sorted_for_a_stable_request_body": {
+      "definitions": [
+        {
+          "file": "modules/daemon/tests/react_harness.rs",
+          "line": 421,
+          "file_sha256": "d19482ccd1d62c61bd75f5ee427ed2c9e914815cbe20e31da88c8c58049d7be5"
+        }
+      ],
+      "passed_receipts": {
+        "native": [
+          "tool_definitions_are_sorted_for_a_stable_request_body"
+        ],
+        "linux": [
+          "tool_definitions_are_sorted_for_a_stable_request_body"
+        ]
+      }
+    },
+    "wait_any_finished_supports_multiple_jobs": {
+      "definitions": [
+        {
+          "file": "modules/daemon/tests/command_jobs.rs",
+          "line": 155,
+          "file_sha256": "dd96f79333ef5e1d8dcf215ffff7bb8f9fc696ea3738816bc2a97eccd058f503"
+        }
+      ],
+      "passed_receipts": {
+        "native": [
+          "wait_any_finished_supports_multiple_jobs"
+        ],
+        "linux": [
+          "wait_any_finished_supports_multiple_jobs"
+        ]
+      }
+    },
+    "windows_junctions_cannot_escape_prompt_subtrees": {
+      "definitions": [
+        {
+          "file": "modules/daemon/tests/nx_prompts.rs",
+          "line": 192,
+          "file_sha256": "abcab451bd6d2093b54e92d8d8667aa649f9a7e29a71878b86fff26bbe5fb3d2"
+        }
+      ],
+      "passed_receipts": {
+        "native": [
+          "windows_junctions_cannot_escape_prompt_subtrees"
+        ]
+      }
+    },
+    "windows_package_junctions_are_rejected_before_reading_signed_bytes": {
+      "definitions": [
+        {
+          "file": "modules/daemon/src/addon/signature.rs",
+          "line": 253,
+          "file_sha256": "fcd91b8bc30477fb2e7ef872aeac2763235c72c09d69b62cd74e86f6b26c8263"
+        }
+      ],
+      "passed_receipts": {
+        "native": [
+          "addon::signature::tests::windows_package_junctions_are_rejected_before_reading_signed_bytes"
+        ]
+      }
+    }
+  },
+  "candidate_commit": "66c66203cae0c8da48138fc989e2fcc17ad0ebea",
+  "working_tree": "?? docs/local-handoff/QUALITY_REAUDIT_20261021.json\n?? docs/local-handoff/REGRESSION_REWORK_20261021.md\n",
+  "paid_calls_this_rework": 0,
+  "owner_visual_acceptance": "PENDING_OWNER",
+  "requirements_adjustment": "Owner explicitly replaced the old separate Addon/Schedule/Prompt primary navigation with Settings/Tasks/editor integration and requested Title Case plus one UI foundation.",
+  "runtime_source": {
+    "source_commit": "66c66203cae0c8da48138fc989e2fcc17ad0ebea",
+    "file_count": 621,
+    "runtime_source_sha256": "524bfa97397b31c3fc8fe519624917c0f1eee6dde2c3bb43752088766e3e3a53",
+    "digest_format": "UTF-8 sorted source list: SHA256, two spaces, repository-relative path, LF, including final LF",
+    "manifest": "F:\\space\\06_Projects\\Agent\\workspace-review-2026-10-20\\CANDIDATE_RUNTIME_SOURCE_20261021_R8.json"
+  },
+  "resolved_findings": [
+    {
+      "finding": "Document lifetime was coupled to editor views.",
+      "state": "RESOLVED_AND_VERIFIED"
+    },
+    {
+      "finding": "Task screens and host monitor used frequent polling.",
+      "state": "RESOLVED_AND_VERIFIED"
+    },
+    {
+      "finding": "Assistant segments shared an ID across tool boundaries.",
+      "state": "RESOLVED_AND_VERIFIED"
+    },
+    {
+      "finding": "Windows relative file paths disagreed with the documented slash contract.",
+      "state": "RESOLVED_AND_VERIFIED"
+    },
+    {
+      "finding": "Mock filesystem listings returned the same mutable tree at every depth.",
+      "state": "RESOLVED_AND_VERIFIED"
+    },
+    {
+      "finding": "Independent pages owned conflicting geometry and controls.",
+      "state": "RESOLVED_AND_VERIFIED"
+    },
+    {
+      "finding": "Historical acceptance JSON contains corrupted Chinese text; this audit uses original UTF-8 task/spec text.",
+      "state": "RESOLVED_AND_VERIFIED"
+    },
+    {
+      "finding": "Live waiting notices retained the old Task continuation entry name while restored notices used Tasks.",
+      "state": "RESOLVED_AND_VERIFIED",
+      "resolution": "One shared continuation waiting message; actual native reload-and-resume proof retained."
+    }
+  ],
+  "open_findings": [
+    {
+      "id": "OWNER_VISUAL",
+      "state": "PENDING_OWNER",
+      "detail": "Final visual and interaction approval remains an owner decision. Technical evidence does not grant it."
+    }
+  ],
+  "declared_limits": [
+    "Existing 27 Rust library diagnostics and one test-module diagnostic remain; no new lint suppression or dependency.",
+    "Monaco/language chunk size warnings remain; no multi-day soak has been performed.",
+    "Paid DeepSeek evidence belongs to the historical candidate. This rework adds zero paid calls and does not claim a fresh paid model comparison.",
+    "Previous portable archive is immutable historical evidence; use the current source branch and new recovery bundle for this revision."
+  ],
+  "late_integration_failures": [
+    {
+      "gate": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\reliability-r7-native-job-fxucmz7n",
+      "cause": "External live helper used the old sentence-case dialog title. Screenshot showed the valid Title Case dialog; corrected only that helper locator."
+    },
+    {
+      "gate": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\reliability-r7-native-blueprint-reload-wsx2o5gm",
+      "cause": "Live waiting message still used the old navigation name. Corrected product ownership of this display string; R8 native waiting/reload/resume passed."
+    },
+    {
+      "gate": "D:\\BaiduNetdiskDownload\\metteur-a7-work\\tmp\\local-acceptance-20261020\\reliability-current-full-resource-chain-84ogas2o",
+      "cause": "Synthetic provider requested unregistered ReadWakeSource. Corrected fixture to registered ReadTaskSource; no production alias or permission relaxation."
+    }
+  ],
+  "manual_production_review": {
+    "url": "http://127.0.0.1:1801/work/w4oASYddL-qk/tasks",
+    "frontend_build": "R8",
+    "script": "/assets/index-Bt3fbhlD.js",
+    "backend": "native Windows binaries verified identical to the completed native gate",
+    "scope": "Isolated synthetic workspace and local deterministic provider; no paid call",
+    "owner_acceptance": "PENDING_OWNER",
+    "proofs": [
+      "F:\\space\\06_Projects\\Agent\\workspace-review-2026-10-20\\rework-tasks-r8-proof.png",
+      "F:\\space\\06_Projects\\Agent\\workspace-review-2026-10-20\\rework-settings-addon-r7-proof.png",
+      "F:\\space\\06_Projects\\Agent\\workspace-review-2026-10-20\\rework-deleted-buffer-proof.png"
+    ]
+  },
+  "publication": {
+    "authorized": true,
+    "previous_pr": "https://github.com/zrurf/metteur/pull/8",
+    "previous_pr_state": "MERGED",
+    "upstream_checked": "503299f59df57ff09a43aa264bd8a0727d18aee0",
+    "fork_branch": "codex/nx-final-acceptance",
+    "plan": "Three ordered fast-forward fork pushes: backend; frontend (two independent commits); audit. A new Draft PR is necessary because PR 8 is merged.",
+    "state": "PREPARED_NOT_YET_PUSHED"
+  },
+  "supporting_documents": [
+    {
+      "file": "F:\\space\\06_Projects\\Agent\\incoming\\metteur-cloud-ff7b795-20261015\\package\\authority-history\\BASELINE.md",
+      "sha256": "be13af56afe4d2c2257cacc84d56eaef8cc57e7863f4e402cd1102576f53374e",
+      "interpretation": "Historical baseline and preserved failures, platform/model gaps; local results supersede historical phase restrictions within the current user authorization."
+    },
+    {
+      "file": "F:\\space\\06_Projects\\Agent\\incoming\\metteur-cloud-ff7b795-20261015\\package\\authority-history\\CODEX_START.md",
+      "sha256": "ecc2e380fc04af356a9a4a8dce3a9fe081f92b2e4f04e16dbff9f361e41be7b5",
+      "interpretation": "Historical staged execution and publication constraints; fork-only, preserved history and no auto-merge retained. Current user instructions authorize this repair and batch publication."
+    },
+    {
+      "file": "F:\\space\\06_Projects\\Agent\\incoming\\metteur-cloud-ff7b795-20261015\\repo\\docs\\ui-refinement-r1\\PLAN.md",
+      "sha256": "0816fa5f282367ddd586e7c8d51a5baa66838f0db895fdb231bd3453425d040a",
+      "interpretation": "Original UI plan checked; current explicit user request supersedes its separate Prompt/Schedules/Addon primary entries and persistent teaching copy."
+    }
+  ]
+}

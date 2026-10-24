@@ -63,10 +63,10 @@ function submit() {
         class="nx-live-modal"
         role="dialog"
         aria-modal="true"
-        aria-label="Start a continuation task"
+        aria-label="Start a Continuation Task"
       >
         <div class="nx-live-between">
-          <h2>Start a continuation task</h2>
+          <h2>Start a Continuation Task</h2>
           <button class="btn" :disabled="busy" @click="emit('close')">Close</button>
         </div>
         <label style="display: grid; gap: 8px; font-size: 13px"

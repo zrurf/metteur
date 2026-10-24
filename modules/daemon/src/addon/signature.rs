@@ -187,7 +187,7 @@ fn collect_files(
     entries: &mut BTreeMap<String, Vec<u8>>,
     total: &mut usize,
 ) -> DaemonResult<()> {
-    if std::fs::symlink_metadata(dir)?.file_type().is_symlink() {
+    if crate::workspace::fs::is_link(&std::fs::symlink_metadata(dir)?) {
         return Err(DaemonError::Addon("package symlinks are not supported".into()));
     }
     for entry in std::fs::read_dir(dir).map_err(DaemonError::Io)? {
@@ -206,13 +206,14 @@ fn collect_files(
             Err(_) => continue,
         };
         super::manifest::validate_package_path(&relative)?;
-        let file_type = entry.file_type().map_err(DaemonError::Io)?;
-        if file_type.is_symlink() {
+        let metadata = std::fs::symlink_metadata(&path)?;
+        let file_type = metadata.file_type();
+        if crate::workspace::fs::is_link(&metadata) {
             return Err(DaemonError::Addon("package symlinks are not supported".into()));
         } else if file_type.is_dir() {
             collect_files(root, &path, entries, total)?;
         } else if file_type.is_file() {
-            let size = entry.metadata()?.len();
+            let size = metadata.len();
             if size > 64 * 1024 * 1024
                 || (*total as u64).saturating_add(size) > 64 * 1024 * 1024
                 || entries.len() >= 1024
@@ -246,6 +247,31 @@ mod tests {
     use std::path::PathBuf;
 
     use ed25519_dalek::{Signer, SigningKey};
+
+    #[cfg(windows)]
+    #[test]
+    fn windows_package_junctions_are_rejected_before_reading_signed_bytes() {
+        let root = std::env::temp_dir().join(format!("addon-junction-{}", uuid::Uuid::new_v4()));
+        let package = root.join("package");
+        let outside = root.join("outside");
+        std::fs::create_dir_all(&package).unwrap();
+        std::fs::create_dir_all(&outside).unwrap();
+        std::fs::write(outside.join("private.txt"), "Outside package").unwrap();
+        let link = package.join("linked-assets");
+        let result = std::process::Command::new("cmd.exe")
+            .args(["/d", "/c", "mklink", "/J"])
+            .arg(&link)
+            .arg(&outside)
+            .output()
+            .unwrap();
+        assert!(result.status.success(), "{}", String::from_utf8_lossy(&result.stderr));
+        assert!(Snapshot::read(&link).is_err());
+        assert!(Snapshot::read(&package).is_err());
+        assert_eq!(
+            std::fs::read_to_string(outside.join("private.txt")).unwrap(),
+            "Outside package"
+        );
+    }
 
     fn test_signing_key() -> SigningKey {
         SigningKey::from_bytes(&[7u8; 32])

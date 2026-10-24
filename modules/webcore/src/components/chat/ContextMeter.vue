@@ -1,142 +1,262 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
+import { X } from '@lucide/vue'
 import { formatTokens } from '@/lib/chat/liveness'
 import type { ChatContextStats, ChatUsage } from '@/core'
-
-/**
- * Context capacity.
- *
- * A ring with the percentage of the window in use, and a popover breaking the
- * number down by region. The figure is what the *model* carries — the
- * conversation plus its system prompt and tool schemas — so the breakdown is
- * what makes it actionable: it says whether the growth is the conversation or
- * the toolchain.
- *
- * Percentages follow the convention providers use for caching: the share of the
- * window that is actually occupied, with the response reservation shown
- * separately. Nothing here is billed data: the token counts are the daemon's
- * estimates.
- */
-const props = defineProps<{
-  stats: ChatContextStats | null
-  usage: ChatUsage | null
-}>()
-
-const open = ref(false)
-
-/** Tokens the conversation occupies, or `null` when the daemon reported none. */
+const props = defineProps<{ stats: ChatContextStats | null; usage: ChatUsage | null }>()
+const open = ref(false),
+  trigger = ref<HTMLButtonElement>()
 const used = computed(() => props.stats?.tokens ?? null)
 const limit = computed(() => props.stats?.limit ?? null)
-/** True when the daemon had to assume a window instead of reading one. */
-const assumed = computed(() => props.stats?.assumedLimit === true)
-const usedRatio = computed(() => {
-  if (!used.value || !limit.value) return 0
-  return Math.min(1, used.value / limit.value)
-})
-const percent = computed(() => Math.round(usedRatio.value * 100))
-
-/** Colour thresholds: quiet until it matters, amber when it is close. */
-const tone = computed(() => {
-  if (percent.value >= 95) return 'critical'
-  if (percent.value >= 80) return 'warn'
-  return 'normal'
-})
-
-/** Cache hit rate of the last request, when the provider reported one. */
-const cacheRate = computed(() => {
-  const usage = props.usage
-  if (!usage?.inputTokens || !usage.cachedInputTokens) return null
-  return Math.round((usage.cachedInputTokens / usage.inputTokens) * 100)
-})
-
+const percent = computed(() =>
+  used.value !== null && limit.value && limit.value > 0
+    ? Math.min(100, Math.max(0, Math.round((used.value / limit.value) * 100)))
+    : null,
+)
+const free = computed(() =>
+  used.value !== null && limit.value ? Math.max(0, limit.value - used.value) : null,
+)
+const tone = computed(() =>
+  (percent.value ?? 0) >= 95 ? 'critical' : (percent.value ?? 0) >= 80 ? 'warning' : 'normal',
+)
+const labels: Record<string, string> = {
+  system: 'System & Tools',
+  user: 'Your Messages',
+  assistant: 'Agent Messages',
+  tool: 'Tool Results',
+}
+const colors = ['var(--primary)', '#9175c7', '#4c9a89', '#d39a52']
 const regions = computed(() =>
-  (props.stats?.regions ?? []).map((region) => ({
+  (props.stats?.regions ?? []).map((region, index) => ({
     ...region,
-    share: used.value ? Math.round((region.tokens / used.value) * 100) : 0,
+    label: labels[region.region] ?? region.region,
+    color: colors[index % colors.length],
+    width: limit.value ? Math.min(100, Math.max(0, (region.tokens / limit.value) * 100)) : 0,
   })),
 )
-
-/** Free space left in the window. */
-const free = computed(() => (limit.value && used.value ? Math.max(0, limit.value - used.value) : null))
-
-/** Stroke geometry of the ring: a circle whose dash array encodes the ratio. */
-const RING = 20
-const circumference = 2 * Math.PI * RING
-const dash = computed(() => `${(usedRatio.value * circumference).toFixed(2)} ${circumference.toFixed(2)}`)
-
-const REGION_LABELS: Record<string, string> = {
-  system: 'System & tools',
-  user: 'Your turns',
-  assistant: 'Agent turns',
-  tool: 'Tool results',
+const cache = computed(() =>
+  props.usage?.inputTokens && typeof props.usage.cachedInputTokens === 'number'
+    ? Math.round((props.usage.cachedInputTokens / props.usage.inputTokens) * 100)
+    : null,
+)
+function close() {
+  open.value = false
+  trigger.value?.focus()
 }
 </script>
-
 <template>
-  <div class="relative">
+  <div class="context-capacity" :data-tone="tone" @keydown.esc.stop="close">
     <button
-      class="chat-meter"
-      :class="`chat-meter-${tone}`"
+      ref="trigger"
       type="button"
-      :aria-label="`Context: ${percent}% of the window in use`"
+      class="chat-meter"
+      aria-haspopup="dialog"
       :aria-expanded="open"
+      :aria-label="
+        percent === null ? 'Context: not measured' : `Context: ${percent}% of the window in use`
+      "
       @click="open = !open"
     >
-      <svg class="chat-meter-ring" viewBox="0 0 48 48" aria-hidden="true">
-        <circle class="chat-meter-track" cx="24" cy="24" :r="RING" />
-        <circle class="chat-meter-fill" cx="24" cy="24" :r="RING" :stroke-dasharray="dash" />
-      </svg>
-      <span v-if="used !== null && limit" class="chat-meter-label tabular-nums">{{ percent }}%</span>
-      <span v-else-if="used !== null" class="chat-meter-label tabular-nums">
-        {{ formatTokens(used) }}
-      </span>
-      <span v-else class="chat-meter-label">—</span>
+      <span class="context-mini-track" aria-hidden="true"
+        ><span :style="{ width: `${percent ?? 0}%` }"
+      /></span>
+      <span>{{ percent === null ? 'Context' : `${percent}%` }}</span>
     </button>
-
-    <div v-if="open" class="chat-menu chat-meter-popover">
-      <p class="chat-menu-head">Context window</p>
-      <dl class="chat-meter-rows">
-        <div class="chat-meter-row">
-          <dt>Used</dt>
-          <dd class="tabular-nums">{{ used !== null ? formatTokens(used) : 'unknown' }}</dd>
+    <template v-if="open">
+      <div class="context-backdrop" @mousedown.prevent="close" />
+      <section class="context-popover" role="dialog" aria-label="Context Window" tabindex="-1">
+        <header>
+          <h2>Context Window</h2>
+          <button type="button" class="btn-icon" aria-label="Close Context Window" @click="close">
+            <X :size="15" />
+          </button>
+        </header>
+        <div class="context-total">
+          <strong>{{ used === null ? 'Not Measured' : formatTokens(used) }}</strong
+          ><span v-if="limit">/ {{ formatTokens(limit) }} tokens</span>
         </div>
-        <div v-if="limit" class="chat-meter-row">
-          <dt>{{ assumed ? 'Window (assumed)' : 'Window' }}</dt>
-          <dd class="tabular-nums">{{ formatTokens(limit) }}</dd>
+        <p class="context-caption">
+          {{
+            percent === null
+              ? 'Usage will appear after the next model response.'
+              : `${percent}% used · ${formatTokens(free ?? 0)} available`
+          }}
+        </p>
+        <div
+          v-if="percent !== null"
+          class="context-track"
+          role="progressbar"
+          aria-label="Context Used"
+          :aria-valuenow="percent"
+          :aria-valuemin="0"
+          :aria-valuemax="100"
+        >
+          <span
+            v-if="!regions.length"
+            :style="{ width: `${percent}%`, background: 'var(--primary)' }"
+          />
+          <span
+            v-for="region in regions"
+            :key="region.region"
+            :style="{ width: `${region.width}%`, background: region.color }"
+          />
         </div>
-        <div v-if="free !== null" class="chat-meter-row chat-meter-row-muted">
-          <dt>Free</dt>
-          <dd class="tabular-nums">{{ formatTokens(free) }}</dd>
-        </div>
-        <div class="chat-meter-row">
-          <dt>Cache hit</dt>
-          <dd class="tabular-nums">{{ cacheRate !== null ? `${cacheRate}%` : 'not reported' }}</dd>
-        </div>
-      </dl>
-
-      <template v-if="regions.length">
-        <div class="my-2 border-t border-divider" />
-        <p class="chat-menu-head">Composition</p>
-        <ul class="chat-meter-regions">
-          <li v-for="region in regions" :key="region.region">
-            <span class="chat-meter-region-name">{{ REGION_LABELS[region.region] ?? region.region }}</span>
-            <span class="chat-meter-region-bar" aria-hidden="true">
-              <span :style="{ width: `${region.share}%` }" />
-            </span>
-            <span class="tabular-nums text-subtle">{{ formatTokens(region.tokens) }}</span>
-          </li>
-        </ul>
-      </template>
-
-      <p class="chat-meter-note">
-        Estimates from the daemon; the provider reports exact counts in the usage of each turn.
-        <template v-if="assumed">
-          This model's window is not configured, so a 128k default is assumed —
-          set it under Settings → LLM &amp; Models for an exact percentage.
-        </template>
-      </p>
-    </div>
-
-    <div v-if="open" class="fixed inset-0 z-30" @mousedown="open = false" />
+        <dl v-if="regions.length" class="context-regions">
+          <div v-for="region in regions" :key="region.region">
+            <dt><i :style="{ background: region.color }" />{{ region.label }}</dt>
+            <dd>{{ formatTokens(region.tokens) }}</dd>
+          </div>
+        </dl>
+        <footer>
+          <span>{{
+            props.stats?.assumedLimit ? 'Window size assumed' : 'Estimated context usage'
+          }}</span
+          ><span v-if="cache !== null">{{ cache }}% cache hit</span>
+        </footer>
+        <p v-if="props.stats?.assumedLimit" class="context-assumed">
+          Set this model’s window in Settings → LLM &amp; Models to replace the default.
+        </p>
+      </section>
+    </template>
   </div>
 </template>
+<style scoped>
+.context-capacity {
+  position: relative;
+  --capacity-color: var(--primary);
+}
+.context-capacity[data-tone='warning'] {
+  --capacity-color: var(--status-warning);
+}
+.context-capacity[data-tone='critical'] {
+  --capacity-color: var(--status-error);
+}
+.chat-meter {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 9px;
+  border-radius: 7px;
+  color: var(--muted-foreground);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+.chat-meter:hover {
+  background: var(--hover);
+  color: var(--foreground);
+}
+.context-mini-track {
+  width: 26px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--border);
+  overflow: hidden;
+}
+.context-mini-track > span {
+  display: block;
+  height: 100%;
+  background: var(--capacity-color);
+}
+.context-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+}
+.context-popover {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 12px);
+  z-index: 41;
+  width: 320px;
+  max-width: calc(100vw - 32px);
+  padding: 18px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--background);
+  box-shadow: var(--shadow-popover);
+  color: var(--foreground);
+}
+header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+h2 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+}
+.context-total {
+  display: flex;
+  gap: 7px;
+  align-items: baseline;
+  margin-top: 18px;
+  font-variant-numeric: tabular-nums;
+}
+.context-total strong {
+  font-size: 26px;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+}
+.context-total > span,
+.context-caption {
+  font-size: 11px;
+  color: var(--muted-foreground);
+}
+.context-caption {
+  margin-top: 4px;
+}
+.context-track {
+  display: flex;
+  overflow: hidden;
+  height: 7px;
+  margin: 16px 0;
+  border-radius: 4px;
+  background: var(--border);
+}
+.context-track > span {
+  flex-shrink: 1;
+  height: 100%;
+}
+.context-regions {
+  display: grid;
+  gap: 10px;
+  margin: 14px 0 18px;
+  font-size: 12px;
+}
+.context-regions > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+dt {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted-foreground);
+}
+dt i {
+  width: 7px;
+  height: 7px;
+  border-radius: 2px;
+}
+dd {
+  font-variant-numeric: tabular-nums;
+}
+footer {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+  font-size: 10px;
+  color: var(--subtle);
+}
+.context-assumed {
+  margin-top: 10px;
+  color: var(--subtle);
+  font-size: 11px;
+  line-height: 1.6;
+}
+</style>

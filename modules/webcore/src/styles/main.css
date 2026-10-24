@@ -1,6 +1,7 @@
 @import 'tailwindcss';
 @import './theme.css';
 @import './chat.css';
+@import './surfaces.css';
 
 html,
 body,
@@ -107,6 +108,7 @@ body {
   border-radius: 0 0 13px 13px;
 }
 .workspace-editor-surface {
+  container-type: inline-size;
   margin: 6px;
   border: 1px solid var(--divider);
   border-radius: 12px;
@@ -172,7 +174,7 @@ body {
   }
 
   .btn-icon {
-    @apply inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md p-0 text-muted-foreground transition-colors duration-150 hover:bg-hover hover:text-foreground;
+    @apply inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md p-0 text-muted-foreground transition-colors duration-150 hover:bg-hover hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50;
   }
 
   /* Inputs                                                              */
@@ -280,7 +282,9 @@ body {
 
 /* Keep interaction tokens subtle on the canvas: hover lifts nodes gently. */
 .metteur-node {
-  transition: box-shadow 150ms ease, transform 150ms ease;
+  transition:
+    box-shadow 150ms ease,
+    transform 150ms ease;
 }
 
 /* Visual audit: the run's current node breathes, finished nodes stay flushed. */
@@ -311,7 +315,9 @@ body {
 }
 
 .blueprint-flow .vue-flow__node:hover .metteur-node {
-  box-shadow: var(--shadow-card), 0 6px 20px rgba(19, 19, 26, 0.12);
+  box-shadow:
+    var(--shadow-card),
+    0 6px 20px rgba(19, 19, 26, 0.12);
   transform: translateY(-1px);
 }
 
@@ -495,7 +501,10 @@ html.dark .diff-del {
 /* Runtime motion is enabled only for an observed, currently advancing edge. */
 .execution-flow .vue-flow__edge-path {
   stroke-linecap: round;
-  transition: opacity 180ms ease, stroke 180ms ease, filter 180ms ease;
+  transition:
+    opacity 180ms ease,
+    stroke 180ms ease,
+    filter 180ms ease;
 }
 .execution-flow .vue-flow__edge.is-traversed:not(.animated) .vue-flow__edge-path {
   filter: none;
@@ -505,9 +514,18 @@ html.dark .diff-del {
   animation: execution-wire-flow 1.1s linear infinite;
   filter: drop-shadow(0 0 3px var(--exec-wire));
 }
-@keyframes execution-wire-flow { to { stroke-dashoffset: -32; } }
+@keyframes execution-wire-flow {
+  to {
+    stroke-dashoffset: -32;
+  }
+}
 @media (prefers-reduced-motion: reduce) {
   .execution-flow .vue-flow__edge-path,
-  .execution-flow .metteur-node { animation: none !important; transition: none !important; }
-  .execution-flow .vue-flow__edge.animated .vue-flow__edge-path { stroke-dasharray: none; }
+  .execution-flow .metteur-node {
+    animation: none !important;
+    transition: none !important;
+  }
+  .execution-flow .vue-flow__edge.animated .vue-flow__edge-path {
+    stroke-dasharray: none;
+  }
 }

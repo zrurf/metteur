@@ -19,11 +19,20 @@ use uuid::Uuid;
 #[derive(Deserialize)]
 #[serde(tag = "operation", rename_all = "snake_case", deny_unknown_fields)]
 enum Query {
+    PrepareRebind { id: Uuid },
     List {
         after: Option<Uuid>,
     },
     Read {
         id: Uuid,
+    },
+    Result {
+        id: Uuid,
+        source: String,
+        offset: usize,
+    },
+    CaptureResult {
+        reference: super::result_references::ResultReference,
     },
 }
 #[derive(Deserialize)]
@@ -31,6 +40,8 @@ enum Query {
 struct Control {
     id: Uuid,
     action: String,
+    #[serde(default)]
+    rebind_digest: Option<String>,
 }
 fn response(value: serde_json::Value) -> Response<ResourceResponse> {
     Response::new(ResourceResponse {
@@ -47,7 +58,7 @@ fn decode<T: serde::de::DeserializeOwned>(req: &ResourceRequest) -> Result<T, St
         .map_err(|_| Status::invalid_argument("Invalid continuation fields"))
 }
 fn projection(r: &crate::continuation::store::TaskRecord) -> serde_json::Value {
-    serde_json::json!({"revision":r.revision,"task":r.task,"policy":r.policy,"schedules":r.schedules,"has_saved_context":r.saved_context.is_some(),"launch_intent":r.launch_intent})
+    serde_json::json!({"revision":r.revision,"task":r.task,"policy":r.policy,"schedules":r.schedules,"has_saved_context":r.saved_context.is_some(),"launch_intent":r.launch_intent,"rebind_receipt":r.rebind_receipt})
 }
 impl DaemonService {
     pub(crate) async fn query_continuations(
@@ -63,35 +74,75 @@ impl DaemonService {
             .get(Path::new(&req.workspace_path))
             .await
             .ok_or_else(|| Status::not_found("Workspace is not open"))?;
-        let store = ContinuationStore::new(ws.db.clone(), ws.root()).map_err(to_status)?;
+        let store = ContinuationStore::inspect(ws.db.clone(), ws.root()).map_err(to_status)?;
         let live = self.state.chats.read().await.get(ws.root()).cloned();
-        let project = |record: &crate::continuation::store::TaskRecord| {
-            let mut value = projection(record);
-            if let Some(chat) = &live {
-                if chat.session_id == Some(record.task.session) {
-                    if let Some(broker) = &chat.approvals {
-                        let details = chat.approval_details.lock();
-                        value["pending_approvals"] = serde_json::json!(
+        let project =
+            |record: &crate::continuation::store::TaskRecord| -> Result<serde_json::Value, Status> {
+                let mut value = projection(record);
+                let current_revision =
+                    ws.db.chat_revision(record.task.session.as_bytes()).map_err(to_status)?;
+                let may_send = self
+                    .state
+                    .acl_store
+                    .read()
+                    .unwrap()
+                    .is_allowed(&subject, "/metteur.Daemon/SendChat");
+                if let Some(chat) = &live {
+                    if chat.session_id == Some(record.task.session) {
+                        if let Some(broker) = &chat.approvals {
+                            let details = chat.approval_details.lock();
+                            value["pending_approvals"] = serde_json::json!(
                             broker
                                 .pending_ids()
                                 .into_iter()
                                 .filter_map(|id| details.get(&id).map(
-                                    |detail| serde_json::json!({"request_id":id,"detail":detail})
+                                    |detail| serde_json::json!({"request_id":id,"detail":detail,"content_digest":crate::storage::approval_delivery::ApprovalDelivery::content_digest(detail),"target":{"kind":"chat","session":chat.session_id,"turn":chat.turn_id,"run":null}})
                                 ))
                                 .collect::<Vec<_>>()
                         );
+                        }
                     }
                 }
-            }
-            value
-        };
+                value["workflow"] = crate::continuation::presentation::workflow_with_approval(
+                    record,
+                    current_revision,
+                    may_send,
+                    now_ms(),
+                    value["pending_approvals"].as_array().is_some_and(|items| !items.is_empty()),
+                );
+                Ok(value)
+            };
         let value = match decode::<Query>(&req)? {
+            Query::PrepareRebind { id } => {
+                let _gate = ws.admit().await.map_err(to_status)?;
+                if self.state.chats.read().await.contains_key(ws.root()) || self.state.running.read().await.contains_key(ws.root()) {
+                    return Err(Status::failed_precondition("Finish the foreground execution before reviewing a new binding"));
+                }
+                let r = store.get(id).map_err(to_status)?.ok_or_else(|| Status::not_found("Task not found"))?;
+                if r.owner_subject != subject { return Err(Status::permission_denied("Task owner mismatch")); }
+                let context = crate::chat::session::load_thread(&ws.db, &r.task.session).map_err(to_status)?
+                    .ok_or_else(|| Status::not_found("Original conversation is unavailable"))?;
+                let registry = self.state.registry_for(Some(ws.root()), true).await?;
+                let config = ws.config.read().await;
+                let digest = crate::continuation::policy::binding_digest(&config, r.model_options.get("model").and_then(|v| v.as_str()), &registry);
+                crate::continuation::rebind::proposal(&r, ws.db.chat_revision(r.task.session.as_bytes()).map_err(to_status)?, &context, &digest,
+                    self.state.acl_store.read().unwrap().is_allowed(&subject, "/metteur.Daemon/SendChat"), now_ms()).map_err(to_status)?
+            }
             Query::List {
                 after,
             } => {
                 let page = store.list(after).map_err(to_status)?;
-                let next = if page.len() == 50 {page.last().map(|r| r.task.id)} else {None};
-                serde_json::json!({"items":page.iter().filter(|r|r.owner_subject==subject).map(&project).collect::<Vec<_>>(),"next":next})
+                let next = if page.len() == 50 {
+                    page.last().map(|r| r.task.id)
+                } else {
+                    None
+                };
+                let items = page
+                    .iter()
+                    .filter(|r| r.owner_subject == subject)
+                    .map(&project)
+                    .collect::<Result<Vec<_>, _>>()?;
+                serde_json::json!({"items":items,"next":next})
             }
             Query::Read {
                 id,
@@ -103,7 +154,27 @@ impl DaemonService {
                 if r.owner_subject != subject {
                     return Err(Status::permission_denied("Task owner mismatch"));
                 }
-                project(&r)
+                project(&r)?
+            }
+            Query::Result {
+                id,
+                source,
+                offset,
+            } => {
+                let r = store
+                    .get(id)
+                    .map_err(to_status)?
+                    .ok_or_else(|| Status::not_found("Task not found"))?;
+                if r.owner_subject != subject {
+                    return Err(Status::permission_denied("Task owner mismatch"));
+                }
+                store.read_result_artifact(id, &source, offset).map_err(to_status)?
+            }
+            Query::CaptureResult {
+                reference,
+            } => {
+                let (reference, content) = self.result_document(&ws, &subject, &reference, true)?;
+                serde_json::json!({"reference":reference,"content":content,"origin":"source_data"})
             }
         };
         Ok(response(value))
@@ -122,8 +193,47 @@ impl DaemonService {
             .get(Path::new(&req.workspace_path))
             .await
             .ok_or_else(|| Status::not_found("Workspace is not open"))?;
-        let _gate = ws.activity_gate.lock().await;
+        // Policy controls only mutate the existing task ledger. Stop must not
+        // wait behind the execution it is meant to cancel.
         let store = ContinuationStore::new(ws.db.clone(), ws.root()).map_err(to_status)?;
+        if input.action == "rebind" {
+            let _gate = ws.admit().await.map_err(to_status)?;
+            let request_id = Uuid::parse_str(&req.request_id).map_err(|_| Status::invalid_argument("Rebind request UUID required"))?;
+            if request_id.is_nil() { return Err(Status::invalid_argument("Rebind request UUID required")); }
+            let digest = input.rebind_digest.as_deref().filter(|v| v.len() == 64)
+                .ok_or_else(|| Status::invalid_argument("Review a concrete rebind proposal first"))?;
+            let record = store.get(input.id).map_err(to_status)?.ok_or_else(|| Status::not_found("Task not found"))?;
+            if record.owner_subject != subject { return Err(Status::permission_denied("Task owner mismatch")); }
+            if let Some((id, previous)) = &record.rebind_receipt {
+                if *id == request_id {
+                    if previous != digest { return Err(Status::failed_precondition("Rebind request identity conflict")); }
+                    return Ok(response(projection(&record)));
+                }
+            }
+            if self.state.chats.read().await.contains_key(ws.root()) || self.state.running.read().await.contains_key(ws.root())
+                || super::foreground::unresolved_writes(&ws.db, ws.root()).map_err(to_status)? {
+                return Err(Status::failed_precondition("Workspace is occupied or has unresolved write effects"));
+            }
+            let context = crate::chat::session::load_thread(&ws.db, &record.task.session).map_err(to_status)?
+                .ok_or_else(|| Status::not_found("Original conversation is unavailable"))?;
+            let registry = self.state.registry_for(Some(ws.root()), true).await?;
+            let config = ws.config.read().await;
+            let config_digest = crate::continuation::policy::binding_digest(&config, record.model_options.get("model").and_then(|v| v.as_str()), &registry);
+            let r = store.update(input.id, req.expected_revision, |r| {
+                let current = ws.db.chat_revision(r.task.session.as_bytes())?;
+                let proposal = crate::continuation::rebind::proposal(r, current, &context, &config_digest,
+                    self.state.acl_store.read().unwrap().is_allowed(&subject, "/metteur.Daemon/SendChat"), now_ms())?;
+                if proposal["digest"].as_str() != Some(digest) {
+                    return Err(DaemonError::Execution("Rebind proposal changed; review it again".into()));
+                }
+                crate::continuation::rebind::apply(r, current, context, now_ms());
+                r.rebind_receipt = Some((request_id, digest.to_owned()));
+                Ok(())
+            }).map_err(to_status)?;
+            let mut value = projection(&r);
+            value["workflow"] = crate::continuation::presentation::workflow(&r, r.task.expected_revision, true, now_ms());
+            return Ok(response(value));
+        }
         let r = store
             .update(input.id, req.expected_revision, |r| {
                 if r.owner_subject != subject {
@@ -131,7 +241,9 @@ impl DaemonService {
                 }
                 match input.action.as_str() {
                     "stop" => {
-                        r.task.cancel_timer_sources("task_stopped", now_ms()).map_err(|e|DaemonError::Execution(e.into()))?;
+                        r.task
+                            .cancel_timer_sources("task_stopped", now_ms())
+                            .map_err(|e| DaemonError::Execution(e.into()))?;
                         if r.task.state != TaskState::Stopped {
                             r.task.stop();
                         }
@@ -140,11 +252,16 @@ impl DaemonService {
                         }
                     }
                     "cancel_schedule" => {
-                        r.task.cancel_timer_sources("schedule_cancelled", now_ms()).map_err(|e|DaemonError::Execution(e.into()))?;
+                        r.task
+                            .cancel_timer_sources("schedule_cancelled", now_ms())
+                            .map_err(|e| DaemonError::Execution(e.into()))?;
                         for schedule in &mut r.schedules {
                             schedule.cancel();
                         }
-                        if !matches!(r.task.state, TaskState::Active | TaskState::Stopped | TaskState::Completed) {
+                        if !matches!(
+                            r.task.state,
+                            TaskState::Active | TaskState::Stopped | TaskState::Completed
+                        ) {
                             r.task.wait = None;
                             r.task.state = if r.task.dispatch.as_ref().is_some_and(|d| {
                                 matches!(
@@ -160,8 +277,13 @@ impl DaemonService {
                         }
                     }
                     "pause" => {
-                        if matches!(r.task.state, TaskState::Stopped | TaskState::Completed | TaskState::NeedsAttention) {
-                            return Err(DaemonError::Execution("Task has ended or requires explicit recovery".into()));
+                        if matches!(
+                            r.task.state,
+                            TaskState::Stopped | TaskState::Completed | TaskState::NeedsAttention
+                        ) {
+                            return Err(DaemonError::Execution(
+                                "Task has ended or requires explicit recovery".into(),
+                            ));
                         }
                         r.task.paused = true;
                         if r.task.state != TaskState::Active {
@@ -169,6 +291,28 @@ impl DaemonService {
                         }
                     }
                     "resume" => {
+                        let current = ws.db.chat_revision(r.task.session.as_bytes())?;
+                        let may_send = self
+                            .state
+                            .acl_store
+                            .read()
+                            .unwrap()
+                            .is_allowed(&subject, "/metteur.Daemon/SendChat");
+                        let facts = crate::continuation::presentation::workflow(
+                            r,
+                            current,
+                            may_send,
+                            now_ms(),
+                        );
+                        if !facts["allowed_actions"]
+                            .as_array()
+                            .is_some_and(|a| a.iter().any(|v| v == "resume"))
+                        {
+                            return Err(DaemonError::Execution(format!(
+                                "Automatic continuation remains blocked: {}",
+                                facts["reason"]
+                            )));
+                        }
                         if matches!(
                             r.task.state,
                             TaskState::Stopped | TaskState::Completed | TaskState::NeedsAttention
@@ -194,15 +338,19 @@ impl DaemonService {
             .map_err(to_status)?;
         if input.action == "stop" {
             ws.jobs.kill_task(input.id);
-            if let Some(run)=self.state.running.read().await.get(ws.root()) {
-                if run.continuation_task==Some(input.id) {
-                    run.cancel_requested.store(true,std::sync::atomic::Ordering::SeqCst);
-                    if let Some(broker)=&run.approvals {broker.close();}
+            if let Some(run) = self.state.running.read().await.get(ws.root()) {
+                if run.continuation_task == Some(input.id) {
+                    run.cancel_requested.store(true, std::sync::atomic::Ordering::SeqCst);
+                    if let Some(broker) = &run.approvals {
+                        broker.close();
+                    }
                 }
             }
 
             if let Some(chat) = self.state.chats.read().await.get(ws.root()) {
-                if chat.session_id == Some(r.task.session) {
+                if chat.continuation_task == Some(input.id)
+                    && chat.session_id == Some(r.task.session)
+                {
                     chat.cancel_requested.store(true, std::sync::atomic::Ordering::SeqCst);
                     if let Some(b) = &chat.approvals {
                         b.close();
@@ -216,7 +364,14 @@ impl DaemonService {
                 }
             }
         }
-        Ok(response(projection(&r)))
+        let mut value = projection(&r);
+        value["workflow"] = crate::continuation::presentation::workflow(
+            &r,
+            ws.db.chat_revision(r.task.session.as_bytes()).map_err(to_status)?,
+            self.state.acl_store.read().unwrap().is_allowed(&subject, "/metteur.Daemon/SendChat"),
+            now_ms(),
+        );
+        Ok(response(value))
     }
 }
 pub(super) fn now_ms() -> u64 {
@@ -232,15 +387,28 @@ pub(super) async fn start_monitor(state: Arc<AppState>, root: PathBuf) {
         }
         workers.insert(root.clone(), token);
     }
+    let Some(workspace) = state.workspaces.get(&root).await else {
+        return;
+    };
+    let mut changes = workspace.db.subscribe_changes();
+    drop(workspace);
     tokio::spawn(async move {
         let mut relative_clocks: std::collections::HashMap<
             Uuid,
             (u64, std::time::Instant, std::time::Duration),
         > = std::collections::HashMap::new();
-        let mut timer = tokio::time::interval(std::time::Duration::from_millis(500));
-        timer.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+        let mut next_deadline = Some(now_ms());
         loop {
-            timer.tick().await;
+            tokio::select! {
+                changed = changes.changed() => if changed.is_err() { break; },
+                _ = async {
+                    if let Some(deadline) = next_deadline {
+                        tokio::time::sleep(std::time::Duration::from_millis(deadline.saturating_sub(now_ms()))).await;
+                    } else { std::future::pending::<()>().await; }
+                } => {},
+            }
+            changes.borrow_and_update();
+            next_deadline = None;
             if state.continuation_workers.lock().await.get(&root) != Some(&token) {
                 break;
             }
@@ -265,6 +433,20 @@ pub(super) async fn start_monitor(state: Arc<AppState>, root: PathBuf) {
                 }
                 for record in page {
                     after = Some(record.task.id);
+                    let now = now_ms();
+                    let candidates = record
+                        .policy
+                        .iter()
+                        .map(|p| p.expires_ms)
+                        .chain(record.task.wait.iter().map(|w| w.deadline_ms))
+                        .chain(record.schedules.iter().filter_map(|s| {
+                            s.next_due.map(|d| d.timestamp_millis().max(0) as u64)
+                        }));
+                    for deadline in candidates.filter(|deadline| *deadline > now) {
+                        next_deadline = Some(
+                            next_deadline.map_or(deadline, |previous: u64| previous.min(deadline)),
+                        );
+                    }
                     if record.task.state == TaskState::Stopped {
                         ws.jobs.kill_task(record.task.id);
                         continue;
@@ -275,7 +457,14 @@ pub(super) async fn start_monitor(state: Arc<AppState>, root: PathBuf) {
                     ) {
                         continue;
                     }
-                    match super::launches::poll_launch(&state,&ws,&record).await {Ok(true)=>continue,Err(error)=>{tracing::warn!("Launch reconciliation failed: {error}");continue;},Ok(false)=>{}}
+                    match super::launches::poll_launch(&state, &ws, &record).await {
+                        Ok(true) => continue,
+                        Err(error) => {
+                            tracing::warn!("Launch reconciliation failed: {error}");
+                            continue;
+                        }
+                        Ok(false) => {}
+                    }
                     let result=store.update(record.task.id,record.revision,|r|{
       if r.task.budget.unknown_usage || r.task.budget.used_turns >= r.task.budget.max_turns || r.task.budget.consumed_tokens.saturating_add(r.task.budget.reserved_tokens) >= r.task.budget.token_limit {r.task.state=TaskState::NeedsAttention;r.task.attention=Some("Continuation budget exhausted or usage requires reconciliation".into());return Ok(());}
       if r.policy.as_ref().is_none_or(|p|p.expires_ms<=now_ms()) {r.task.state=TaskState::NeedsAttention;r.task.attention=Some("Continuation policy expired".into());return Ok(());}
@@ -386,7 +575,7 @@ impl DaemonService {
             .get(Path::new(&req.workspace_path))
             .await
             .ok_or_else(|| Status::not_found("Workspace is not open"))?;
-        let _gate = ws.activity_gate.lock().await;
+        let _gate = ws.admit().await.map_err(to_status)?;
         if self.state.chats.read().await.contains_key(ws.root())
             || self.state.running.read().await.contains_key(ws.root())
         {
@@ -469,7 +658,9 @@ impl DaemonService {
                         "Only one active schedule per task is supported".into(),
                     ));
                 }
-                r.task.cancel_timer_sources("schedule_replaced", now_ms()).map_err(|e|DaemonError::Execution(e.into()))?;
+                r.task
+                    .cancel_timer_sources("schedule_replaced", now_ms())
+                    .map_err(|e| DaemonError::Execution(e.into()))?;
                 r.schedules.retain(|s| s.id != input.id);
                 r.schedules.push(schedule.clone());
                 let id = format!(

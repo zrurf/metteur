@@ -61,7 +61,7 @@ impl GrantStore {
             "command": command,
             "created_at": now_millis(),
         });
-        db.put(cf::GRANTS, &command_hash.to_be_bytes(), value.to_string().as_bytes())
+        db.put_durable(cf::GRANTS, &command_hash.to_be_bytes(), value.to_string().as_bytes())
     }
 }
 
@@ -104,5 +104,16 @@ mod tests {
         let store = GrantStore::new(None, None);
         assert_eq!(store.lookup(1), None);
         assert!(store.store(Scope::Workspace, 1, Decision::Allow, "x").is_err());
+    }
+    #[test]
+    fn accepted_persistent_grant_survives_database_reopen() {
+        let root = std::env::temp_dir().join(format!("dw-durable-grant-{}", uuid::Uuid::new_v4()));
+        let db = Db::open(&root).unwrap();
+        let store = GrantStore::new(Some(db.clone()), None);
+        store.store(Scope::Workspace, 19, Decision::Deny, "exact command").unwrap();
+        drop(store);
+        drop(db);
+        let reopened = GrantStore::new(Some(Db::open(&root).unwrap()), None);
+        assert_eq!(reopened.lookup(19), Some(false));
     }
 }

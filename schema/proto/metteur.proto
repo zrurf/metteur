@@ -18,6 +18,16 @@ package metteur;
 
 // The Metteur daemon service.
 service Daemon {
+  // Template compilation and evidence queries never execute the workflow.
+  rpc QueryCodingWorkflows(ResourceRequest) returns (ResourceResponse);
+  // Authenticated human review, separate from execution approval.
+  rpc RecordWorkflowReview(ResourceRequest) returns (ResourceResponse);
+  // Input-only recovery. Ownership derives from the authenticated request.
+  rpc Recovery(ResourceRequest) returns (ResourceResponse);
+  // Durable manual-send receipts; querying never starts or replays a turn.
+  rpc ChatDelivery(ResourceRequest) returns (ResourceResponse);
+  // Supervision input status/retirement never starts or repeats a model call.
+  rpc ConciergeDelivery(ResourceRequest) returns (ResourceResponse);
   rpc AddonPages(ResourceRequest) returns (ResourceResponse);
   rpc WriteSchedule(ResourceRequest) returns (ResourceResponse);
   rpc ConfirmBlueprintLaunch(ResourceRequest) returns (ResourceResponse);
@@ -75,6 +85,8 @@ service Daemon {
 
   // Sandbox approvals.
   rpc RespondApproval(ApprovalDecisionRequest) returns (Empty);
+  // Inspect/fence an original approval decision; never grants or replays it.
+  rpc ApprovalDelivery(ResourceRequest) returns (ResourceResponse);
 
   // Usage and cost.
   rpc GetExecutionUsage(GetExecutionUsageRequest) returns (UsageSummary);
@@ -115,6 +127,9 @@ service Daemon {
   rpc RevealInExplorer(RevealInExplorerRequest) returns (Empty);
   // Live file-change events for the workspace (created / modified / removed).
   rpc WatchWorkspace(WatchWorkspaceRequest) returns (stream WatchEvent);
+  // Coalesced invalidations after committed runtime/resource changes. Subscribe
+  // before reading a snapshot; the first event and every reconnect require resync.
+  rpc WatchWorkspaceChanges(WatchWorkspaceRequest) returns (stream WorkspaceChange);
 
   // Background commands (jobs) of the workspace.
   rpc ListJobs(ListJobsRequest) returns (JobList);
@@ -174,6 +189,8 @@ message ExecuteBlueprintRequest {
   // Optional canvas/native JSON asserting the saved graph the caller expects.
   // Save first: mismatched content cannot overwrite file authority or the mirror.
   string blueprint_json = 3;
+  // Exact dependency digest confirmed by the user for workflow template instances.
+  string workflow_confirmation = 4;
 }
 
 message ExecutionEvent {
@@ -187,24 +204,33 @@ message CancelRequest {
   string workspace_path = 1;
   // Optional expected run identity; stale controls must not affect a replacement run.
   string run_id = 2;
+  string receipt_json = 3; // optional {id,revision}; exact target Stop remains available
 }
 
 message PauseRequest {
   string workspace_path = 1;
   // Optional expected run identity; stale controls must not affect a replacement run.
   string run_id = 2;
+  string receipt_json = 3; // {id,revision}; revision fences reordered controls
 }
 
 message ResumeRequest {
   string workspace_path = 1;
   // Optional expected run identity; stale controls must not affect a replacement run.
   string run_id = 2;
+  string receipt_json = 3; // {id,revision}; revision fences reordered controls
 }
 
 message InterruptRequest {
   string workspace_path = 1;
   string priority = 2; // Normal | Urgent | Emergency
   string message = 3;
+  // Required for live control. Unqualified requests never follow a new owner.
+  string target_kind = 4; // chat | blueprint
+  string session_id = 5;
+  string turn_id = 6;
+  string run_id = 7;
+  string receipt_json = 8; // blueprint temporary input {id,revision}
 }
 
 message ToolInfo {
@@ -349,6 +375,9 @@ message ApprovalDecisionRequest {
   // AllowOnce | AllowRun | AllowWorkspace | AllowGlobal |
   // DenyOnce | DenyRun | DenyWorkspace | DenyGlobal
   string decision = 3;
+  // New clients probe ApprovalDelivery before using this protected contract.
+  string target_json = 4;
+  string content_digest = 5;
 }
 
 message GetExecutionUsageRequest {
@@ -558,16 +587,22 @@ message FileList {
 message ReadFileRequest {
   string workspace_path = 1;
   string path = 2;
+  bool freeze_reference = 3;
 }
 
 message ReadFileResponse {
   string content = 1;
+  string file_reference_json = 2;
+  // Exact UTF-8 bytes; protobuf string decoders may consume a leading BOM.
+  optional bytes content_utf8 = 3;
 }
 
 message WriteFileRequest {
   string workspace_path = 1;
   string path = 2;
   string content = 3;
+  optional string expected_content = 4;
+  bool create_only = 5;
 }
 
 message StatFileRequest {
@@ -605,6 +640,8 @@ message RevealInExplorerRequest {
 
 message WatchWorkspaceRequest {
   string workspace_path = 1;
+  // Opt in to one bounded stream for business changes, files and jobs.
+  bool include_activity = 2;
 }
 
 message WatchEvent {
@@ -612,6 +649,15 @@ message WatchEvent {
   string path = 1;
   // One of: created | modified | removed.
   string kind = 2;
+}
+
+message WorkspaceChange {
+  // Connection-local invalidation sequence, not a persisted database revision.
+  uint64 sequence = 1;
+  WatchEvent file_event = 2;
+  JobEvent job_event = 3;
+  // Explicit acknowledgement: old hosts return false, never silently lose events.
+  bool activity_supported = 4;
 }
 
 // ---- Background commands (jobs) ------------------------------------------------
@@ -715,6 +761,9 @@ message ChatEvent {
 
 message AbortChatRequest {
   string workspace_path = 1;
+  string session_id = 2;
+  string turn_id = 3;
+  string receipt_json = 4; // optional {id,revision}
 }
 
 message ListChatSessionsRequest {

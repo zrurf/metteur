@@ -194,24 +194,73 @@ const DEMO_HISTORY: FileHistoryEntry[] = [
 ]
 
 const DEMO_ADDONS: AddonInfo[] = [
-  { id: 'shell', name: 'shell', version: '1.4.0', description: '', enabled: true, scope: 'global', toolCount: 3, fragmentCount: 1 },
-  { id: 'lsp-hints', name: 'lsp-hints', version: '0.9.2', description: '', enabled: true, scope: 'global', toolCount: 2, fragmentCount: 0 },
-  { id: 'sky-tools', name: 'sky-tools', version: '0.2.0', description: '', enabled: false, scope: 'workspace', toolCount: 1, fragmentCount: 0 },
+  {
+    id: 'shell',
+    name: 'shell',
+    version: '1.4.0',
+    description: '',
+    enabled: true,
+    scope: 'global',
+    toolCount: 3,
+    fragmentCount: 1,
+  },
+  {
+    id: 'lsp-hints',
+    name: 'lsp-hints',
+    version: '0.9.2',
+    description: '',
+    enabled: true,
+    scope: 'global',
+    toolCount: 2,
+    fragmentCount: 0,
+  },
+  {
+    id: 'sky-tools',
+    name: 'sky-tools',
+    version: '0.2.0',
+    description: '',
+    enabled: false,
+    scope: 'workspace',
+    toolCount: 1,
+    fragmentCount: 0,
+  },
 ]
 
 const DEMO_USAGE: UsageSummary = {
   currency: 'USD',
   totalCostMicros: 3_210_000,
   models: [
-    { model: 'claude-4', calls: 18, inputTokens: 1_100_000, outputTokens: 550_000, reasoningTokens: 0, costMicros: 2_400_000, cachedInputTokens: 820_000, cacheWriteInputTokens: 140_000 },
-    { model: 'deepseek-v4', calls: 24, inputTokens: 668_500, outputTokens: 100_000, reasoningTokens: 0, costMicros: 810_000, cachedInputTokens: 410_000, cacheWriteInputTokens: 0 },
+    {
+      model: 'claude-4',
+      calls: 18,
+      inputTokens: 1_100_000,
+      outputTokens: 550_000,
+      reasoningTokens: 0,
+      costMicros: 2_400_000,
+      cachedInputTokens: 820_000,
+      cacheWriteInputTokens: 140_000,
+    },
+    {
+      model: 'deepseek-v4',
+      calls: 24,
+      inputTokens: 668_500,
+      outputTokens: 100_000,
+      reasoningTokens: 0,
+      costMicros: 810_000,
+      cachedInputTokens: 410_000,
+      cacheWriteInputTokens: 0,
+    },
   ],
 }
 
 /** Demo task list shown by the mock gateway. */
 const DEMO_TODOS: TodoItem[] = [
   { content: 'Read the existing parser', status: 'completed' },
-  { content: 'Add the fallback branch', status: 'in_progress', activeForm: 'Adding the fallback branch' },
+  {
+    content: 'Add the fallback branch',
+    status: 'in_progress',
+    activeForm: 'Adding the fallback branch',
+  },
   { content: 'Run the test suite', status: 'pending' },
 ]
 
@@ -430,7 +479,33 @@ const msgId = () => `m-${Date.now()}-${msgSeq++}`
  * built and validated before the real Connect transport lands.
  */
 export class MockGateway implements DaemonGateway {
-  async resourceRequest(): Promise<Result<unknown>> { return err('Project resources require a daemon connection. Use the isolated NX preview for fixture interactions.') }
+  async resourceRequest(
+    method?: import('./resources').ResourceMethod,
+    workspace = '',
+    payload?: unknown,
+  ): Promise<Result<unknown>> {
+    if (
+      method === 'chatDelivery' &&
+      (payload as { operation?: string })?.operation === 'admission'
+    ) {
+      const run = this.runs.get(workspace),
+        active = run && ['running', 'paused'].includes(run.status)
+      return ok({
+        state: active ? 'blueprint' : 'idle',
+        run: active ? `run-${workspace.length}` : null,
+        session: null,
+        turn: null,
+        reason: active ? (run.paused ? 'Blueprint is paused' : 'Blueprint is running') : '',
+      })
+    }
+    if (method === 'chatDelivery')
+      return err('Unimplemented: durable delivery receipts require a daemon connection.')
+    if (method === 'recovery')
+      return err('Unimplemented: recovery requires a daemon; mock input is not durably backed up.')
+    return err(
+      'Project resources require a daemon connection. Use the isolated NX preview for fixture interactions.',
+    )
+  }
   readonly connected = ref(false)
   readonly demo = true
   private runs = new Map<string, RunState>()
@@ -443,6 +518,34 @@ export class MockGateway implements DaemonGateway {
   private jobs = new Map<string, JobInfo>()
   /** Open workspaces in memory so the tab strip can switch/close real entries. */
   private openWs = new Set<string>([DEMO_WS])
+  private filesystems = new Map<string, { nodes: FileTreeNode[]; files: Map<string, string> }>()
+
+  private filesystem(ws: string) {
+    let fs = this.filesystems.get(ws)
+    if (!fs) {
+      fs = { nodes: deepClone(DEMO_TREE), files: new Map(DEMO_FILES) }
+      this.filesystems.set(ws, fs)
+    }
+    return fs
+  }
+
+  private fileNode(ws: string, path: string): FileTreeNode | undefined {
+    const find = (nodes: FileTreeNode[]): FileTreeNode | undefined => {
+      for (const node of nodes) {
+        if (node.path === path) return node
+        const nested = node.children && find(node.children)
+        if (nested) return nested
+      }
+    }
+    return find(this.filesystem(ws).nodes)
+  }
+
+  private directory(ws: string, path: string): FileTreeNode[] | undefined {
+    if (!path) return this.filesystem(ws).nodes
+    const node = this.fileNode(ws, path)
+    if (node?.kind !== 'dir') return undefined
+    return (node.children ??= [])
+  }
 
   async connect(): Promise<Result<void>> {
     return ok(undefined)
@@ -503,7 +606,13 @@ export class MockGateway implements DaemonGateway {
     const r = await this.getConfig(workspacePath)
     if (!r.ok) return r
     const raw = r.data
-    return ok({ defaults: {}, raw, overrides: { ...raw, config_version: 2 }, effective: raw, legacy: false })
+    return ok({
+      defaults: {},
+      raw,
+      overrides: { ...raw, config_version: 2 },
+      effective: raw,
+      legacy: false,
+    })
   }
 
   async getConfig(workspacePath = ''): Promise<Result<DaemonConfig>> {
@@ -518,20 +627,44 @@ export class MockGateway implements DaemonGateway {
   }
 
   // File explorer / editors ---------------------------------------------------
-  async listFiles(_ws: string, _dir: string): Promise<Result<FileTreeNode[]>> {
+  async listFiles(ws: string, dir: string): Promise<Result<FileTreeNode[]>> {
     await delay(80)
-    return ok(DEMO_TREE)
+    const nodes = this.directory(ws, dir.replaceAll('\\', '/').replace(/^\/+|\/+$/g, ''))
+    if (!nodes) return err(`directory not found: ${dir}`)
+    // The real RPC returns one directory level. Never expose mutable backing nodes.
+    return ok(nodes.map(({ name, path, kind }) => ({ name, path, kind })))
   }
 
-  async readFile(ws: string, filePath: string): Promise<Result<FileContent>> {
+  async readFile(
+    ws: string,
+    filePath: string,
+    freezeReference = false,
+  ): Promise<Result<FileContent>> {
+    if (freezeReference && isConfigDoc(filePath))
+      return err('Configuration cannot be used as a saved file reference')
+    const result = await this.readSavedFile(ws, filePath)
+    if (!result.ok || !freezeReference) return result
+    const { fileTextDigest } = await import('./file-reference')
+    return ok({
+      ...result.data,
+      reference: {
+        snapshotId: crypto.randomUUID(),
+        path: filePath.replaceAll('\\', '/'),
+        digest: await fileTextDigest(result.data.content),
+      },
+    })
+  }
+  private async readSavedFile(ws: string, filePath: string): Promise<Result<FileContent>> {
     if (isConfigDoc(filePath)) {
       const scopePath = configScopeOf(filePath) === 'user' ? '' : ws
       const cfg = await this.getConfig(scopePath)
       return cfg.ok ? ok({ content: configToToml(cfg.data), language: 'toml' }) : cfg
     }
     await delay(90)
-    const key = filePath.replace(/^[\\/]+/i, '')
-    if (key.endsWith('.blueprint')) {
+    const key = filePath.replaceAll('\\', '/').replace(/^\/+/, '')
+    if (!this.fileNode(ws, key)) return err(`file not found: ${filePath}`)
+    const content = this.filesystem(ws).files.get(key)
+    if (key.endsWith('.blueprint') && content === undefined) {
       const name =
         key
           .split(/[\\/]/)
@@ -539,12 +672,16 @@ export class MockGateway implements DaemonGateway {
           ?.replace(/\.blueprint$/, '') ?? 'blueprint'
       return ok({ content: BLUEPRINT_SOURCE(name), language: 'blueprint' })
     }
-    const content = DEMO_FILES.get(key)
     if (content === undefined) return err(`file not found: ${filePath}`)
     return ok({ content, language: key.endsWith('.json') ? 'json' : 'text' })
   }
 
-  async writeFile(ws: string, filePath: string, content: string): Promise<Result<void>> {
+  async writeFile(
+    ws: string,
+    filePath: string,
+    content: string,
+    options?: { expectedContent?: string; createOnly?: boolean },
+  ): Promise<Result<void>> {
     if (isConfigDoc(filePath)) {
       const parsed = tryParseToml(content)
       if (!parsed) return err('Saved content is not valid TOML')
@@ -552,19 +689,57 @@ export class MockGateway implements DaemonGateway {
       return this.setConfig(parsed, scopePath)
     }
     await delay(120)
-    const key = filePath.replace(/^[\\/]+/i, '')
-    if (!key.endsWith('.blueprint')) DEMO_FILES.set(key, content)
+    const key = filePath.replaceAll('\\', '/').replace(/^\/+/, '')
+    const fs = this.filesystem(ws),
+      node = this.fileNode(ws, key)
+    if (node?.kind === 'dir') return err('path is a directory')
+    if (options?.createOnly && node) return err('file already exists')
+    const existing =
+      fs.files.get(key) ??
+      (node && key.endsWith('.blueprint')
+        ? BLUEPRINT_SOURCE(node.name.replace(/\.blueprint$/, ''))
+        : undefined)
+    if (options?.expectedContent !== undefined && existing !== options.expectedContent)
+      return err('File changed on disk; reload or explicitly overwrite it')
+    const parent = key.includes('/') ? key.slice(0, key.lastIndexOf('/')) : ''
+    const created = await this.createDir(ws, parent)
+    if (!created.ok) return created
+    if (!node)
+      this.directory(ws, parent)!.push({ name: key.split('/').pop()!, path: key, kind: 'file' })
+    fs.files.set(key, content)
     return ok(undefined)
   }
 
-  async createDir(_ws: string, _dirPath: string): Promise<Result<void>> {
+  async createDir(ws: string, dirPath: string): Promise<Result<void>> {
     await delay(80)
+    let parent = '',
+      nodes = this.filesystem(ws).nodes
+    for (const name of dirPath.replaceAll('\\', '/').split('/').filter(Boolean)) {
+      const path = parent ? `${parent}/${name}` : name
+      let node = nodes.find((n) => n.path === path)
+      if (node && node.kind !== 'dir') return err('path is a file')
+      if (!node) {
+        node = { name, path, kind: 'dir', children: [] }
+        nodes.push(node)
+      }
+      nodes = node.children ??= []
+      parent = path
+    }
     return ok(undefined)
   }
 
-  async removeFile(_ws: string, filePath: string): Promise<Result<void>> {
+  async removeFile(ws: string, filePath: string): Promise<Result<void>> {
     await delay(80)
-    DEMO_FILES.delete(filePath.replace(/^[\\/]+/i, ''))
+    const key = filePath.replaceAll('\\', '/').replace(/^\/+/, '')
+    if (!this.fileNode(ws, key)) return err(`file not found: ${filePath}`)
+    const parent = key.includes('/') ? key.slice(0, key.lastIndexOf('/')) : ''
+    const nodes = this.directory(ws, parent)!
+    nodes.splice(
+      nodes.findIndex((n) => n.path === key),
+      1,
+    )
+    for (const path of this.filesystem(ws).files.keys())
+      if (path === key || path.startsWith(key + '/')) this.filesystem(ws).files.delete(path)
     return ok(undefined)
   }
 
@@ -573,22 +748,47 @@ export class MockGateway implements DaemonGateway {
     return ok(undefined)
   }
 
-  async renameFile(_ws: string, from: string, to: string): Promise<Result<void>> {
+  async renameFile(ws: string, from: string, to: string): Promise<Result<void>> {
     await delay(80)
-    const key = from.replace(/^[\\/]+/i, '')
-    const content = DEMO_FILES.get(key)
-    if (content !== undefined) {
-      DEMO_FILES.delete(key)
-      DEMO_FILES.set(to.replace(/^[\\/]+/i, ''), content)
+    const key = from.replaceAll('\\', '/').replace(/^\/+/, ''),
+      target = to.replaceAll('\\', '/').replace(/^\/+/, '')
+    const node = this.fileNode(ws, key)
+    if (!node) return err(`file not found: ${from}`)
+    if (key === target) return ok(undefined)
+    if (target.startsWith(key + '/')) return err('cannot move a directory into itself')
+    if (this.fileNode(ws, target)) return err('destination already exists')
+    const parent = target.includes('/') ? target.slice(0, target.lastIndexOf('/')) : ''
+    const dest = this.directory(ws, parent)
+    if (!dest) return err('destination directory not found')
+    const source = this.directory(ws, key.includes('/') ? key.slice(0, key.lastIndexOf('/')) : '')!
+    source.splice(source.indexOf(node), 1)
+    const move = (entry: FileTreeNode) => {
+      entry.path = target + entry.path.slice(key.length)
+      entry.children?.forEach(move)
     }
+    move(node)
+    node.name = target.split('/').pop()!
+    dest.push(node)
+    const files = this.filesystem(ws).files
+    for (const [path, content] of [...files])
+      if (path === key || path.startsWith(key + '/')) {
+        files.delete(path)
+        files.set(target + path.slice(key.length), content)
+      }
     return ok(undefined)
   }
 
-  async statFile(_ws: string, path: string): Promise<Result<FileInfo>> {
+  async statFile(ws: string, path: string): Promise<Result<FileInfo>> {
     await delay(60)
-    const key = path.replace(/^[\\/]+/i, '')
-    const isDir = !key.includes('.')
-    return ok({ path, isDir, len: isDir ? 0 : (DEMO_FILES.get(key)?.length ?? 0) })
+    const key = path.replaceAll('\\', '/').replace(/^\/+|\/+$/g, '')
+    const node = this.fileNode(ws, key)
+    if (key && !node) return err(`file not found: ${path}`)
+    const isDir = !key || node?.kind === 'dir'
+    return ok({
+      path: key,
+      isDir,
+      len: isDir ? 0 : (this.filesystem(ws).files.get(key)?.length ?? 0),
+    })
   }
 
   /** Demo jobs, oldest first, as the real daemon reports them. */
@@ -652,8 +852,14 @@ export class MockGateway implements DaemonGateway {
       if (signal?.aborted) return true
       const job = this.jobs.get(id)
       if (job?.state !== 'killed') return false
-      push({ jobId: id, kind: 'finished', chunk: '', state: 'killed', exitCode: -1,
-        summary: `${id} | killed | ${job.tail.length} bytes | pnpm build` })
+      push({
+        jobId: id,
+        kind: 'finished',
+        chunk: '',
+        state: 'killed',
+        exitCode: -1,
+        summary: `${id} | killed | ${job.tail.length} bytes | pnpm build`,
+      })
       return true
     }
     for (const line of script) {
@@ -731,6 +937,18 @@ export class MockGateway implements DaemonGateway {
     })
   }
 
+  async watchWorkspaceChanges(
+    _ws: string,
+    onChange: () => void,
+    signal?: AbortSignal,
+  ): Promise<Result<void>> {
+    onChange()
+    return new Promise((resolve) => {
+      if (signal?.aborted) return resolve(ok(undefined))
+      signal?.addEventListener('abort', () => resolve(ok(undefined)), { once: true })
+    })
+  }
+
   // ReAct chat ----------------------------------------------------------------
   async sendChat(
     ws: string,
@@ -745,9 +963,11 @@ export class MockGateway implements DaemonGateway {
     signal?: AbortSignal,
     onProgress?: (progress: { name: string; bytes: number }) => void,
     onContext?: (stats: ChatContextStats) => void,
-    onApproval?: (request: { requestId: string; detail: string }) => void,
+    onApproval?: (request: { requestId: string; detail: string; contentDigest?: string }) => void,
   ): Promise<Result<void>> {
     this.chatAbort.delete(ws)
+    if (options?.delivery)
+      return err('Unimplemented: mock turns do not provide durable delivery receipts.')
     // The demo never blocks on a decision; the parameter exists so a caller can
     // pass the callback without the signature diverging from the real gateway.
     void onApproval
@@ -961,16 +1181,29 @@ export class MockGateway implements DaemonGateway {
     return ok(undefined)
   }
 
-  async rewindChat(ws: string, _sessionId: string, snapshotId: string): Promise<Result<ChatSessionSnapshot>> {
+  async rewindChat(
+    ws: string,
+    _sessionId: string,
+    snapshotId: string,
+  ): Promise<Result<ChatSessionSnapshot>> {
     const log = this.chatLog.get(ws) ?? []
-    const index = log.findIndex((message) => message.role === 'user' && message.checkpoint === snapshotId)
+    const index = log.findIndex(
+      (message) => message.role === 'user' && message.checkpoint === snapshotId,
+    )
     if (index < 0) return err('Paired chat checkpoint not found')
     this.chatAbort.add(ws)
     const transcript = structuredClone(log.slice(0, index))
     // A real RPC returns independent decoded objects, not the storage buffer.
     this.chatLog.set(ws, structuredClone(transcript))
-    return ok({ sessionId: 'demo', createdAt: transcript[0]?.createdAt ?? Date.now(), transcript,
-      history: transcript.filter((message) => message.role === 'user' || message.role === 'assistant'), todos: index ? DEMO_TODOS : [] })
+    return ok({
+      sessionId: 'demo',
+      createdAt: transcript[0]?.createdAt ?? Date.now(),
+      transcript,
+      history: transcript.filter(
+        (message) => message.role === 'user' || message.role === 'assistant',
+      ),
+      todos: index ? DEMO_TODOS : [],
+    })
   }
 
   // Blueprints ----------------------------------------------------------------
@@ -1011,7 +1244,10 @@ export class MockGateway implements DaemonGateway {
     return err('Connect a daemon to import addon functions')
   }
 
-  async decompileBlueprint(_ws: string, blueprintOrId: Blueprint | string): Promise<Result<string>> {
+  async decompileBlueprint(
+    _ws: string,
+    blueprintOrId: Blueprint | string,
+  ): Promise<Result<string>> {
     // When given the live canvas, produce a compact textual skeleton so the
     // export flow stays usable without a real DSL compiler.
     const bp = typeof blueprintOrId === 'string' ? undefined : blueprintOrId
@@ -1076,7 +1312,11 @@ export class MockGateway implements DaemonGateway {
     return ok(undefined)
   }
 
-  async continueExecution(ws: string, _runId: string, onEvent: (e: ExecutionEvent) => void): Promise<Result<void>> {
+  async continueExecution(
+    ws: string,
+    _runId: string,
+    onEvent: (e: ExecutionEvent) => void,
+  ): Promise<Result<void>> {
     const state = this.state(ws)
     state.onEvent = onEvent
     onEvent({ nodeId: 'n-valid', kind: 'message', message: 'resumed pipeline', detail: {} })
@@ -1146,8 +1386,21 @@ export class MockGateway implements DaemonGateway {
     const state = this.runs.get(ws)
     if (!state) return ok([])
     const status =
-      state.status === 'paused' ? 'Suspended' : state.status === 'finished' ? 'Completed' : 'Running'
-    return ok([{ runId: `run-${ws.length}`, blueprintId: 'bp-build-feature', status, startedAt: Date.now() - 5_000, updatedAt: Date.now(), executedNodes: 6 }])
+      state.status === 'paused'
+        ? 'Suspended'
+        : state.status === 'finished'
+          ? 'Completed'
+          : 'Running'
+    return ok([
+      {
+        runId: `run-${ws.length}`,
+        blueprintId: 'bp-build-feature',
+        status,
+        startedAt: Date.now() - 5_000,
+        updatedAt: Date.now(),
+        executedNodes: 6,
+      },
+    ])
   }
 
   async getExecutionTree(_ws: string, _runId: string): Promise<Result<ExecTreeData>> {
@@ -1177,15 +1430,33 @@ export class MockGateway implements DaemonGateway {
     return ok(DEMO_MCP)
   }
 
-  async getBlackboard(_ws: string, _runId: string, _query?: BoardQuery): Promise<Result<Blackboard>> {
+  async getBlackboard(
+    _ws: string,
+    _runId: string,
+    _query?: BoardQuery,
+  ): Promise<Result<Blackboard>> {
     return { ok: false, error: 'Blackboard requires a recorded daemon run.' }
   }
 
-  async listOversightReports(_ws: string, _run: string): Promise<Result<OversightReports>> { return err('Supervisor reports require a daemon connection.') }
-  async getConciergeState(_ws: string, _run: string, _conversation: string): Promise<Result<ConciergeState>> {
+  async listOversightReports(_ws: string, _run: string): Promise<Result<OversightReports>> {
+    return err('Supervisor reports require a daemon connection.')
+  }
+  async getConciergeState(
+    _ws: string,
+    _run: string,
+    _conversation: string,
+  ): Promise<Result<ConciergeState>> {
     return err('Concierge requires a live daemon and a recorded blueprint run')
   }
-  async sendConciergeMessage(_ws: string, _run: string, _conversation: string, _id: string, _message: string, _onEvent: (event: ConciergeEvent) => void, _signal?: AbortSignal): Promise<Result<void>> {
+  async sendConciergeMessage(
+    _ws: string,
+    _run: string,
+    _conversation: string,
+    _id: string,
+    _message: string,
+    _onEvent: (event: ConciergeEvent) => void,
+    _signal?: AbortSignal,
+  ): Promise<Result<void>> {
     return err('Concierge requires a live daemon; no request was accepted')
   }
   async getExecutionUsage(_ws: string, _runId: string): Promise<Result<UsageSummary>> {

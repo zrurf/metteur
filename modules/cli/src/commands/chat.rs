@@ -1,9 +1,7 @@
 //! Chat command handlers: send/abort/sessions/clear.
 
 use metteur_proto::proto::daemon_client::DaemonClient;
-use metteur_proto::proto::{
-    AbortChatRequest, DeleteChatSessionRequest, ListChatSessionsRequest, SendChatRequest,
-};
+use metteur_proto::proto::{DeleteChatSessionRequest, ListChatSessionsRequest, SendChatRequest};
 use tonic::transport::Channel;
 
 use super::*;
@@ -57,13 +55,11 @@ pub(crate) async fn handle_abort(
     state: &SessionState,
 ) -> anyhow::Result<Outcome> {
     let ws = require_ws(state)?;
-    client
-        .abort_chat(AbortChatRequest {
-            workspace_path: ws,
-        })
-        .await
-        .map_err(status)?;
-    Ok(Outcome::Printed("abort requested".to_string()))
+    let target = live_target(client, &ws, true).await?;
+    if target.kind != "chat" {
+        anyhow::bail!("The foreground owner is not a chat; abort was not redirected");
+    }
+    Ok(Outcome::Printed(super::live::workflow_control(client, &ws, &target, "stop", None).await?))
 }
 
 /// Handles `chat sessions`: lists chat threads of the workspace.

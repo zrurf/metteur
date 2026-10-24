@@ -70,11 +70,12 @@ impl Tool for ExecuteCommand {
 
     async fn call(&self, args: &[Value], ctx: &mut ExecutionContext) -> DaemonResult<Value> {
         let a = Args::new(args);
-        let command = a
-            .string("command", 0)
-            .ok_or_else(|| DaemonError::Execution("ExecuteCommand requires a command".to_string()))?;
+        let command = a.string("command", 0).ok_or_else(|| {
+            DaemonError::Execution("ExecuteCommand requires a command".to_string())
+        })?;
         let cwd_arg = a.string("cwd", 1);
-        let explicit_timeout = a.int("timeout_secs", 2).filter(|value| *value > 0).map(|v| v as u64);
+        let explicit_timeout =
+            a.int("timeout_secs", 2).filter(|value| *value > 0).map(|v| v as u64);
 
         let settings = JobSettings::from_config(ctx).await;
         let cwd = ctx.jobs.resolve_cwd(cwd_arg.as_deref())?;
@@ -83,6 +84,7 @@ impl Tool for ExecuteCommand {
 
         let snapshot = wait_for_job(ctx, &job_id, timeout).await?;
         let tail = ctx.jobs.tail(&job_id, settings.tail_lines);
+        ctx.jobs.mark_result_delivered(&job_id);
         Ok(Value::Json(result_payload(&snapshot, &tail)))
     }
 }
@@ -107,20 +109,34 @@ async fn start_command(
     let handle = ctx.continuation.clone();
     let mut registered = None;
     let started = ctx.jobs.start_registered(command, cwd, ctx.run_id, output_cap, |id| {
-        if let Some(handle) = &handle { if ctx.handoff_ref.is_some() && ctx.blueprint.is_some(){handle.register_run_job(id,ctx.run_id)?;}else{handle.register(id, "job", true)?;} registered=Some(id.to_owned()); }
+        if let Some(handle) = &handle {
+            if ctx.handoff_ref.is_some() && ctx.blueprint.is_some() {
+                handle.register_run_job(id, ctx.run_id)?;
+            } else {
+                handle.register(id, "job", true)?;
+            }
+            registered = Some(id.to_owned());
+        }
         Ok(())
     });
-    let job_id=match started {
-        Ok(id)=>id,
-        Err(error)=>{
-            if let (Some(handle),Some(id))=(&handle,registered){handle.finish(&id,crate::continuation::state::Terminal::Failed,serde_json::json!({"started":false,"reason":"process_spawn_failed"}),chrono::Utc::now().timestamp_millis().max(0) as u64)?;}
+    let job_id = match started {
+        Ok(id) => id,
+        Err(error) => {
+            if let (Some(handle), Some(id)) = (&handle, registered) {
+                handle.finish(
+                    &id,
+                    crate::continuation::state::Terminal::Failed,
+                    serde_json::json!({"started":false,"reason":"process_spawn_failed"}),
+                    chrono::Utc::now().timestamp_millis().max(0) as u64,
+                )?;
+            }
             return Err(error);
         }
     };
     if let Some(handle) = handle {
         let jobs = ctx.jobs.clone();
         let id = job_id.clone();
-        tokio::spawn(async move {
+        ctx.jobs.track_receipt(async move {
             if let Some(job) = jobs.wait(&id).await {
                 use crate::continuation::state::Terminal;
                 let status = match &job.state {
@@ -458,10 +474,13 @@ impl Tool for WaitJob {
                 return Err(DaemonError::Interrupted(format!("wait for job {job_id} cancelled")));
             }
         };
-        let snapshot = snapshot
-            .ok_or_else(|| DaemonError::Execution(format!("job {job_id} not found")))?;
+        let snapshot =
+            snapshot.ok_or_else(|| DaemonError::Execution(format!("job {job_id} not found")))?;
         let tail = ctx.jobs.tail(&job_id, settings.tail_lines);
         let mut payload = result_payload(&snapshot, &tail);
+        if snapshot.state.is_finished() {
+            ctx.jobs.mark_result_delivered(&job_id);
+        }
         if snapshot.state.is_running() {
             payload["note"] = serde_json::Value::String(
                 "still running; wait again or end your turn to be woken on completion".to_string(),

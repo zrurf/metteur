@@ -82,7 +82,9 @@ class BudgetError(RuntimeError):
     pass
 
 class Ledger:
-    def __init__(self, path, limit_usd, imported_nano_usd=0):
+    def __init__(self, path, limit_usd, imported_nano_usd=0, max_calls=None):
+        if max_calls is not None and (type(max_calls) is not int or max_calls < 1):
+            raise BudgetError('A positive explicit request limit is required')
         self.path = Path(path).resolve()
         self.limit = int(Decimal(str(limit_usd)) * 1_000_000_000)
         if self.limit <= 0:
@@ -90,9 +92,11 @@ class Ledger:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         with self.lock():
             if not self.path.exists():
-                atomic_json(self.path, {'schema_version': 1, 'limit_nano_usd': self.limit, 'imported_estimated_nano_usd': imported_nano_usd, 'calls': [], 'fingerprint_epoch': secrets.token_hex(16)})
+                atomic_json(self.path, {'schema_version': 1, 'limit_nano_usd': self.limit, 'imported_estimated_nano_usd': imported_nano_usd, 'max_calls': max_calls, 'calls': [], 'fingerprint_epoch': secrets.token_hex(16)})
             if self.read()['limit_nano_usd'] != self.limit:
                 raise BudgetError('Existing ledger limit differs; never silently reset or raise it')
+            if max_calls is not None and self.read().get('max_calls') != max_calls:
+                raise BudgetError('Existing request limit differs; use its original authorized scope')
 
     @contextmanager
     def lock(self):
@@ -136,6 +140,8 @@ class Ledger:
                 atomic_json(self.path, data)
             if any(c['state'] == 'unknown' for c in data['calls']):
                 raise BudgetError('An unknown outcome requires reconciliation before another paid call')
+            if data.get('max_calls') is not None and len(data['calls']) >= data['max_calls']:
+                raise BudgetError('Authorized model request count exhausted')
             committed = data['imported_estimated_nano_usd'] + sum(c.get('charged_upper_nano_usd', c['reserved_nano_usd']) for c in data['calls'])
             if committed + reservation > self.limit:
                 raise BudgetError('Insufficient remaining authorized budget')

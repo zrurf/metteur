@@ -265,6 +265,7 @@ async fn run_case(mode: Mode) {
             Request::new(metteur_proto::proto::CancelRequest {
                 workspace_path: root.to_string_lossy().into(),
                 run_id: run.to_string(),
+                ..Default::default()
             }),
         )
         .await

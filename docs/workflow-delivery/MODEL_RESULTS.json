@@ -1,0 +1,717 @@
+{
+  "schema": 1,
+  "budget_usd": 3,
+  "request_cap": 240,
+  "paid_requests": 179,
+  "charged_upper_usd": 0.459912,
+  "unsettled_requests": 0,
+  "usage": {
+    "input_tokens": {
+      "reported_total": 1287276,
+      "coverage": 179,
+      "requests": 179
+    },
+    "output_tokens": {
+      "reported_total": 61441,
+      "coverage": 179,
+      "requests": 179
+    },
+    "cached_input_tokens": {
+      "reported_total": 1031808,
+      "coverage": 179,
+      "requests": 179
+    },
+    "reasoning_tokens": {
+      "reported_total": 18522,
+      "coverage": 179,
+      "requests": 179
+    }
+  },
+  "trials": [
+    {
+      "name": "model-evaluation-first",
+      "frozen_digest": "1cb54e8b43648556124d8b185d0d8fd419d1a4edf4877a943608628f60f77574",
+      "source_digest": "a9f669449412e20cda65d18c1c5d298d455f8102874b25d98feacde73c8ea58a",
+      "implementation_iterations": 8,
+      "cells": [
+        {
+          "task": "fix_bug",
+          "changes": [
+            "app.py",
+            "test_added.py"
+          ],
+          "checks": {
+            "scope": true,
+            "actual_change": true,
+            "independent_behavior": true,
+            "public_regression": true,
+            "added_tests_present": true,
+            "added_tests_pass": true
+          },
+          "passed": true,
+          "mode": "react",
+          "driver_exit": 0,
+          "wall_seconds": 32.95,
+          "model_requests": 9,
+          "runtime_completed": false,
+          "runtime_errors": [
+            "execution error: iteration budget exhausted without a final answer"
+          ],
+          "role_calls": {
+            "main_executor": 9
+          },
+          "unexpected_files": [],
+          "blueprint_matches_frozen_run": null,
+          "artifact_passed": true,
+          "complete_delivery": false,
+          "charged_upper_usd": 0.0207381,
+          "automated_approval_count": 0
+        },
+        {
+          "task": "fix_bug",
+          "changes": [
+            "app.py",
+            "test_added.py"
+          ],
+          "checks": {
+            "scope": true,
+            "actual_change": true,
+            "independent_behavior": true,
+            "public_regression": true,
+            "added_tests_present": true,
+            "added_tests_pass": true
+          },
+          "passed": true,
+          "mode": "plan_execute",
+          "driver_exit": 1,
+          "wall_seconds": 36.22,
+          "model_requests": 9,
+          "runtime_completed": false,
+          "runtime_errors": [
+            "ConnectError: [internal] execution error: iteration budget exhausted without a final answer"
+          ],
+          "role_calls": {
+            "blueprint_executor": 9
+          },
+          "unexpected_files": [],
+          "blueprint_matches_frozen_run": true,
+          "artifact_passed": true,
+          "complete_delivery": false,
+          "charged_upper_usd": 0.0237972,
+          "automated_approval_count": 2
+        },
+        {
+          "task": "fix_bug",
+          "changes": [
+            "app.py",
+            "test_added.py"
+          ],
+          "checks": {
+            "scope": true,
+            "actual_change": true,
+            "independent_behavior": true,
+            "public_regression": true,
+            "added_tests_present": true,
+            "added_tests_pass": true
+          },
+          "passed": true,
+          "mode": "plan_execute_supervised",
+          "driver_exit": 1,
+          "wall_seconds": 28.83,
+          "model_requests": 9,
+          "runtime_completed": false,
+          "runtime_errors": [
+            "ConnectError: [internal] execution error: iteration budget exhausted without a final answer"
+          ],
+          "role_calls": {
+            "blueprint_executor": 9
+          },
+          "unexpected_files": [],
+          "blueprint_matches_frozen_run": true,
+          "artifact_passed": true,
+          "complete_delivery": false,
+          "charged_upper_usd": 0.0216597,
+          "automated_approval_count": 0
+        },
+        {
+          "task": "add_tests",
+          "changes": [
+            "test_added.py"
+          ],
+          "checks": {
+            "scope": true,
+            "actual_change": true,
+            "independent_behavior": true,
+            "public_regression": true,
+            "added_tests_present": true,
+            "added_tests_pass": true,
+            "detect_trim": true,
+            "detect_duplicates": true
+          },
+          "passed": true,
+          "mode": "plan_execute",
+          "driver_exit": 1,
+          "wall_seconds": 40.64,
+          "model_requests": 9,
+          "runtime_completed": false,
+          "runtime_errors": [
+            "ConnectError: [internal] execution error: iteration budget exhausted without a final answer"
+          ],
+          "role_calls": {
+            "blueprint_executor": 9
+          },
+          "unexpected_files": [],
+          "blueprint_matches_frozen_run": true,
+          "artifact_passed": true,
+          "complete_delivery": false,
+          "charged_upper_usd": 0.0230889,
+          "automated_approval_count": 2
+        },
+        {
+          "task": "add_tests",
+          "changes": [
+            "test_added.py"
+          ],
+          "checks": {
+            "scope": true,
+            "actual_change": true,
+            "independent_behavior": true,
+            "public_regression": true,
+            "added_tests_present": true,
+            "added_tests_pass": true,
+            "detect_trim": true,
+            "detect_duplicates": true
+          },
+          "passed": true,
+          "mode": "plan_execute_supervised",
+          "driver_exit": 1,
+          "wall_seconds": 32.5,
+          "model_requests": 9,
+          "runtime_completed": false,
+          "runtime_errors": [
+            "ConnectError: [internal] execution error: iteration budget exhausted without a final answer"
+          ],
+          "role_calls": {
+            "blueprint_executor": 9
+          },
+          "unexpected_files": [],
+          "blueprint_matches_frozen_run": true,
+          "artifact_passed": true,
+          "complete_delivery": false,
+          "charged_upper_usd": 0.0235113,
+          "automated_approval_count": 2
+        },
+        {
+          "task": "add_tests",
+          "changes": [
+            "test_added.py"
+          ],
+          "checks": {
+            "scope": true,
+            "actual_change": true,
+            "independent_behavior": true,
+            "public_regression": true,
+            "added_tests_present": true,
+            "added_tests_pass": true,
+            "detect_trim": true,
+            "detect_duplicates": true
+          },
+          "passed": true,
+          "mode": "react",
+          "driver_exit": 0,
+          "wall_seconds": 19.88,
+          "model_requests": 7,
+          "runtime_completed": true,
+          "runtime_errors": [],
+          "role_calls": {
+            "main_executor": 7
+          },
+          "unexpected_files": [],
+          "blueprint_matches_frozen_run": null,
+          "artifact_passed": true,
+          "complete_delivery": true,
+          "charged_upper_usd": 0.0168984,
+          "automated_approval_count": 0
+        },
+        {
+          "task": "refactor",
+          "changes": [
+            "app.py",
+            "test_added.py"
+          ],
+          "checks": {
+            "scope": true,
+            "actual_change": true,
+            "independent_behavior": true,
+            "public_regression": true,
+            "added_tests_present": true,
+            "added_tests_pass": false
+          },
+          "passed": false,
+          "mode": "plan_execute_supervised",
+          "driver_exit": 1,
+          "wall_seconds": 28.73,
+          "model_requests": 9,
+          "runtime_completed": false,
+          "runtime_errors": [
+            "ConnectError: [internal] execution error: iteration budget exhausted without a final answer"
+          ],
+          "role_calls": {
+            "blueprint_executor": 9
+          },
+          "unexpected_files": [],
+          "blueprint_matches_frozen_run": true,
+          "artifact_passed": false,
+          "complete_delivery": false,
+          "charged_upper_usd": 0.025293,
+          "automated_approval_count": 3
+        },
+        {
+          "task": "refactor",
+          "changes": [
+            "app.py",
+            "test_added.py"
+          ],
+          "checks": {
+            "scope": true,
+            "actual_change": true,
+            "independent_behavior": true,
+            "public_regression": true,
+            "added_tests_present": true,
+            "added_tests_pass": true
+          },
+          "passed": true,
+          "mode": "react",
+          "driver_exit": 0,
+          "wall_seconds": 24.02,
+          "model_requests": 9,
+          "runtime_completed": false,
+          "runtime_errors": [
+            "execution error: iteration budget exhausted without a final answer"
+          ],
+          "role_calls": {
+            "main_executor": 9
+          },
+          "unexpected_files": [],
+          "blueprint_matches_frozen_run": null,
+          "artifact_passed": true,
+          "complete_delivery": false,
+          "charged_upper_usd": 0.0208101,
+          "automated_approval_count": 0
+        },
+        {
+          "task": "refactor",
+          "changes": [
+            "app.py",
+            "test_added.py"
+          ],
+          "checks": {
+            "scope": true,
+            "actual_change": true,
+            "independent_behavior": true,
+            "public_regression": true,
+            "added_tests_present": true,
+            "added_tests_pass": true
+          },
+          "passed": true,
+          "mode": "plan_execute",
+          "driver_exit": 0,
+          "wall_seconds": 27.02,
+          "model_requests": 9,
+          "runtime_completed": true,
+          "runtime_errors": [],
+          "role_calls": {
+            "blueprint_executor": 9
+          },
+          "unexpected_files": [],
+          "blueprint_matches_frozen_run": true,
+          "artifact_passed": true,
+          "complete_delivery": true,
+          "charged_upper_usd": 0.0214425,
+          "automated_approval_count": 0
+        },
+        {
+          "task": "add_feature",
+          "changes": [
+            "app.py",
+            "probe_tmp.txt"
+          ],
+          "checks": {
+            "scope": false,
+            "actual_change": true,
+            "independent_behavior": true,
+            "public_regression": true,
+            "added_tests_present": false,
+            "added_tests_pass": false
+          },
+          "passed": false,
+          "mode": "react",
+          "driver_exit": 0,
+          "wall_seconds": 37.19,
+          "model_requests": 8,
+          "runtime_completed": true,
+          "runtime_errors": [],
+          "role_calls": {
+            "main_executor": 8
+          },
+          "unexpected_files": [
+            "probe_tmp.txt"
+          ],
+          "blueprint_matches_frozen_run": null,
+          "artifact_passed": false,
+          "complete_delivery": false,
+          "charged_upper_usd": 0.0258465,
+          "automated_approval_count": 0
+        },
+        {
+          "task": "add_feature",
+          "changes": [
+            "app.py"
+          ],
+          "checks": {
+            "scope": true,
+            "actual_change": true,
+            "independent_behavior": true,
+            "public_regression": true,
+            "added_tests_present": false,
+            "added_tests_pass": false
+          },
+          "passed": false,
+          "mode": "plan_execute",
+          "driver_exit": 1,
+          "wall_seconds": 24.95,
+          "model_requests": 6,
+          "runtime_completed": false,
+          "runtime_errors": [
+            "ConnectError: [internal] execution error: tool 'WriteFile' called 4 times with identical arguments"
+          ],
+          "role_calls": {
+            "blueprint_executor": 6
+          },
+          "unexpected_files": [],
+          "blueprint_matches_frozen_run": true,
+          "artifact_passed": false,
+          "complete_delivery": false,
+          "charged_upper_usd": 0.0173502,
+          "automated_approval_count": 0
+        },
+        {
+          "task": "add_feature",
+          "changes": [
+            "app.py"
+          ],
+          "checks": {
+            "scope": true,
+            "actual_change": true,
+            "independent_behavior": true,
+            "public_regression": true,
+            "added_tests_present": false,
+            "added_tests_pass": false
+          },
+          "passed": false,
+          "mode": "plan_execute_supervised",
+          "driver_exit": 1,
+          "wall_seconds": 37.92,
+          "model_requests": 8,
+          "runtime_completed": false,
+          "runtime_errors": [
+            "ConnectError: [internal] execution error: tool 'WriteFile' called 4 times with identical arguments"
+          ],
+          "role_calls": {
+            "blueprint_executor": 8
+          },
+          "unexpected_files": [],
+          "blueprint_matches_frozen_run": true,
+          "artifact_passed": false,
+          "complete_delivery": false,
+          "charged_upper_usd": 0.0224529,
+          "automated_approval_count": 0
+        }
+      ]
+    },
+    {
+      "name": "model-delivery-validation",
+      "frozen_digest": "1424b08e7d7ccc7216adaa97c30352b75c086f2f37e70f68a1ac64c2b8ccad5f",
+      "source_digest": "d0c0595585827a2d0f06b759dbf33cc6f237d38611659e59993dc78bccd39cd0",
+      "implementation_iterations": 10,
+      "cells": [
+        {
+          "task": "fix_bug",
+          "changes": [
+            "app.py",
+            "test_added.py"
+          ],
+          "checks": {
+            "scope": true,
+            "actual_change": true,
+            "independent_behavior": true,
+            "public_regression": true,
+            "added_tests_present": true,
+            "added_tests_pass": true
+          },
+          "passed": true,
+          "mode": "plan_execute",
+          "driver_exit": 1,
+          "wall_seconds": 37.89,
+          "model_requests": 11,
+          "runtime_completed": false,
+          "runtime_errors": [
+            "ConnectError: [internal] execution error: iteration budget exhausted without a final answer"
+          ],
+          "role_calls": {
+            "blueprint_executor": 11
+          },
+          "unexpected_files": [],
+          "blueprint_matches_frozen_run": true,
+          "artifact_passed": true,
+          "complete_delivery": false,
+          "charged_upper_usd": 0.0286131,
+          "automated_approval_count": 0
+        },
+        {
+          "task": "add_tests",
+          "changes": [
+            "test_added.py"
+          ],
+          "checks": {
+            "scope": true,
+            "actual_change": true,
+            "independent_behavior": true,
+            "public_regression": true,
+            "added_tests_present": true,
+            "added_tests_pass": true,
+            "detect_trim": true,
+            "detect_duplicates": true
+          },
+          "passed": true,
+          "mode": "plan_execute",
+          "driver_exit": 1,
+          "wall_seconds": 40.44,
+          "model_requests": 11,
+          "runtime_completed": false,
+          "runtime_errors": [
+            "ConnectError: [internal] execution error: iteration budget exhausted without a final answer"
+          ],
+          "role_calls": {
+            "blueprint_executor": 11
+          },
+          "unexpected_files": [],
+          "blueprint_matches_frozen_run": true,
+          "artifact_passed": true,
+          "complete_delivery": false,
+          "charged_upper_usd": 0.0317484,
+          "automated_approval_count": 3
+        },
+        {
+          "task": "add_feature",
+          "changes": [
+            "app.py",
+            "test_added.py"
+          ],
+          "checks": {
+            "scope": true,
+            "actual_change": true,
+            "independent_behavior": true,
+            "public_regression": true,
+            "added_tests_present": true,
+            "added_tests_pass": true
+          },
+          "passed": true,
+          "mode": "plan_execute",
+          "driver_exit": 0,
+          "wall_seconds": 33.31,
+          "model_requests": 11,
+          "runtime_completed": true,
+          "runtime_errors": [],
+          "role_calls": {
+            "blueprint_executor": 11
+          },
+          "unexpected_files": [],
+          "blueprint_matches_frozen_run": true,
+          "artifact_passed": true,
+          "complete_delivery": true,
+          "charged_upper_usd": 0.028278,
+          "automated_approval_count": 0
+        }
+      ]
+    },
+    {
+      "name": "model-bug-final-validation",
+      "frozen_digest": "06be8b4ed138e95ffc56e6ddf63bc52acf6b66c70f649dde91c2e5efe2290140",
+      "source_digest": "dd6c05ba293847a41516e0d3322caa0ef39e2b8306c97216fc22fdfaab30b1a6",
+      "implementation_iterations": 10,
+      "cells": [
+        {
+          "task": "fix_bug",
+          "changes": [
+            "app.py",
+            "test_added.py"
+          ],
+          "checks": {
+            "scope": true,
+            "actual_change": true,
+            "independent_behavior": true,
+            "public_regression": true,
+            "added_tests_present": true,
+            "added_tests_pass": true
+          },
+          "passed": true,
+          "mode": "plan_execute",
+          "driver_exit": 1,
+          "wall_seconds": 32.7,
+          "model_requests": 10,
+          "runtime_completed": false,
+          "runtime_errors": [
+            "ConnectError: [unavailable] llm returned 502: Provider rejected request; response text omitted for privacy."
+          ],
+          "role_calls": {
+            "blueprint_executor": 11
+          },
+          "unexpected_files": [],
+          "blueprint_matches_frozen_run": true,
+          "artifact_passed": true,
+          "complete_delivery": false,
+          "charged_upper_usd": 0.0279798,
+          "automated_approval_count": 0
+        }
+      ]
+    },
+    {
+      "name": "model-job-fix-supervised",
+      "frozen_digest": "02d64edb218727825671e531ec27b6f673160693f65737df45abd2d5d6e0bb64",
+      "source_digest": "6dafb74682acfeb5aa6c58fb43c335bff9b9d9c6498bc08030a39751ae620005",
+      "implementation_iterations": 10,
+      "cells": [
+        {
+          "task": "fix_bug",
+          "changes": [
+            "app.py",
+            "test_added.py"
+          ],
+          "checks": {
+            "scope": true,
+            "actual_change": true,
+            "independent_behavior": true,
+            "public_regression": true,
+            "added_tests_present": true,
+            "added_tests_pass": true
+          },
+          "passed": true,
+          "mode": "plan_execute_supervised",
+          "driver_exit": 0,
+          "wall_seconds": 31.48,
+          "model_requests": 10,
+          "runtime_completed": true,
+          "runtime_errors": [],
+          "role_calls": {
+            "blueprint_executor": 9,
+            "supervisor": 1
+          },
+          "unexpected_files": [],
+          "blueprint_matches_frozen_run": true,
+          "artifact_passed": true,
+          "complete_delivery": true,
+          "charged_upper_usd": 0.0241089,
+          "automated_approval_count": 3
+        },
+        {
+          "task": "add_tests",
+          "changes": [
+            "test_added.py"
+          ],
+          "checks": {
+            "scope": true,
+            "actual_change": true,
+            "independent_behavior": true,
+            "public_regression": true,
+            "added_tests_present": true,
+            "added_tests_pass": true,
+            "detect_trim": true,
+            "detect_duplicates": true
+          },
+          "passed": true,
+          "mode": "plan_execute_supervised",
+          "driver_exit": 0,
+          "wall_seconds": 21.28,
+          "model_requests": 6,
+          "runtime_completed": true,
+          "runtime_errors": [],
+          "role_calls": {
+            "blueprint_executor": 5,
+            "supervisor": 1
+          },
+          "unexpected_files": [],
+          "blueprint_matches_frozen_run": true,
+          "artifact_passed": true,
+          "complete_delivery": true,
+          "charged_upper_usd": 0.0120111,
+          "automated_approval_count": 1
+        },
+        {
+          "task": "refactor",
+          "changes": [
+            "app.py",
+            "test_added.py"
+          ],
+          "checks": {
+            "scope": true,
+            "actual_change": true,
+            "independent_behavior": true,
+            "public_regression": true,
+            "added_tests_present": true,
+            "added_tests_pass": true
+          },
+          "passed": true,
+          "mode": "plan_execute_supervised",
+          "driver_exit": 0,
+          "wall_seconds": 22.47,
+          "model_requests": 9,
+          "runtime_completed": true,
+          "runtime_errors": [],
+          "role_calls": {
+            "blueprint_executor": 8,
+            "supervisor": 1
+          },
+          "unexpected_files": [],
+          "blueprint_matches_frozen_run": true,
+          "artifact_passed": true,
+          "complete_delivery": true,
+          "charged_upper_usd": 0.0193887,
+          "automated_approval_count": 1
+        },
+        {
+          "task": "add_feature",
+          "changes": [
+            "app.py",
+            "test_added.py"
+          ],
+          "checks": {
+            "scope": true,
+            "actual_change": true,
+            "independent_behavior": true,
+            "public_regression": true,
+            "added_tests_present": true,
+            "added_tests_pass": true
+          },
+          "passed": true,
+          "mode": "plan_execute_supervised",
+          "driver_exit": 0,
+          "wall_seconds": 32.12,
+          "model_requests": 10,
+          "runtime_completed": true,
+          "runtime_errors": [],
+          "role_calls": {
+            "blueprint_executor": 9,
+            "supervisor": 1
+          },
+          "unexpected_files": [],
+          "blueprint_matches_frozen_run": true,
+          "artifact_passed": true,
+          "complete_delivery": true,
+          "charged_upper_usd": 0.0248952,
+          "automated_approval_count": 1
+        }
+      ]
+    }
+  ]
+}

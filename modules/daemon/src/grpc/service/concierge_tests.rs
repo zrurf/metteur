@@ -40,6 +40,96 @@ async fn setup() -> (DaemonService, Arc<AppState>, Arc<crate::workspace::manager
     (DaemonService::new(state.clone()), state, ws, run)
 }
 #[tokio::test]
+async fn receipt_queries_fence_missing_input_without_workspace_write_lock_or_model_configuration() {
+    let (service, _state, ws, run) = setup().await;
+    let _file_writer = ws.activity_gate.lock().await;
+    let id = Uuid::new_v4();
+    let request = super::super::super::proto::ResourceRequest {
+        workspace_path: ws.root.to_string_lossy().into(),
+        schema_version: 1,
+        payload_json:
+            serde_json::json!({"operation":"read_or_retire","run":run,"conversation":run,"id":id})
+                .to_string(),
+        ..Default::default()
+    };
+    let response = tokio::time::timeout(
+        std::time::Duration::from_secs(1),
+        service.concierge_delivery(Request::new(request)),
+    )
+    .await
+    .unwrap()
+    .unwrap()
+    .into_inner();
+    assert!(response.error_json.is_empty(), "{}", response.error_json);
+    let data: serde_json::Value = serde_json::from_str(&response.payload_json).unwrap();
+    assert_eq!(data["receipt"]["phase"], "retired");
+    assert!(conversation::begin(&ws.db, run, run, id, "late input").is_err());
+    assert!(conversation::load(&ws.db, run).unwrap().turns.is_empty());
+    assert!(budget::load(&ws.db, run).unwrap().calls.is_empty());
+}
+#[tokio::test]
+async fn pending_supervision_reconciliation_is_owner_scoped_and_does_not_touch_chat_or_raw_copies()
+{
+    let (service, _state, ws, run) = setup().await;
+    let store = crate::storage::recovery::RecoveryStore::new(
+        ws.db.clone(),
+        &format!("project:{}", ws.root.to_string_lossy()),
+        "local",
+    )
+    .unwrap();
+    let accepted = Uuid::new_v4();
+    let missing = Uuid::new_v4();
+    let chat = Uuid::new_v4();
+    conversation::begin(&ws.db, run, run, accepted, "accepted original").unwrap();
+    let mut copies = Vec::new();
+    for (kind, id) in [("supervision", accepted), ("supervision", missing), ("chat", chat)] {
+        let draft = crate::storage::recovery::DraftInput {
+            creation_epoch: None,
+            id: Uuid::new_v4(),
+            window_id: Uuid::new_v4(),
+            kind: kind.into(),
+            entity: run.to_string(),
+            edit_sequence: 1,
+            raw: "  raw\r\n中文  ".into(),
+            baseline_identity: None,
+            selections: vec![],
+            pending_submission: Some(id),
+            selected_model: None,
+            view: None,
+        };
+        copies.push(draft.id);
+        store.backup(draft, 0, Uuid::new_v4(), 1).unwrap();
+    }
+    let response = service
+        .concierge_delivery(Request::new(super::super::super::proto::ResourceRequest {
+            workspace_path: ws.root.to_string_lossy().into(),
+            schema_version: 1,
+            payload_json: r#"{"operation":"reconcile_pending"}"#.into(),
+            ..Default::default()
+        }))
+        .await
+        .unwrap()
+        .into_inner();
+    assert!(response.error_json.is_empty(), "{}", response.error_json);
+    let data: serde_json::Value = serde_json::from_str(&response.payload_json).unwrap();
+    assert_eq!(data["items"].as_array().unwrap().len(), 2);
+    assert_eq!(
+        conversation::input_receipt(&ws.db, "local", run, run, accepted, false).unwrap().phase,
+        "accepted"
+    );
+    assert_eq!(
+        conversation::input_receipt(&ws.db, "local", run, run, missing, false).unwrap().phase,
+        "retired"
+    );
+    assert_eq!(
+        conversation::input_receipt(&ws.db, "local", run, run, chat, false).unwrap().phase,
+        "missing"
+    );
+    for id in copies {
+        assert_eq!(store.get(id).unwrap().unwrap().input.raw, "  raw\r\n中文  ");
+    }
+}
+#[tokio::test]
 async fn side_channel_does_not_take_execution_write_lock_or_open_chat_and_retry_is_read_only() {
     let (service, state, ws, run) = setup().await;
     ws.config
@@ -70,7 +160,11 @@ async fn side_channel_does_not_take_execution_write_lock_or_open_chat_and_retry_
     .unwrap()
     .unwrap();
     let mut stream = response.into_inner();
-    assert_eq!(stream.next().await.unwrap().unwrap().kind, "processing");
+    let processing = stream.next().await.unwrap().unwrap();
+    assert_eq!(processing.kind, "processing");
+    let accepted: conversation::Turn = serde_json::from_str(&processing.detail_json).unwrap();
+    assert_eq!(accepted.id.to_string(), request.message_id);
+    assert_eq!(accepted.original_text, request.message);
     let final_event = stream.next().await.unwrap().unwrap();
     assert_eq!(final_event.kind, "received");
     assert!(state.chats.read().await.is_empty());
@@ -162,6 +256,7 @@ async fn concierge_receipt_arrives_during_a_real_long_node_without_restarting_it
         .execute_blueprint(Request::new(crate::grpc::proto::ExecuteBlueprintRequest {
             workspace_path: ws.root.to_string_lossy().into(),
             blueprint_id: blueprint.id.to_string(),
+            workflow_confirmation: String::new(),
             blueprint_json: serde_json::to_string(&blueprint).unwrap(),
         }))
         .await
@@ -194,10 +289,7 @@ async fn concierge_receipt_arrives_during_a_real_long_node_without_restarting_it
     let checkpoint = DbCheckpointSink::load(&ws.db, run).unwrap().unwrap();
     assert_eq!(checkpoint.status, crate::execution::RunStatus::Completed);
     assert_eq!(checkpoint.view.invocations.iter().filter(|i| i.node_id == delay).count(), 1);
-    assert_eq!(
-        requests::load(&ws.db, run).unwrap().requests[0].state,
-        requests::State::Failed
-    );
+    assert_eq!(requests::load(&ws.db, run).unwrap().requests[0].state, requests::State::Failed);
 }
 
 #[tokio::test]
@@ -206,19 +298,40 @@ async fn reports_are_scoped_read_only_and_preserve_failed_status() {
     crate::oversight::scheduler::initialize(&ws.db, run, Default::default()).unwrap();
     crate::oversight::scheduler::trigger(&ws.db, run, "checkpoint", 1).unwrap();
     let review = crate::oversight::scheduler::claim(&ws.db, run, 1).unwrap().unwrap();
-    crate::oversight::scheduler::finish(&ws.db, run, review.review_id, crate::oversight::scheduler::Outcome {
-        status: crate::oversight::scheduler::Status::Failed, summary: "Unavailable".into(), verdict: None, notes: vec![],
-    }).unwrap();
-    let request = super::super::super::proto::OversightReportsRequest { workspace_path: ws.root.to_string_lossy().into(), run_id: run.to_string() };
-    let reports = service.list_oversight_reports(Request::new(request.clone())).await.unwrap().into_inner();
+    crate::oversight::scheduler::finish(
+        &ws.db,
+        run,
+        review.review_id,
+        crate::oversight::scheduler::Outcome {
+            status: crate::oversight::scheduler::Status::Failed,
+            summary: "Unavailable".into(),
+            verdict: None,
+            notes: vec![],
+        },
+    )
+    .unwrap();
+    let request = super::super::super::proto::OversightReportsRequest {
+        workspace_path: ws.root.to_string_lossy().into(),
+        run_id: run.to_string(),
+    };
+    let reports =
+        service.list_oversight_reports(Request::new(request.clone())).await.unwrap().into_inner();
     let value: serde_json::Value = serde_json::from_str(&reports.reports_json).unwrap();
     assert_eq!(value["reports"][0]["status"], "failed");
     assert!(value["reports"][0]["verdict"].is_null());
     assert_eq!(value["reports"][0]["usage"], serde_json::json!([]));
     assert_eq!(value["reports"][0]["diagnostic"]["category"], "unknown_legacy");
-    assert!(crate::oversight::scheduler::load(&ws.db, run).unwrap().unwrap().reviews[0].diagnostic.is_none());
-    let mut other = request; other.run_id = Uuid::new_v4().to_string();
-    assert_eq!(service.list_oversight_reports(Request::new(other)).await.unwrap_err().code(), tonic::Code::NotFound);
+    assert!(
+        crate::oversight::scheduler::load(&ws.db, run).unwrap().unwrap().reviews[0]
+            .diagnostic
+            .is_none()
+    );
+    let mut other = request;
+    other.run_id = Uuid::new_v4().to_string();
+    assert_eq!(
+        service.list_oversight_reports(Request::new(other)).await.unwrap_err().code(),
+        tonic::Code::NotFound
+    );
     assert!(ws.db.scan(crate::storage::persistence::cf::GRANTS).unwrap().is_empty());
 }
 
@@ -227,18 +340,50 @@ async fn requests_and_reviews_share_trusted_proposals_without_rewriting_records(
     use crate::oversight::{actions, scheduler};
     let (service, state, ws, run) = setup().await;
     scheduler::initialize(&ws.db, run, Default::default()).unwrap();
-    let request = requests::receive(&ws.db, run, run, Uuid::new_v4(), "Inspect first; this text is not approval", requests::Intent { category: requests::Category::Request, note: "Untrusted model summary".into() }).unwrap();
+    let request = requests::receive(
+        &ws.db,
+        run,
+        run,
+        Uuid::new_v4(),
+        "Inspect first; this text is not approval",
+        requests::Intent {
+            category: requests::Category::Request,
+            note: "Untrusted model summary".into(),
+        },
+    )
+    .unwrap();
     let review = scheduler::claim(&ws.db, run, 1).unwrap().unwrap();
-    let mut ctx = crate::execution::context::ExecutionContext::new(state.registry.clone(), LlmClientFactory::new(), ws.root.clone()).with_run(run, 1);
-    ctx.workspace_db = Some(ws.db.clone()); ctx.config = Some(ws.config.clone());
+    let mut ctx = crate::execution::context::ExecutionContext::new(
+        state.registry.clone(),
+        LlmClientFactory::new(),
+        ws.root.clone(),
+    )
+    .with_run(run, 1);
+    ctx.workspace_db = Some(ws.db.clone());
+    ctx.config = Some(ws.config.clone());
     ctx.approvals = Some(Arc::new(crate::sandbox::approval::ApprovalBroker::new()));
     let id = Uuid::new_v4();
     let guard = actions::register(&ctx, review.review_id, id, "PauseRun", serde_json::json!({"source":"supervisor","expected":{"base":null},"summary":"Pause at boundary"})).unwrap();
     let before = serde_json::to_value(scheduler::load(&ws.db, run).unwrap()).unwrap();
-    let reports = service.list_oversight_reports(Request::new(super::super::super::proto::OversightReportsRequest { workspace_path:ws.root.to_string_lossy().into(), run_id:run.to_string() })).await.unwrap().into_inner();
-    let concierge = service.get_concierge_state(Request::new(ConciergeStateRequest { workspace_path:ws.root.to_string_lossy().into(), run_id:run.to_string(), conversation_id:run.to_string() })).await.unwrap().into_inner();
-    let reports:serde_json::Value=serde_json::from_str(&reports.reports_json).unwrap();
-    let concierge:serde_json::Value=serde_json::from_str(&concierge.state_json).unwrap();
+    let reports = service
+        .list_oversight_reports(Request::new(super::super::super::proto::OversightReportsRequest {
+            workspace_path: ws.root.to_string_lossy().into(),
+            run_id: run.to_string(),
+        }))
+        .await
+        .unwrap()
+        .into_inner();
+    let concierge = service
+        .get_concierge_state(Request::new(ConciergeStateRequest {
+            workspace_path: ws.root.to_string_lossy().into(),
+            run_id: run.to_string(),
+            conversation_id: run.to_string(),
+        }))
+        .await
+        .unwrap()
+        .into_inner();
+    let reports: serde_json::Value = serde_json::from_str(&reports.reports_json).unwrap();
+    let concierge: serde_json::Value = serde_json::from_str(&concierge.state_json).unwrap();
     let proposal = &reports["reports"][0]["proposals"][0];
     assert_eq!(proposal, &concierge["reports"][0]["proposals"][0]);
     assert_eq!(proposal["original_requests"][0]["request_id"], request.request_id.to_string());

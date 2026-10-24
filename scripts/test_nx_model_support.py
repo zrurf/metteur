@@ -11,6 +11,17 @@ from nx_eval_fixtures import tasks
 from nx_model_support import BudgetError, Ledger, atomic_json, nano_cost, usage_from_body
 
 class BudgetSafety(unittest.TestCase):
+    def test_request_limit_survives_settlement_reopen_and_cannot_be_raised(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / 'fresh-ledger.json'
+            ledger = Ledger(path, 1, max_calls=1)
+            ident = ledger.reserve('deepseek/deepseek-v4.1-flash', b'{}', 512, 'current-candidate')
+            ledger.finish(ident, state='settled', charged_upper_nano_usd=0)
+            with self.assertRaises(BudgetError):
+                Ledger(path, 1).reserve('deepseek/deepseek-v4.1-flash', b'{}', 512, 'second')
+            with self.assertRaises(BudgetError):
+                Ledger(path, 1, max_calls=2)
+            self.assertEqual(len(ledger.read()['calls']), 1)
     def test_dead_request_owner_becomes_unknown_without_releasing_cost(self):
         with tempfile.TemporaryDirectory() as folder:
             path = Path(folder) / 'ledger.json'

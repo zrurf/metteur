@@ -20,6 +20,7 @@ pub const METADATA_DIR: &str = ".metteur";
 pub struct Workspace {
     /// Serializes run admission and chat rewind for this workspace.
     pub activity_gate: tokio::sync::Mutex<()>,
+    closing: std::sync::atomic::AtomicBool,
     /// Absolute path to the workspace root.
     pub root: PathBuf,
     /// Path to the `/.metteur` metadata directory.
@@ -36,21 +37,52 @@ pub struct Workspace {
     pub lsp_manager: crate::integration::lsp::SharedLsp,
     /// Background commands started by the agent in this workspace.
     pub jobs: Arc<crate::execution::JobManager>,
-    /// The held session lock.
-    _lock: SessionLock,
     /// The fs watcher feeding auto snapshots and live change events.
-    watcher: Option<WorkspaceWatcher>,
+    watcher: parking_lot::Mutex<Option<WorkspaceWatcher>>,
+    /// Drop last, after the watcher and database-owning fields.
+    _lock: SessionLock,
 }
 
 impl Workspace {
+    pub async fn admit(&self) -> DaemonResult<tokio::sync::MutexGuard<'_, ()>> {
+        let guard = self.activity_gate.lock().await;
+        if self.closing.load(std::sync::atomic::Ordering::Acquire) {
+            return Err(DaemonError::Locked(
+                "Workspace is closing or closed; reopen it before editing".into(),
+            ));
+        }
+        Ok(guard)
+    }
+    pub(crate) fn set_closing(&self, closing: bool) {
+        self.closing.store(closing, std::sync::atomic::Ordering::Release);
+    }
     /// Admission holds activity_gate and verifies that no run is active first.
     pub fn reconcile_files(&self) -> DaemonResult<()> {
-        let store=crate::continuation::store::ContinuationStore::new(self.db.clone(),self.root())?;
-        let mut after=None;
-        loop {let page=store.list(after)?;if page.is_empty(){break;}
-            for r in page {after=Some(r.task.id);
-                if r.task.sources.values().any(|s|s.may_write && (s.terminal.is_none() || matches!(s.terminal,Some(crate::continuation::state::Terminal::Indeterminate|crate::continuation::state::Terminal::Interrupted|crate::continuation::state::Terminal::Cancelled)))) {
-                    return Err(DaemonError::Execution("Workspace has unresolved background write effects".into()));
+        let store =
+            crate::continuation::store::ContinuationStore::new(self.db.clone(), self.root())?;
+        let mut after = None;
+        loop {
+            let page = store.list(after)?;
+            if page.is_empty() {
+                break;
+            }
+            for r in page {
+                after = Some(r.task.id);
+                if r.task.sources.values().any(|s| {
+                    s.may_write
+                        && (s.terminal.is_none()
+                            || matches!(
+                                s.terminal,
+                                Some(
+                                    crate::continuation::state::Terminal::Indeterminate
+                                        | crate::continuation::state::Terminal::Interrupted
+                                        | crate::continuation::state::Terminal::Cancelled
+                                )
+                            ))
+                }) {
+                    return Err(DaemonError::Execution(
+                        "Workspace has unresolved background write effects".into(),
+                    ));
                 }
             }
         }
@@ -75,8 +107,11 @@ impl Workspace {
     }
 
     /// Returns the live fs watcher, if one could be started.
-    pub fn watcher(&self) -> Option<&WorkspaceWatcher> {
-        self.watcher.as_ref()
+    pub fn watch_files(
+        &self,
+    ) -> Option<tokio::sync::broadcast::Receiver<crate::storage::versioning::watcher::FileEvent>>
+    {
+        self.watcher.lock().as_ref().map(WorkspaceWatcher::subscribe)
     }
 
     /// Returns the language-server manager, if LSP is configured.
@@ -156,11 +191,16 @@ impl WorkspaceManager {
             ))
         })?);
 
-        {
-            let active = self.active.read().await;
-            if let Some(ws) = active.get(&root) {
-                return Ok(ws.clone());
+        // Opening is one registry transaction. Releasing a read guard before
+        // acquiring the session lock lets concurrent clients race themselves.
+        let mut active = self.active.write().await;
+        if let Some(ws) = active.get(&root) {
+            if ws.closing.load(std::sync::atomic::Ordering::Acquire) {
+                return Err(DaemonError::Locked(
+                    "Workspace is closing; wait before reopening it".into(),
+                ));
             }
+            return Ok(ws.clone());
         }
 
         let metadata_dir = root.join(METADATA_DIR);
@@ -204,6 +244,7 @@ impl WorkspaceManager {
 
         let workspace = Arc::new(Workspace {
             activity_gate: tokio::sync::Mutex::new(()),
+            closing: std::sync::atomic::AtomicBool::new(false),
             root: root.clone(),
             metadata_dir,
             applied_auto_snapshot: config.versioning.auto_snapshot,
@@ -213,10 +254,10 @@ impl WorkspaceManager {
             jobs: Arc::new(crate::execution::JobManager::new(root.clone())),
             lsp_manager: Arc::new(parking_lot::RwLock::new(lsp_manager)),
             _lock: lock,
-            watcher,
+            watcher: parking_lot::Mutex::new(watcher),
         });
 
-        self.active.write().await.insert(root.clone(), workspace.clone());
+        active.insert(root.clone(), workspace.clone());
         Ok(workspace)
     }
 
@@ -228,10 +269,29 @@ impl WorkspaceManager {
                 format!("cannot resolve workspace path {}: {e}", root.display()),
             ))
         })?);
-        let removed = self.active.write().await.remove(&root);
-        let Some(workspace) = removed else {
-            return Err(DaemonError::NotFound(format!("workspace {} is not open", root.display())));
-        };
+        let workspace = self.active.read().await.get(&root).cloned().ok_or_else(|| {
+            DaemonError::NotFound(format!("workspace {} is not open", root.display()))
+        })?;
+        let _admission = workspace.activity_gate.lock().await;
+        let mut active = self.active.write().await;
+        if !active.get(&root).is_some_and(|current| Arc::ptr_eq(current, &workspace)) {
+            return Err(DaemonError::NotFound("Workspace was already closed".into()));
+        }
+        workspace.set_closing(true);
+        // Background observers hold the workspace DB while writing source receipts.
+        // Join them after cancellation, before acknowledging release of its lock.
+        let jobs = workspace.jobs();
+        let killed = jobs.kill_all();
+        if let Err(error) = jobs.finish_receipts().await {
+            workspace.set_closing(false);
+            return Err(error);
+        }
+        active.remove(&root);
+        drop(active);
+        let watcher = workspace.watcher.lock().take();
+        if let Some(mut watcher) = watcher {
+            watcher.shutdown().await;
+        }
         // Stop language servers before the session lock is released. The guard
         // is scoped so the lock is not held across the await.
         let lsp = workspace.lsp();
@@ -239,7 +299,6 @@ impl WorkspaceManager {
             lsp.shutdown().await;
         }
         // Background commands belong to the workspace: close it, close them.
-        let killed = workspace.jobs().kill_all();
         if killed > 0 {
             tracing::info!("workspace {} closed; terminated {killed} job(s)", root.display());
         }
@@ -337,5 +396,33 @@ mod tests {
         let a = manager.open(&dir).await.unwrap();
         let b = manager.open(&dir).await.unwrap();
         assert!(Arc::ptr_eq(&a, &b));
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn concurrent_open_uses_one_workspace_and_one_lock() {
+        let dir =
+            std::env::temp_dir().join(format!("metteur-concurrent-open-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let manager = Arc::new(WorkspaceManager::new());
+        let mut requests = Vec::new();
+        for _ in 0..16 {
+            let manager = manager.clone();
+            let dir = dir.clone();
+            requests.push(tokio::spawn(async move { manager.open(&dir).await.unwrap() }));
+        }
+        let first = requests.remove(0).await.unwrap();
+        for request in requests {
+            assert!(Arc::ptr_eq(&first, &request.await.unwrap()));
+        }
+        assert_eq!(manager.list().await.len(), 1);
+        let other = WorkspaceManager::new();
+        assert!(other.open(&dir).await.is_err(), "A different owner must remain blocked");
+        manager.close(&dir).await.unwrap();
+        assert!(
+            first.admit().await.is_err(),
+            "An old workspace handle must never admit writes after close"
+        );
+        drop(first);
+        assert!(other.open(&dir).await.is_ok());
     }
 }

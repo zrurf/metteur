@@ -13,7 +13,7 @@ export interface ExecutionSnapshot {
   executed: string[]
   pending: string[]
   error?: string
-  runtime?: { active: boolean; pause_requested: boolean; cancel_requested: boolean; pending_approval_ids: string[]; pending_approvals?: { request_id:string; detail:string }[] }
+  runtime?: { active: boolean; pause_requested: boolean; cancel_requested: boolean; pending_approval_ids: string[]; pending_approvals?: { request_id:string; detail:string; content_digest?:string }[] }
   view?: { root?: Blueprint; graphs: Record<string, Blueprint>; invocations: Invocation[]; edges: Traversal[]; sequence: number }
 }
 export interface NativeGraph {

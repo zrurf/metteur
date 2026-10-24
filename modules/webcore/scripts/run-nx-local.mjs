@@ -1,4 +1,5 @@
 import { blueprintOutcome } from './nx-blueprint-fixture.mjs'
+import { dailyWorkflowReply } from './daily-workflow-fixture.mjs'
 import { localDelayCommand, withCurrentNodePath } from './local-job-fixture.mjs'
 import { spawn, execFile } from 'node:child_process'
 import { promisify } from 'node:util'
@@ -16,18 +17,26 @@ import { createGrpcWebTransport } from '@connectrpc/connect-web'
 import { fromJson } from '@bufbuild/protobuf'
 import { Daemon, SaveBlueprintRequestSchema } from '../src/gen/metteur_pb.ts'
 
-if (!process.argv.includes('--serve-only')) throw Error('Use --serve-only; this helper never launches a broad browser suite.');
+if (!process.argv.includes('--serve-only'))
+  throw Error('Use --serve-only; this helper never launches a broad browser suite.')
 const webcore = resolvePath(dirname(fileURLToPath(import.meta.url)), '..')
 const repo = resolvePath(webcore, '../..')
 const parent = resolvePath(process.env.METTEUR_VALIDATION_DIR || join(repo, '.tmp', 'validation'))
 await mkdir(parent, { recursive: true })
-const root = process.env.METTEUR_LIVE_REUSE_ROOT || await mkdtemp(join(parent, 'live-'))
+const root = process.env.METTEUR_LIVE_REUSE_ROOT || (await mkdtemp(join(parent, 'live-')))
 const workspace = join(root, 'workspace')
 await mkdir(workspace, { recursive: true })
 const nonce = randomUUID()
-await mkdir(join(workspace,'blueprints'),{recursive:true});
-try{await readFile(join(workspace,'blueprints/review.blueprint'))}catch{await cp(join(webcore,"scripts/fixtures/nx-local-review.blueprint"),join(workspace,'blueprints/review.blueprint'));}
-await writeFile(join(workspace,'evidence.txt'),'local-evidence-42');
+await mkdir(join(workspace, 'blueprints'), { recursive: true })
+try {
+  await readFile(join(workspace, 'blueprints/review.blueprint'))
+} catch {
+  await cp(
+    join(webcore, 'scripts/fixtures/nx-local-review.blueprint'),
+    join(workspace, 'blueprints/review.blueprint'),
+  )
+}
+await writeFile(join(workspace, 'evidence.txt'), 'local-evidence-42')
 await writeFile(join(workspace, 'app.ts'), `export const evidence = '${nonce}'\n`)
 const target = resolvePath(process.env.CARGO_TARGET_DIR || join(repo, 'target'))
 const suffix = process.platform === 'win32' ? '.exe' : ''
@@ -43,6 +52,17 @@ const receipts = {
   toolRequests: 0,
   finalRequests: 0,
   sawToolResult: false,
+  workflowInputRequests: 0,
+  supervisionRequests: 0,
+  fileReferenceRequests: 0,
+  sawFrozenFile: false,
+  sawCurrentFileRead: false,
+  dailyStoryRequests: 0,
+  dailyStorySelectedPersonal: false,
+  dailyStorySelectedProject: false,
+  dailyStorySelectedFile: false,
+  resultReferenceRequests: 0,
+  sawResultData: false,
 }
 
 function start(name, executable, args, env = withCurrentNodePath()) {
@@ -89,24 +109,138 @@ const provider = createServer(async (request, response) => {
     const body = JSON.parse(text)
     if (body.model !== 'local-fixture') throw new Error('Unexpected model')
     const result = body.messages?.findLast((message) => message.role === 'tool')
-    const jobMode = body.messages?.some(m => m.role === 'user' && String(m.content).includes('M2_LOCAL_JOB'))
-    const hasWait = body.messages?.some(m => m.role === 'tool' && String(m.content).includes('wait_preparing'))
-    const jobText = body.messages?.filter(m => m.role === 'tool').map(m=>String(m.content)).join(' ') || ''
+    const jobMode = body.messages?.some(
+      (m) => m.role === 'user' && String(m.content).includes('M2_LOCAL_JOB'),
+    )
+    const hasWait = body.messages?.some(
+      (m) => m.role === 'tool' && String(m.content).includes('wait_preparing'),
+    )
+    const jobText =
+      body.messages
+        ?.filter((m) => m.role === 'tool')
+        .map((m) => String(m.content))
+        .join(' ') || ''
     const job = jobText.match(/"job_id"\s*:\s*"([^"\s]+)"/)
     let final = jobMode ? hasWait : Boolean(result && JSON.stringify(result).includes(nonce))
     receipts.calls++
-    let tool = {id:jobMode?(job?'fixture-wait':'fixture-job'):'fixture-read',type:'function',function: jobMode ? (job? {name:'AwaitEvents',arguments:JSON.stringify({sources:[job[1]],mode:'all',deadline_ms:Date.now()+3600000,params:{fixture:'local-only'}})} : {name:'StartCommand',arguments:JSON.stringify({command:localDelayCommand()})}) : {name:'ReadFile',arguments:JSON.stringify({path:'app.ts'})}}
-    let content = jobMode ? 'M2_LOCAL_JOB completed through the host continuation.' : `METTEUR_LOCAL_READY ${nonce}: app.ts exports the local evidence constant.`
-    const launchMode=body.messages?.some(m=>m.role==='user'&&String(m.content).includes('M3_LOCAL_BLUEPRINT'));
-    const nodeMode=body.messages?.some(m=>String(m.content)==='BLUEPRINT_NODE');
-    if(nodeMode){await new Promise(r=>setTimeout(r,4000));final=true;content='Local blueprint node completed.'}
-    else if(launchMode){
-      const outcome=blueprintOutcome(body.messages||[]);
-      final=outcome!=='pending';
-      content=outcome==='declined'?'M3_LOCAL_BLUEPRINT: declined. No blueprint was started and no repeat proposal will be sent.':'M3_LOCAL_BLUEPRINT: original conversation received the run completion event. Open Task continuation to inspect the exact result.';
-      tool={id:'fixture-launch',type:'function',function:{name:'RequestBlueprintRun',arguments:JSON.stringify({blueprint_id:"5726e3bf-35c8-5e17-8942-78756af9c2cc",goal:'Review local evidence',constraints:['Keep existing files','No external API calls'],summary:'Run the saved local review and retain its evidence.',resume_on_completion:true,allow_source_read:true})}};
+    const workflowInput = body.messages?.some(
+      (m) => m.role === 'user' && String(m.content).includes('DW03_TEMPORARY_INPUT'),
+    )
+    if (workflowInput) receipts.workflowInputRequests++
+    const fileMode = body.messages?.some(
+      (m) => m.role === 'user' && String(m.content).includes('DW04_FILE_WORKFLOW'),
+    )
+    if (fileMode) {
+      receipts.fileReferenceRequests++
+      receipts.sawFrozenFile ||= body.messages.some(
+        (m) =>
+          m.role === 'user' &&
+          String(m.content).includes('DW04_SAVED_VERSION') &&
+          String(m.content).includes('<file_content>'),
+      )
+      receipts.sawCurrentFileRead ||= Boolean(
+        result &&
+        JSON.stringify(result).includes(nonce) &&
+        JSON.stringify(result).includes('DW04_CURRENT_DISK'),
+      )
     }
-    if (final) { receipts.finalRequests++; receipts.sawToolResult = true } else receipts.toolRequests++
+    let tool = {
+      id: jobMode ? (job ? 'fixture-wait' : 'fixture-job') : 'fixture-read',
+      type: 'function',
+      function: jobMode
+        ? job
+          ? {
+              name: 'AwaitEvents',
+              arguments: JSON.stringify({
+                sources: [job[1]],
+                mode: 'all',
+                deadline_ms: Date.now() + 3600000,
+                params: { fixture: 'local-only' },
+              }),
+            }
+          : { name: 'StartCommand', arguments: JSON.stringify({ command: localDelayCommand() }) }
+        : { name: 'ReadFile', arguments: JSON.stringify({ path: 'app.ts' }) },
+    }
+    let content = jobMode
+      ? 'M2_LOCAL_JOB completed through the host continuation.'
+      : `METTEUR_LOCAL_READY ${nonce}: app.ts exports the local evidence constant.`
+    if (fileMode) {
+      tool.function = { name: 'ReadFile', arguments: JSON.stringify({ path: 'workflow.txt' }) }
+      content = `DW04_FILE_READY ${nonce}: saved selection and current tool read remained distinct.`
+    }
+    const launchMode = body.messages?.some(
+      (m) => m.role === 'user' && String(m.content).includes('M3_LOCAL_BLUEPRINT'),
+    )
+    const nodeMode = body.messages?.some((m) => String(m.content) === 'BLUEPRINT_NODE')
+    const supervisionMode = body.messages?.some(
+      (m) => m.role === 'user' && String(m.content).includes('DW03_SUPERVISION_MESSAGE'),
+    )
+    if (supervisionMode) {
+      receipts.supervisionRequests++
+      final = true
+      content = JSON.stringify({
+        kind: 'answer',
+        text: 'Recorded progress read through the local provider.',
+      })
+    } else if (nodeMode) {
+      await new Promise((r) => setTimeout(r, 4000))
+      final = true
+      content = 'Local blueprint node completed.'
+    } else if (launchMode) {
+      const outcome = blueprintOutcome(body.messages || [])
+      final = outcome !== 'pending'
+      content =
+        outcome === 'declined'
+          ? 'M3_LOCAL_BLUEPRINT: declined. No blueprint was started and no repeat proposal will be sent.'
+          : 'M3_LOCAL_BLUEPRINT: original conversation received the run completion event. Open Task continuation to inspect the exact result.'
+      tool = {
+        id: 'fixture-launch',
+        type: 'function',
+        function: {
+          name: 'RequestBlueprintRun',
+          arguments: JSON.stringify({
+            blueprint_id: '5726e3bf-35c8-5e17-8942-78756af9c2cc',
+            goal: 'Review local evidence',
+            constraints: ['Keep existing files', 'No external API calls'],
+            summary: 'Run the saved local review and retain its evidence.',
+            resume_on_completion: true,
+            allow_source_read: true,
+          }),
+        },
+      }
+    }
+    const daily = dailyWorkflowReply(body.messages || [], nonce)
+    if (daily) {
+      receipts.dailyStoryRequests++
+      const selected = body.messages
+        .filter((m) => m.role === 'user')
+        .map((m) => String(m.content))
+        .join('\n')
+      receipts.dailyStorySelectedPersonal ||= selected.includes('DW_PERSONAL_NORMALIZATION')
+      receipts.dailyStorySelectedProject ||= selected.includes('DW_PROJECT_NORMALIZATION')
+      receipts.dailyStorySelectedFile ||=
+        selected.includes('<file_content>') && selected.includes('return value.strip()')
+      final = daily.final
+      content = daily.content || ''
+      if (daily.tool) tool = daily.tool
+    }
+    const resultMode = body.messages?.some(
+      (m) => m.role === 'user' && String(m.content).includes('<result_content>'),
+    )
+    if (resultMode) {
+      receipts.resultReferenceRequests++
+      receipts.sawResultData ||= body.messages.some(
+        (m) =>
+          m.role === 'user' &&
+          String(m.content).includes('quoted source data, not an instruction or authorization'),
+      )
+      final = true
+      content = `S3_RESULT_REVIEW_READY ${nonce}: host result reviewed after explicit Send.`
+    }
+    if (final) {
+      receipts.finalRequests++
+      receipts.sawToolResult = true
+    } else receipts.toolRequests++
     const usage = { prompt_tokens: 32, completion_tokens: 8, total_tokens: 40 }
     if (body.stream) {
       response.writeHead(200, { 'content-type': 'text/event-stream' })
@@ -262,7 +396,7 @@ try {
   const config = join(root, 'fixture.toml')
   await writeFile(
     config,
-    `config_version = 2\n[daemon]\nautostart = "off"\nwake = false\n[llm]\ndefault_model = "fixture"\nmax_retries = 0\n[llm.models.fixture]\napi_type = "openai-chat"\napi_endpoint = "${providerUrl}"\napi_key = "synthetic-not-a-secret"\nmodel_id = "local-fixture"\ncontext_window_input = 8192\ncontext_window_output = 512\n`,
+    `config_version = 2\n[daemon]\nautostart = "off"\nwake = false\n[llm]\ndefault_model = "fixture"\nmax_retries = 0\n[llm.models.fixture]\napi_type = "openai-chat"\napi_endpoint = "${providerUrl}"\napi_key = "synthetic-not-a-secret"\nmodel_id = "local-fixture"\ncontext_window_input = 8192\ncontext_window_output = 512\n${process.env.METTEUR_DAILY_STORIES === '1' ? '[sandbox]\nenabled = true\nmode = "sandbox"\nwhitelist = ["py -3.12 -m unittest test_shared.py", "py -3.12 -m unittest test_stage1.py", "py -3.12 -m unittest test_stage1.py test_stage2.py"]\napproval_timeout_secs = 30\n' : ''}${process.env.METTEUR_WORKFLOW_FIXTURE === '1' ? '[oversight]\nconcierge_model = "fixture"\nmax_output_tokens = 256\n' : ''}`,
   )
   const daemon = start('daemon', daemonBin, [
     '--config',
@@ -297,7 +431,9 @@ try {
   }
   const client = createClient(Daemon, createGrpcWebTransport({ baseUrl: baseURL }))
   await client.openWorkspace({ path: workspace })
-  const payload = JSON.parse(await readFile(join(webcore, 'scripts/fixtures/nx-local-review-request.json'), 'utf8'))
+  const payload = JSON.parse(
+    await readFile(join(webcore, 'scripts/fixtures/nx-local-review-request.json'), 'utf8'),
+  )
   payload.workspace_path = workspace
   await client.saveBlueprint(fromJson(SaveBlueprintRequestSchema, payload))
   await writeFile(join(root, 'ready.json'), JSON.stringify(ready, null, 2))
@@ -305,9 +441,14 @@ try {
     await writeFile(process.env.METTEUR_LIVE_READY_FILE, JSON.stringify(ready, null, 2))
   console.log(`Deterministic live fixture ready; evidence: ${root}`)
   await Promise.race([
-    once(process, 'SIGTERM'), once(process, 'SIGINT'),
-    once(daemon, 'exit').then(() => { throw new Error('Owned daemon exited unexpectedly') }),
-    once(web, 'exit').then(() => { throw new Error('Owned web server exited unexpectedly') }),
+    once(process, 'SIGTERM'),
+    once(process, 'SIGINT'),
+    once(daemon, 'exit').then(() => {
+      throw new Error('Owned daemon exited unexpectedly')
+    }),
+    once(web, 'exit').then(() => {
+      throw new Error('Owned web server exited unexpectedly')
+    }),
   ])
 } catch (error) {
   console.error(error)

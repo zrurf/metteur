@@ -37,7 +37,9 @@ pub enum TransactionEntry {
     },
     /// A user-approved plan change, retained across validation/cancel rollback.
     /// Its file operation still belongs to this checkpoint for resume checks.
-    BlueprintApplication { operation_id: uuid::Uuid },
+    BlueprintApplication {
+        operation_id: uuid::Uuid,
+    },
     /// A tool was invoked.
     ToolCall {
         /// The tool name.
@@ -99,7 +101,9 @@ impl TransactionLog {
     }
 
     pub(crate) fn record_blueprint_application(&self, operation_id: uuid::Uuid) {
-        self.lock().push(TransactionEntry::BlueprintApplication { operation_id });
+        self.lock().push(TransactionEntry::BlueprintApplication {
+            operation_id,
+        });
     }
 
     /// Returns a snapshot of the recorded entries.
@@ -150,8 +154,28 @@ impl TransactionLog {
         root: &std::path::Path,
         path: &std::path::Path,
         after: Option<&[u8]>,
+        origin: FileOrigin,
+        expected: Option<&[u8]>,
+    ) -> DaemonResult<()> {
+        self.mutate_file_checked(root, path, after, origin, expected, false)
+    }
+    pub fn create_file(
+        &self,
+        root: &std::path::Path,
+        path: &std::path::Path,
+        bytes: &[u8],
+        origin: FileOrigin,
+    ) -> DaemonResult<()> {
+        self.mutate_file_checked(root, path, Some(bytes), origin, None, true)
+    }
+    fn mutate_file_checked(
+        &self,
+        root: &std::path::Path,
+        path: &std::path::Path,
+        after: Option<&[u8]>,
         mut origin: FileOrigin,
         expected: Option<&[u8]>,
+        create_only: bool,
     ) -> DaemonResult<()> {
         self.ensure_healthy()?;
         validate_path(root, path)?;
@@ -161,7 +185,17 @@ impl TransactionLog {
         let journal = self.journal.lock().unwrap().clone();
         if let Some(journal) = journal {
             let result = (|| {
-                let mut operation = journal.prepare(path, after, origin, expected)?;
+                let mut operation = if create_only {
+                    journal.prepare_new(
+                        path,
+                        after.ok_or_else(|| {
+                            DaemonError::Execution("new file needs content".into())
+                        })?,
+                        origin,
+                    )?
+                } else {
+                    journal.prepare(path, after, origin, expected)?
+                };
                 entries.push(TransactionEntry::FileOperation {
                     operation_id: operation.operation_id,
                     phase: FilePhase::Prepared,
@@ -186,6 +220,11 @@ impl TransactionLog {
             }
         } else {
             let before = read_optional(path)?;
+            if create_only && before.is_some() {
+                return Err(DaemonError::Execution(
+                    "file already exists; choose a new copy path".into(),
+                ));
+            }
             if expected.is_some_and(|value| before.as_deref() != Some(value)) {
                 return Err(DaemonError::Execution("file changed before edit".into()));
             }
@@ -200,7 +239,14 @@ impl TransactionLog {
                     if let Some(parent) = path.parent() {
                         std::fs::create_dir_all(parent)?;
                     }
-                    std::fs::write(path, bytes)?;
+                    if create_only {
+                        use std::io::Write;
+                        let mut file =
+                            std::fs::OpenOptions::new().write(true).create_new(true).open(path)?;
+                        file.write_all(bytes)?;
+                    } else {
+                        std::fs::write(path, bytes)?;
+                    }
                 }
                 None => {
                     if let Some(content) = before {
@@ -232,7 +278,9 @@ impl TransactionLog {
                     operation_id,
                     phase,
                 } => Some((*operation_id, *phase)),
-                TransactionEntry::BlueprintApplication { operation_id } => Some((*operation_id, FilePhase::Applied)),
+                TransactionEntry::BlueprintApplication {
+                    operation_id,
+                } => Some((*operation_id, FilePhase::Applied)),
                 _ => None,
             })
             .collect();
@@ -350,7 +398,12 @@ impl TransactionLog {
                     }
                     (operation.path, result)
                 }
-                TransactionEntry::ToolCall { .. } | TransactionEntry::BlueprintApplication { .. } => continue,
+                TransactionEntry::ToolCall {
+                    ..
+                }
+                | TransactionEntry::BlueprintApplication {
+                    ..
+                } => continue,
             };
             match result {
                 Ok(changed) => undone += usize::from(changed),

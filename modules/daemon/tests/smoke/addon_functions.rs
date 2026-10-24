@@ -234,6 +234,7 @@ async fn readonly_function_cli_import_uses_existing_file_versions_and_preserves_
             .execute_blueprint(ExecuteBlueprintRequest {
                 workspace_path: path.clone(),
                 blueprint_id: graph.id,
+                workflow_confirmation: String::new(),
                 blueprint_json: String::new(),
             })
             .await

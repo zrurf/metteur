@@ -62,6 +62,8 @@ impl Interpreter {
         error: Option<String>,
     ) -> DaemonResult<()> {
         self.view.root = self.shared_blueprint.as_ref().map(|bp| bp.read().clone());
+        self.view.workflow_handoff = ctx.handoff_ref;
+        self.view.workflow_task = ctx.continuation.as_ref().map(|task| task.id);
         let mut checkpoint = ExecutionCheckpoint {
             view: self.view.clone(),
             transition_version: CHECKPOINT_TRANSITION_VERSION,
@@ -103,7 +105,19 @@ impl Interpreter {
         })?;
         // A successful apply may add validity changes at the same boundary.
         self.view = checkpoint.view;
-        self.hook_cursor.committed(&ctx.registry.addon_hooks, &self.view, &ctx.workspace_root, sink.run_id(), checkpoint.status);
+        if self.in_flight.is_none()
+            && self.scheduler.executed_list().contains(&ctx.current_node)
+            && let Some(bus) = &ctx.interrupts
+        {
+            bus.finish_consumer(Some(ctx.current_node), true)?;
+        }
+        self.hook_cursor.committed(
+            &ctx.registry.addon_hooks,
+            &self.view,
+            &ctx.workspace_root,
+            sink.run_id(),
+            checkpoint.status,
+        );
         Ok(())
     }
 }

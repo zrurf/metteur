@@ -33,7 +33,7 @@ const emit = defineEmits<{ thisWindow: []; newWindow: []; cancel: [] }>()
               <FolderOpen class="h-4.5 w-4.5" />
             </span>
             <div class="min-w-0 flex-1">
-              <h2 class="text-[13.5px] font-semibold text-foreground">Open in a new workspace?</h2>
+              <h2 class="text-[13.5px] font-semibold text-foreground">Open in a New Workspace?</h2>
               <p class="mt-1 text-[12px] leading-relaxed text-muted-foreground wrap-break-word">
                 <span class="font-medium text-foreground">{{ projectName(path) }}</span>
                 <span class="block truncate">{{ path }}</span>

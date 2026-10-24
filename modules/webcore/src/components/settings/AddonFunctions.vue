@@ -36,7 +36,7 @@ async function importCopy(values: Record<string, unknown>) {
 <template>
   <section class="panel space-y-3 p-4" data-testid="addon-function-library">
     <div class="flex items-center justify-between gap-3">
-      <h2 class="text-[13px] font-medium">Addon function library</h2>
+      <h2 class="text-[13px] font-medium">Addon Function Library</h2>
       <button class="btn btn-outline" type="button" @click="refresh">Refresh functions</button>
     </div>
     <p class="text-[12px] text-muted-foreground">Package functions are read-only. Import a separately named file to edit a copy with version history.</p>

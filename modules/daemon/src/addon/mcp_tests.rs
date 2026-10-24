@@ -40,6 +40,7 @@ async fn workspace_close_rejects_pending_admission_and_late_registry_requests() 
     assert!(host.registry_for(Some(&ws), false).await.is_ok());
     host.close_workspace(&ws, &manager).await.unwrap();
 }
+#[cfg(unix)]
 fn package(base: &Path, label: &str, mode: &str) -> PathBuf {
     let path = base.join(format!("package-{}", uuid::Uuid::new_v4()));
     std::fs::create_dir(&path).unwrap();

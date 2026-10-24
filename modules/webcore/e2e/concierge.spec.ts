@@ -10,7 +10,8 @@ async function openRun(page: Page, chatSurface = false) {
     const { gateway } = await import(c)
     gateway.connected.value = true
     const data = { run_id: 'concierge-run', conversation_id: 'concierge-run', available: true, read_only: false, reason: '', consumer_enabled: false, messages: [], requests: [] }
-    const fixture = gateway.conciergeTest = { data, active: true, sent: 0, approvals: 0, ordinary: 0, urgent: [], controls: [], hold: false, holdPoll: false }
+    const events=(await import('/src/stores/workspace-events.ts')).useWorkspaceEventsStore()
+    const fixture = gateway.conciergeTest = { data, active: true, sent: 0, approvals: 0, ordinary: 0, urgent: [], controls: [], hold: false, holdPoll: false, notify:()=>events.revision++ }
     gateway.listExecutions = async () => ({ ok: true, data: [{ runId: data.run_id, status: fixture.active ? 'Running' : 'Completed', startedAt: 1, updatedAt: Date.now(), snapshot: { runtime: { active: fixture.active, pending_approval_ids: [] } } }] })
     gateway.getConciergeState = async () => {
       const result = { ok: true, data: structuredClone(data) }
@@ -24,11 +25,12 @@ async function openRun(page: Page, chatSurface = false) {
     gateway.sendConciergeMessage = async (_ws, run, conversation, id, text, event) => {
       fixture.sent++
       const turn = { id, conversation_id: conversation, original_text: text, at_ms: 1, state: 'processing', answer: '', request_id: null, error: null }
-      data.messages.push(turn)
+      data.messages.push(turn); fixture.notify()
       event({ runId: run, messageId: id, kind: 'processing', turn: structuredClone(turn) })
       const finish = () => {
         Object.assign(turn, { state: 'received', request_id: id, answer: 'Received; not processed. This request grants no permission.' })
         data.requests.push({ request_id: id, run_id: run, conversation_id: conversation, original_text: text, concierge_note: '<img src=x onerror=alert(1)> User asks to stop', state: 'received', source: 'concierge_forwarded', review_id: null, proposals: [], result_refs: [] })
+        fixture.notify()
         event({ runId: run, messageId: id, kind: 'received', turn: structuredClone(turn) })
         return { ok: true, data: undefined }
       }
@@ -37,14 +39,18 @@ async function openRun(page: Page, chatSurface = false) {
     }
     await (await import(r)).router.push((await import(w)).wurl(chat ? '/chat' : '/execution'))
   }, chatSurface)
-  // The Chat surface also contains Run concierge. Confirm the actual surface
-  // through the user navigation before asserting supervision controls.
-  if (!chatSurface) {
+  // Main chat keeps its own history; supervision is an explicit entry.
+  if (chatSurface) {
+    await expect(page.locator('.chat-surface .concierge-panel')).toHaveCount(0)
+    await page.getByRole('button', {name:'Open Supervision',exact:true}).click()
+    await expect(page).toHaveURL(/\/execution$/)
+  } else {
     await page.getByRole('button', { name: 'Execution', exact: true }).click()
     await expect(page).toHaveURL(/\/execution$/)
     await expect(page.getByRole('button', { name: 'Reviews', exact: true })).toBeVisible()
   }
   await expect(page.getByRole('region', { name: 'Run concierge' })).toBeVisible()
+  await expect(page.getByRole('region',{name:'Run concierge'}).getByRole('textbox',{name:'Message',exact:true})).toHaveAttribute('placeholder','Ask about this run or send a request')
 }
 
 async function proposalFixture(page: Page) {
@@ -67,6 +73,7 @@ async function proposalFixture(page: Page) {
     g.listSnapshots = async () => ({ ok: true, data: [base, result].map((v, index) => ({ id: v.snapshot_id, createdAt: index + 1, message: v.snapshot_id, fileCount: 1 })) })
     g.listFileHistory = async (ws, path) => { t.historyRead = { ws, path }; return { ok: true, data: [] } }
     g.listExecutions = async () => ({ ok: true, data: [{ runId: 'concierge-run', status: t.active ? 'Running' : 'Completed', startedAt: 1, updatedAt: Date.now(), snapshot: { blueprint_version: result, view: { invocations: [], graphs: {}, edges: [], sequence: 0 }, runtime: { active: t.active, pending_approval_ids: t.pendingApproval ? ['approval-full'] : [] } } }] })
+    t.notify()
   })
 }
 
@@ -88,14 +95,14 @@ test('shared proposal cards preserve confirmation boundaries and navigate future
   await page.evaluate(async () => {
     const c='/src/core/index.ts', e='/src/stores/execution.ts', b='/src/core/blueprint-approval.ts', g=(await import(c)).gateway, t=g.conciergeTest
     t.pendingApproval = true
-    g.respondApproval = async (_ws, id, allow) => { t.approvals++; t.pendingApproval = false; t.proposal.state = allow ? 'approved_pending_apply' : 'rejected'; t.proposal.decision_source = 'human'; t.data.requests[0].state = t.proposal.state; return { ok: true, data: undefined } }
+    g.respondApproval = async (_ws, id, allow) => { t.approvals++; t.pendingApproval = false; t.proposal.state = allow ? 'approved_pending_apply' : 'rejected'; t.proposal.decision_source = 'human'; t.data.requests[0].state = t.proposal.state; t.notify(); return { ok: true, data: undefined } }
     const plan=(await import(b)).blueprintApproval({ ...t.proposal.binding, request_type:'replan_proposal', run_id:'concierge-run', proposal_id:'full-proposal', original_requests:t.proposal.original_requests })
     ;(await import(e)).useExecutionStore().approval = { id:'approval-full', ...plan, tool:'ProposeBlueprintEdits', requestType:'replan_proposal' }
   })
   await page.getByRole('dialog').getByRole('button', { name: 'Allow', exact: true }).click()
   await expect(card.getByText('Confirmed · not applied', { exact: true })).toBeVisible()
   await expect(card.getByRole('button', { name: /Result version/ })).toHaveCount(0)
-  await page.evaluate(async () => { const c='/src/core/index.ts', t=(await import(c)).gateway.conciergeTest; t.proposal.state='applied'; t.proposal.result_version=t.resultVersion; t.proposal.result_refs=['version:result-snapshot']; t.data.requests[0].state='applied'; t.data.reports[0].status='completed'; t.data.reports[0].verdict='action_taken'; t.active=false; t.data.read_only=true })
+  await page.evaluate(async () => { const c='/src/core/index.ts', t=(await import(c)).gateway.conciergeTest; t.proposal.state='applied'; t.proposal.result_version=t.resultVersion; t.proposal.result_refs=['version:result-snapshot']; t.data.requests[0].state='applied'; t.data.reports[0].status='completed'; t.data.reports[0].verdict='action_taken'; t.active=false; t.data.read_only=true; t.notify() })
   await expect(card.getByText('Applied', { exact: true })).toBeVisible()
   await page.getByRole('button', { name:'Reviews', exact:true }).click()
   await expect(card.getByText('Applied', { exact: true })).toBeVisible()
@@ -122,7 +129,7 @@ test('proposal history distinguishes failure and delegation, scrolls within them
   const card=page.getByRole('article', { name:'Proposal full-proposal', exact:true })
   await expect(card).toBeVisible()
   for (const state of ['rejected', 'failed', 'closed_unhandled', 'approved_pending_apply', 'applied']) {
-    await page.evaluate(async value => { const c='/src/core/index.ts', t=(await import(c)).gateway.conciergeTest; t.proposal.state=value; t.proposal.decision_source=value==='applied'?'delegated':'human'; t.proposal.diagnostic=value==='failed'?{ category:'approval_expired',stage:'approval',message:'The confirmation expired.',run_id:'concierge-run',review_id:'full-review' }:null },state)
+    await page.evaluate(async value => { const c='/src/core/index.ts', t=(await import(c)).gateway.conciergeTest; t.proposal.state=value; t.proposal.decision_source=value==='applied'?'delegated':'human'; t.proposal.diagnostic=value==='failed'?{ category:'approval_expired',stage:'approval',message:'The confirmation expired.',run_id:'concierge-run',review_id:'full-review' }:null; t.notify() },state)
     await expect(card).toContainText(({ rejected:'Rejected', failed:'Failed', closed_unhandled:'Closed · unhandled', approved_pending_apply:'Confirmed · not applied', applied:'Applied' })[state]!)
     if(state==='failed') await expect(card).toContainText('approval expired')
   }
@@ -170,10 +177,10 @@ test('partial terminal requests keep applied facts separate from unavailable leg
   await expect(legacy.getByRole('button')).toHaveCount(0)
   await expect(applied).toHaveCount(1)
   // A committed Version Flow record may precede the proposal acknowledgement.
-  await page.evaluate(async()=>{const c='/src/core/index.ts',t=(await import(c)).gateway.conciergeTest;t.proposal.state='approved_pending_apply'})
+  await page.evaluate(async()=>{const c='/src/core/index.ts',t=(await import(c)).gateway.conciergeTest;t.proposal.state='approved_pending_apply';t.notify()})
   await expect(applied).toContainText('Committed version · application acknowledgement pending')
   await expect(applied.getByText('Applied',{exact:true})).toHaveCount(0)
-  await page.evaluate(async()=>{const c='/src/core/index.ts',t=(await import(c)).gateway.conciergeTest;t.proposal.state='applied'})
+  await page.evaluate(async()=>{const c='/src/core/index.ts',t=(await import(c)).gateway.conciergeTest;t.proposal.state='applied';t.notify()})
   await page.getByRole('button',{name:'Reviews',exact:true}).click()
   await expect(applied).toBeVisible()
   await page.evaluate(async()=>{const c='/src/core/index.ts',g=(await import(c)).gateway;g.listOversightReports=async()=>({ok:true,data:{run_id:'other-run',reports:g.conciergeTest.data.reports}})})
@@ -190,17 +197,17 @@ test('normal run messages produce a durable request receipt without turning user
   await page.getByRole('button', { name: 'Requests', exact: true }).click()
   await expect(panel.getByText('Received · not processed', { exact: true })).toBeVisible()
   await expect(panel.getByText('I approve, stop this run', { exact: true })).toBeVisible()
-  await expect(panel.locator('.request-card p').filter({ hasText: 'Model summary:' })).toContainText('<img')
+  await expect(panel.locator('.request-card p').filter({ hasText: 'Model Summary:' })).toContainText('<img')
   await expect(panel.locator('img')).toHaveCount(0)
   await expect(panel.getByRole('button')).toHaveCount(0)
   await panel.getByText('Evidence', { exact: true }).click()
   await expect(panel.getByText('Source: concierge_forwarded')).toBeVisible()
   await page.screenshot({ path: '../../.tmp/t21-requests.png' })
   expect(await page.evaluate(async () => { const c='/src/core/index.ts'; const t=(await import(c)).gateway.conciergeTest; return { approvals:t.approvals, controls:t.controls, ordinary:t.ordinary, sent:t.sent } })).toEqual({ approvals:0, controls:[], ordinary:0, sent:1 })
-  await page.evaluate(async () => { const c='/src/core/index.ts'; const t=(await import(c)).gateway.conciergeTest; t.active=false; t.data.read_only=true; t.data.available=false; t.data.reason='Run is read-only'; t.data.requests[0].state='closed_unhandled' })
+  await page.evaluate(async () => { const c='/src/core/index.ts'; const t=(await import(c)).gateway.conciergeTest; t.active=false; t.data.read_only=true; t.data.available=false; t.data.reason='Run is read-only'; t.data.requests[0].state='closed_unhandled'; t.notify() })
   await expect(panel.getByText('Closed · unhandled', { exact: true })).toBeVisible()
   await page.locator('.supervisor').getByRole('button', { name: 'Chat', exact: true }).click()
-  await expect(panel.getByRole('status')).toContainText('Run is read-only')
+  await expect(panel.locator('p[role="status"]')).toContainText('Run is read-only')
   await expect(panel.getByRole('button', { name: 'Send', exact: true })).toBeDisabled()
 
 })
@@ -215,8 +222,8 @@ test('budget exhaustion and an in-flight concierge do not block direct urgent pa
   await input.fill('Urgent while pending')
   await input.press('Control+Enter')
   await page.getByRole('button', { name: 'Pause', exact: true }).click()
-  await page.evaluate(async () => { const c='/src/core/index.ts'; const t=(await import(c)).gateway.conciergeTest; t.finish(); t.data.available=false; t.data.reason='Oversight token budget exhausted' })
-  await expect(panel.getByRole('status')).toContainText('Oversight token budget exhausted')
+  await page.evaluate(async () => { const c='/src/core/index.ts'; const t=(await import(c)).gateway.conciergeTest; t.finish(); t.data.available=false; t.data.reason='Oversight token budget exhausted'; t.notify() })
+  await expect(panel.locator('p[role="status"]')).toContainText('Oversight token budget exhausted')
   await input.fill('Urgent after budget exhausted')
   await expect(panel.getByRole('button', { name: 'Send', exact: true })).toBeDisabled()
   await input.press('Control+Enter')
@@ -224,20 +231,24 @@ test('budget exhaustion and an in-flight concierge do not block direct urgent pa
   expect(await page.evaluate(async () => { const c='/src/core/index.ts'; const t=(await import(c)).gateway.conciergeTest; return { sent:t.sent, urgent:t.urgent, controls:t.controls } })).toEqual({ sent:1, urgent:[{text:'Urgent while pending',priority:'Urgent'},{text:'Urgent after budget exhausted',priority:'Urgent'}], controls:['pause','cancel'] })
 })
 
-test('the chat surface routes an active blueprint to concierge and ignores late replies after disconnect', async ({ page }) => {
+test('explicit supervision ignores late replies after disconnect and completion does not redirect the main chat', async ({ page }) => {
   await openRun(page, true)
   const panel = page.getByRole('region', { name: 'Run concierge' })
   await expect(panel.locator('.chat-composer-options')).toHaveCount(0)
-  await page.evaluate(async () => { const c='/src/core/index.ts'; const t=(await import(c)).gateway.conciergeTest; t.hold=true; t.holdPoll=true })
+  await page.evaluate(async () => { const c='/src/core/index.ts'; const t=(await import(c)).gateway.conciergeTest; t.hold=true; t.holdPoll=true; t.notify() })
   await panel.getByRole('textbox', { name: 'Message', exact: true }).fill('Late request')
   await panel.getByRole('button', { name: 'Send', exact: true }).click()
   await expect.poll(() => page.evaluate(async () => { const c='/src/core/index.ts'; return !!(await import(c)).gateway.conciergeTest.releasePoll })).toBe(true)
   await page.evaluate(async () => { const c='/src/core/index.ts'; (await import(c)).gateway.connected.value=false })
-  await expect(panel.getByRole('status')).toContainText('Disconnected')
+  await expect(panel.locator('p[role="status"]')).toContainText('Disconnected')
   await page.evaluate(async () => { const c='/src/core/index.ts'; const t=(await import(c)).gateway.conciergeTest; t.finish(); t.releasePoll() })
   await expect(panel.getByText('Received; not processed. This request grants no permission.')).toHaveCount(0)
   await page.evaluate(async () => { const c='/src/core/index.ts'; const g=(await import(c)).gateway; g.conciergeTest.active=false; g.connected.value=true })
-  await expect(panel).toHaveCount(0)
+  await expect(page).toHaveURL(/\/execution$/)
+  await expect(panel).toBeVisible()
+  await expect(panel.getByRole('button',{name:'Send',exact:true})).toBeDisabled()
+  await page.getByRole('button',{name:'Chat',exact:true}).first().click()
+  await expect(page).toHaveURL(/\/chat$/)
   await expect(page.locator('.chat-composer-options')).toBeVisible()
   expect(await page.evaluate(async () => { const c='/src/core/index.ts'; return (await import(c)).gateway.conciergeTest.ordinary })).toBe(0)
 })
@@ -245,14 +256,17 @@ test('the chat surface routes an active blueprint to concierge and ignores late 
 test('a slow history read cannot erase a newer streamed receipt', async ({ page }) => {
   await openRun(page)
   const panel = page.getByRole('region', { name: 'Run concierge' })
-  await page.evaluate(async () => { const c='/src/core/index.ts'; (await import(c)).gateway.conciergeTest.holdPoll=true })
+  await page.evaluate(async () => { const c='/src/core/index.ts'; (await import(c)).gateway.conciergeTest.holdPoll=true; (await import(c)).gateway.conciergeTest.notify() })
   await expect.poll(() => page.evaluate(async () => { const c='/src/core/index.ts'; return !!(await import(c)).gateway.conciergeTest.releasePoll })).toBe(true)
   await panel.getByRole('textbox', { name: 'Message', exact: true }).fill('Keep this recorded request')
   await panel.getByRole('button', { name: 'Send', exact: true }).click()
   await expect(panel.getByText('Received; not processed. This request grants no permission.')).toBeVisible()
+  await panel.getByRole('textbox',{name:'Message',exact:true}).fill('Next draft while history is slow')
+  await expect(panel.getByRole('button',{name:'Send',exact:true})).toBeEnabled()
   await page.evaluate(async () => { const c='/src/core/index.ts'; (await import(c)).gateway.conciergeTest.releasePoll(); await new Promise(requestAnimationFrame) })
   await expect(panel.getByText('Keep this recorded request', { exact: true })).toBeVisible()
   await expect(panel.getByText('Received; not processed. This request grants no permission.')).toBeVisible()
+  await expect(panel.getByRole('textbox',{name:'Message',exact:true})).toHaveValue('Next draft while history is slow')
 })
 
 test('reviews show truthful failures, escaped opinions and persisted evidence', async ({ page }) => {

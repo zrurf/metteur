@@ -184,12 +184,14 @@ async fn react(
     if state.auto_approve && event.kind == "approval_request" && !event.message.is_empty() {
         let decision = "AllowRun".to_string();
         println!("auto-approving {} -> {}", event.message, decision);
-        let request = metteur_proto::proto::ApprovalDecisionRequest {
-            workspace_path: state.current_ws.clone().unwrap_or_default(),
-            request_id: event.message.clone(),
-            decision,
-        };
-        if let Err(err) = client.respond_approval(request).await {
+        if let Err(err) = commands::approve::respond_with_receipt(
+            client,
+            &state.current_ws.clone().unwrap_or_default(),
+            &event.message,
+            &decision,
+        )
+        .await
+        {
             println!("auto-approve failed: {err}");
         }
     }

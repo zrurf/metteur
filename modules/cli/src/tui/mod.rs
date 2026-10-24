@@ -301,12 +301,9 @@ async fn respond(
     decision: &str,
 ) {
     let ws = app.current_ws.clone().unwrap_or_default();
-    let request = metteur_proto::proto::ApprovalDecisionRequest {
-        workspace_path: ws,
-        request_id: request_id.to_string(),
-        decision: decision.to_string(),
-    };
-    if let Err(err) = client.respond_approval(request).await {
+    if let Err(err) =
+        crate::commands::approve::respond_with_receipt(client, &ws, request_id, decision).await
+    {
         app.push_log(Kind::Error, format!("approve failed: {err}"));
     }
 }
@@ -344,14 +341,17 @@ async fn execute_command(
             spawn_stream_forwarder(start.stream, start.label.clone(), tx.clone());
         }
         Ok(crate::commands::Outcome::StartedConcierge(stream)) => {
-            let mut stream=*stream; let tx=tx.clone();
+            let mut stream = *stream;
+            let tx = tx.clone();
             tokio::spawn(async move {
-                while let Some(event)=stream.message().await.transpose() {
-                    let (kind,line)=match event {
-                        Ok(event)=>(Kind::Info,crate::commands::concierge::line(&event)),
-                        Err(error)=>(Kind::Error,format!("concierge failed: {error}")),
+                while let Some(event) = stream.message().await.transpose() {
+                    let (kind, line) = match event {
+                        Ok(event) => (Kind::Info, crate::commands::concierge::line(&event)),
+                        Err(error) => (Kind::Error, format!("concierge failed: {error}")),
                     };
-                    if tx.send(UiEvent::Log(kind,line)).is_err(){break;}
+                    if tx.send(UiEvent::Log(kind, line)).is_err() {
+                        break;
+                    }
                 }
             });
         }

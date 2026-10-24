@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, defineAsyncComponent, onMounted, onBeforeUnmount, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
   ChevronDown,
@@ -9,11 +9,8 @@ import {
   Loader2,
   Terminal,
   History,
-  CalendarClock,
-  Puzzle,
   ListTodo,
   BookOpen,
-  FileText,
   MessageSquare,
   Moon,
   Sun,
@@ -36,7 +33,6 @@ import { rootRoute } from '@/lib/workspace-url'
 import { pendingRoute } from '@/router'
 import ActivityRail from '@/components/navigation/ActivityRail.vue'
 import AppLogo from '@/components/AppLogo.vue'
-import EditorPane from '@/views/EditorPane.vue'
 import JobsPanel from '@/components/JobsPanel.vue'
 import ApprovalDialog from '@/components/ApprovalDialog.vue'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
@@ -47,6 +43,13 @@ import TabBar from '@/components/TabBar.vue'
 import FileTree from '@/components/FileTree.vue'
 import { useSurfaceNavigation } from '@/lib/surface'
 import { useFeedbackStore } from '@/stores/feedback'
+import { useDocumentsStore } from '@/stores/documents'
+import { useComposerInputsStore } from '@/stores/composer-inputs'
+import { useSupervisionInputsStore } from '@/stores/supervision-inputs'
+import { useWorkspaceViewStore } from '@/stores/workspace-view'
+import { restoredRoute } from '@/lib/restored-route'
+
+const EditorPane = defineAsyncComponent(() => import('@/views/EditorPane.vue'))
 
 const route = useRoute()
 const router = useRouter()
@@ -59,12 +62,55 @@ const tabs = useTabsStore()
 const jobs = useJobsStore()
 const fileWatch = useFileWatchStore()
 const feedback = useFeedbackStore()
+const documents = useDocumentsStore()
+const composerInputs = useComposerInputsStore()
+const supervisionInputs = useSupervisionInputsStore()
+const workspaceViews = useWorkspaceViewStore()
+watch(
+  () => {
+    void workspaceViews.version
+    const path = workspace.active?.path
+    if (!path) return ''
+    const copy = workspaceViews.forWorkspace(path)
+    return copy.error || copy.copy.error
+  },
+  (error) => {
+    if (error && !gateway.demo)
+      feedback.toast(
+        'error',
+        'Layout Recovery Unavailable',
+        'Your open view stays in this window. ' + error,
+      )
+  },
+)
+function protectDrafts(event: BeforeUnloadEvent) {
+  if (
+    !composerInputs.hasUnbackedInput() &&
+    !supervisionInputs.hasUnbacked &&
+    ![...documents.records.values()].some((doc) => doc.loaded && documents.dirty(doc))
+  )
+    return
+  event.preventDefault()
+  event.returnValue = ''
+}
+onMounted(() => window.addEventListener('beforeunload', protectDrafts))
+onBeforeUnmount(() => window.removeEventListener('beforeunload', protectDrafts))
 const { openSurface } = useSurfaceNavigation()
 
 /* Activity rail                                                        */
 
 interface Activity {
-  key: 'addon-pages' | 'explorer' | 'chat' | 'version' | 'execution' | 'execution-preview' | 'memory' | 'prompts' | 'tasks' | 'schedules'
+  key:
+    | 'addon-pages'
+    | 'explorer'
+    | 'chat'
+    | 'version'
+    | 'execution'
+    | 'execution-preview'
+    | 'memory'
+    | 'prompts'
+    | 'tasks'
+    | 'schedules'
   label: string
   icon: Component
 }
@@ -73,14 +119,12 @@ const activities: Activity[] = [
   { key: 'chat', label: 'Chat', icon: MessageSquare },
   { key: 'explorer', label: 'Explorer', icon: Files },
   { key: 'execution', label: 'Execution', icon: Workflow },
-  { key: 'tasks', label: 'Task continuation', icon: ListTodo },
-  { key: 'memory', label: 'Project memory', icon: BookOpen },
-  { key: 'prompts', label: 'Prompt resources', icon: FileText },
-  { key: 'schedules', label: 'Schedules', icon: CalendarClock },
+  { key: 'tasks', label: 'Tasks', icon: ListTodo },
+  { key: 'memory', label: 'Project Memory', icon: BookOpen },
   { key: 'version', label: 'Version Flow', icon: History },
-  { key: 'addon-pages', label: 'Addon pages', icon: Puzzle },
   ...(import.meta.env.DEV && import.meta.env.VITE_MOCK === '1'
-    ? [{ key: 'execution-preview' as const, label: 'Execution preview', icon: Workflow }] : []),
+    ? [{ key: 'execution-preview' as const, label: 'Execution Preview', icon: Workflow }]
+    : []),
 ]
 
 /** Route → which activity it belongs to (drives rail highlight when no panel
@@ -89,7 +133,7 @@ function routeActivity(name: string | symbol | null | undefined): Activity['key'
   if (name === 'addon-pages') return 'addon-pages'
   if (name === 'tasks') return 'tasks'
   if (name === 'schedules') return 'schedules'
-  if (name === 'prompts') return 'prompts'
+  if (name === 'prompts') return 'explorer'
   if (name === 'memory') return 'memory'
   if (name === 'execution') return 'execution'
   if (name === 'execution-preview') return 'execution-preview'
@@ -110,7 +154,15 @@ function toggleExplorer() {
  *  asserted centrally in {@link openSurface} (lib/surface), mirrored by the
  *  tab bar, so both entry points restore the correct rail. */
 function openActivity(a: Activity['key']) {
-  if (a === 'addon-pages' || a === 'tasks' || a === 'schedules' || a === 'prompts' || a === 'memory' || a === 'execution-preview' || a === 'execution') {
+  if (
+    a === 'addon-pages' ||
+    a === 'tasks' ||
+    a === 'schedules' ||
+    a === 'prompts' ||
+    a === 'memory' ||
+    a === 'execution-preview' ||
+    a === 'execution'
+  ) {
     openSurface(a)
     return
   }
@@ -130,7 +182,17 @@ function openSettings() {
  *  otherwise an open panel wins, falling back to the route. */
 const activeKey = computed<Activity['key'] | null>(() => {
   const r = routeActivity(route.name)
-  if (r === 'addon-pages' || r === 'chat' || r === 'execution-preview' || r === 'execution' || r === 'tasks' || r === 'schedules' || r === 'prompts' || r === 'memory') return r
+  if (
+    r === 'addon-pages' ||
+    r === 'chat' ||
+    r === 'execution-preview' ||
+    r === 'execution' ||
+    r === 'tasks' ||
+    r === 'schedules' ||
+    r === 'prompts' ||
+    r === 'memory'
+  )
+    return r
   const owner = panel.open ? panel.owner : null
   return owner === 'explorer' || owner === 'version' ? owner : r
 })
@@ -142,23 +204,30 @@ const settingsActive = computed(() => route.name === 'settings')
 watch(
   () => workspace.hasActive,
   (on) => {
-    if (on && !panel.open && !['addon-pages','tasks','schedules','prompts','memory'].includes(String(route.name))) panel.show('explorer', FileTree, 'Explorer')
+    if (on && !panel.open && !['tasks', 'memory'].includes(String(route.name)))
+      panel.show('explorer', FileTree, 'Explorer')
   },
   { immediate: true },
 )
 
 // Route restoration can finish after workspace activation. Assert the full-page
 // surface again so a reload cannot leave the default Explorer beside it.
-watch(() => route.name, name => {
-  if (['addon-pages', 'tasks', 'schedules', 'prompts', 'memory'].includes(String(name))) panel.clear()
-}, {immediate: true})
+watch(
+  () => route.name,
+  (name) => {
+    if (['tasks', 'memory'].includes(String(name))) panel.clear()
+    if (name === 'prompts') panel.show('explorer', FileTree, 'Explorer')
+  },
+  { immediate: true },
+)
 
 /** Keep the fs-watch and job subscriptions tied to the open workspace. */
 watch(
-  () => workspace.active?.path,
-  (path) => {
+  [() => workspace.active?.path, () => gateway.connected.value],
+  ([path]) => {
     fileWatch.stop()
     jobs.stop()
+    void configStore.load()
     if (path) {
       fileWatch.start()
       void jobs.start()
@@ -175,15 +244,22 @@ function openJobs() {
 // Reopen the last-used workspace so a refresh returns to the IDE shell, then
 // resume the route that was stashed by the workspace gate (deep links).
 onMounted(async () => {
-  if (import.meta.env.DEV && import.meta.env.VITE_MOCK === '1'
-    && window.location.pathname === '/preview/execution') return
+  if (
+    import.meta.env.DEV &&
+    import.meta.env.VITE_MOCK === '1' &&
+    window.location.pathname === '/preview/execution'
+  )
+    return
   await workspace.restore()
   void configStore.load()
   if (workspace.hasActive) {
+    const targetWorkspace = workspace.active!.path
+    const view = await workspaceViews.ready(targetWorkspace)
+    if (workspace.active?.path !== targetWorkspace) return
     const pending = pendingRoute()
     if (pending) router.replace(pending)
     else if (route.path === '/' || route.path === '/welcome') {
-      const target = rootRoute()
+      const target = restoredRoute(view)
       if (target) router.replace(target)
     }
   }
@@ -193,6 +269,7 @@ onMounted(async () => {
 
 const switchOpen = ref(false)
 const connectionLabel = computed(() => (gateway.connected.value ? 'Connected' : 'Offline | demo'))
+const liveUpdateError = computed(() => gateway.liveUpdateError?.value || '')
 /** Real-gateway outage: blocks the UI until the heartbeat reconnects. */
 const connectionLost = computed(() => !gateway.connected.value && !gateway.demo)
 
@@ -262,15 +339,20 @@ async function closeWorkspace() {
   const ws = workspace.active
   if (!ws) return
   const ok = await feedback.confirm({
-    header: 'Close workspace',
-    message: `Close "${projectName(ws.path)}"? Unsaved changes in its open tabs will be lost.`,
+    header: 'Close Workspace?',
+    message: `Close "${projectName(ws.path)}"? Unsaved drafts stay in this window until you close their tabs or reload the application.`,
     acceptLabel: 'Close',
     rejectLabel: 'Cancel',
     danger: true,
   })
   if (!ok) return
-  await workspace.close()
-  router.replace('/welcome')
+  if (await workspace.close()) router.replace('/welcome')
+  else
+    feedback.toast(
+      'error',
+      'Could Not Close Workspace',
+      'The workspace remains open. Stop active work and try again.',
+    )
 }
 
 function onGlobalDown(e: MouseEvent) {
@@ -372,7 +454,7 @@ function onRightResizeStart(e: MouseEvent) {
         data-switcher
         class="glass absolute left-24 top-11 z-40 w-72 rounded-lg border border-divider py-1 shadow-card"
       >
-        <p class="px-3 pb-1 pt-1.5 text-[10px] font-semibold uppercase tracking-wider text-subtle">Recent workspaces</p>
+        <p class="px-3 pb-1 pt-1.5 text-[10px] font-semibold text-subtle">Recent workspaces</p>
         <div v-if="workspace.recents.length" class="px-1">
           <button
             v-for="w in workspace.recents"
@@ -419,15 +501,21 @@ function onRightResizeStart(e: MouseEvent) {
       <div class="flex min-h-0 flex-1">
         <!-- Activity rail: workspace features on top, Settings pinned to the
              bottom of the same rail (item 14). -->
-        <ActivityRail :items="activities" :active="activeKey" :settings-active="settingsActive"
-          @select="key => openActivity(key as Activity['key'])" @settings="openSettings" />
+        <ActivityRail
+          :items="activities"
+          :active="activeKey"
+          :settings-active="settingsActive"
+          @select="(key) => openActivity(key as Activity['key'])"
+          @settings="openSettings"
+        />
         <aside
           v-if="panel.open"
           class="workspace-file-panel relative flex shrink-0 flex-col bg-sidebar"
           :style="{ width: panel.width + 'px' }"
         >
           <div
-            class="flex h-8 shrink-0 items-center gap-1.5 border-b border-divider px-3 text-[11px] font-semibold uppercase tracking-wider text-subtle"
+            v-if="!['explorer', 'settings'].includes(panel.owner ?? '')"
+            class="flex h-8 shrink-0 items-center gap-1.5 border-b border-divider px-3 text-[11px] font-semibold text-subtle"
           >
             <Workflow v-if="panel.owner !== 'version'" class="h-3.5 w-3.5" />
             <span class="truncate">{{ panel.title }}</span>
@@ -450,7 +538,10 @@ function onRightResizeStart(e: MouseEvent) {
 
         <!-- Main editor area: one pane, or two when a file is opened to the side. -->
         <main class="workspace-editor-surface flex min-w-0 flex-1 overflow-hidden">
-          <div class="min-w-0 flex-1 overflow-hidden" :style="splitVisible ? { flex: `0 0 ${tabs.splitRatio * 100}%` } : undefined">
+          <div
+            class="min-w-0 flex-1 overflow-hidden"
+            :style="splitVisible ? { flex: `0 0 ${tabs.splitRatio * 100}%` } : undefined"
+          >
             <RouterView />
           </div>
           <template v-if="splitVisible">
@@ -494,7 +585,7 @@ function onRightResizeStart(e: MouseEvent) {
           :style="{ width: rightPanel.width + 'px' }"
         >
           <div
-            class="flex h-8 shrink-0 items-center gap-1.5 border-b border-divider px-3 text-[11px] font-semibold uppercase tracking-wider text-subtle"
+            class="flex h-8 shrink-0 items-center gap-1.5 border-b border-divider px-3 text-[11px] font-semibold text-subtle"
           >
             <Workflow class="h-3.5 w-3.5" />
             <span class="truncate">{{ rightPanel.title }}</span>
@@ -547,12 +638,28 @@ function onRightResizeStart(e: MouseEvent) {
       >
         <Loader2 v-if="jobs.running" class="h-3 w-3 animate-spin" style="color: var(--primary)" />
         <Terminal v-else class="h-3 w-3" />
-        <span>{{ jobs.running ? `${jobs.running} running` : `${jobs.entries.length} job(s)` }}</span>
+        <span>{{
+          jobs.running ? `${jobs.running} running` : `${jobs.entries.length} job(s)`
+        }}</span>
       </button>
 
       <span class="flex items-center gap-1.5" :class="jobs.entries.length ? '' : 'ml-auto'">
-        <span class="h-1.5 w-1.5 rounded-full" :class="gateway.connected.value ? 'bg-emerald-500' : 'bg-subtle'" />
+        <span
+          class="h-1.5 w-1.5 rounded-full"
+          :class="gateway.connected.value ? 'bg-emerald-500' : 'bg-subtle'"
+        />
         {{ connectionLabel }}
+        <span
+          v-if="liveUpdateError && gateway.connected.value"
+          class="text-[13px] text-status-error"
+          :title="liveUpdateError"
+          role="status"
+          >{{
+            liveUpdateError.includes('Update the host')
+              ? 'Update the host for live updates'
+              : 'Live updates reconnecting…'
+          }}</span
+        >
       </span>
     </footer>
 
@@ -579,17 +686,22 @@ function onRightResizeStart(e: MouseEvent) {
         aria-labelledby="lost-title"
       >
         <div class="w-100 rounded-2xl border border-divider bg-surface p-6 text-center shadow-2xl">
-          <div class="mx-auto mb-3 grid h-12 w-12 place-items-center rounded-full bg-danger/10 text-danger">
+          <div
+            class="mx-auto mb-3 grid h-12 w-12 place-items-center rounded-full bg-danger/10 text-danger"
+          >
             <WifiOff class="h-6 w-6" />
           </div>
           <h2 id="lost-title" class="mb-1 text-[18px] font-semibold text-foreground">
-            Daemon connection lost
+            Daemon Connection Lost
           </h2>
           <p class="text-[15px] leading-relaxed text-muted-foreground">
             The daemon is unreachable, please check whether the daemon is running properly.
           </p>
           <p class="mt-3 flex items-center justify-center gap-1.5 text-[11.5px] text-subtle">
-            <span class="h-1.5 w-1.5 animate-pulse rounded-full" style="background: var(--primary)" />
+            <span
+              class="h-1.5 w-1.5 animate-pulse rounded-full"
+              style="background: var(--primary)"
+            />
             Reconnecting…
           </p>
         </div>

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import InlineHelp from '@/components/resources/InlineHelp.vue'
+import PageHeader from '@/components/PageHeader.vue'
 import { computed, onUnmounted, ref, watch } from 'vue'
 import { CalendarClock, Plus, Pause, Play, Square, Pencil } from '@lucide/vue'
 import { useSurfaceNavigation } from '@/lib/surface'
@@ -8,7 +9,9 @@ import { useWorkspaceStore } from '@/stores/workspace'
 import { vDialogFocus } from '@/components/resources/dialog-focus'
 import type { TaskRecord, TaskPage, Schedule } from '@/core/continuations'
 import './continuations.css'
-const {openSurface}=useSurfaceNavigation()
+import { useWorkspaceRefresh } from '@/lib/workspace-refresh'
+defineProps<{ embedded?: boolean }>()
+const { openSurface } = useSurfaceNavigation()
 const workspace = useWorkspaceStore(),
   tasks = ref<TaskRecord[]>([]),
   error = ref(''),
@@ -33,14 +36,19 @@ const selected = computed(() => tasks.value.find((t) => t.task.id === taskId.val
 const rows = computed(() =>
   tasks.value.flatMap((t) => t.schedules.map((s) => ({ task: t, schedule: s }))),
 )
-const eligible = computed(() => tasks.value.some(t => ['waiting','paused','ready'].includes(t.task.state) && t.has_saved_context))
-let refreshing = false
+const eligible = computed(() =>
+  tasks.value.some(
+    (t) => ['waiting', 'paused', 'ready'].includes(t.task.state) && t.has_saved_context,
+  ),
+)
 const available = computed(() => gateway.connected.value && !busy.value)
-async function load() {
+defineExpose({ open, eligible, available })
+function load() {
+  return updates.run(() => loadSnapshot())
+}
+async function loadSnapshot() {
   const root = workspace.active?.path
-  if (!root || busy.value || refreshing) return
-  refreshing = true
-  try {
+  if (!root || busy.value) return
   const ticket = generation
   const all: TaskRecord[] = []
   let after: string | null = null
@@ -60,7 +68,6 @@ async function load() {
   } while (after)
   tasks.value = all
   error.value = ''
-  } finally { refreshing = false }
 }
 watch(
   () => workspace.active?.path,
@@ -69,16 +76,12 @@ watch(
     tasks.value = []
     editing.value = false
     review.value = null
-    void load()
   },
   { immediate: true },
 )
-const timer = setInterval(() => {
-  if (!editing.value) void load()
-}, 3000)
+const updates = useWorkspaceRefresh(() => loadSnapshot(), [() => busy.value])
 onUnmounted(() => {
   generation++
-  clearInterval(timer)
 })
 watch([taskId, kind, zone, date, time, minutes, weekday, maximum, misfire], () => {
   review.value = null
@@ -275,22 +278,28 @@ async function control(t: TaskRecord, action: string) {
 </script>
 <template>
   <section class="nx-live">
-    <header class="nx-live-heading">
-      <div>
-        <h1>Schedules <InlineHelp text="Schedule a bounded continuation of an existing saved task and session." /></h1>
-      </div>
+    <p v-if="updates.error" class="nx-live-alert" role="status">
+      Live Updates Disconnected. {{ updates.error }}
+    </p>
+    <PageHeader v-if="!embedded" title="Schedules">
+      <template #help>
+        <InlineHelp text="Schedule a bounded continuation of an existing saved task and session." />
+      </template>
       <button v-if="eligible" class="btn btn-primary" :disabled="!available" @click="open">
         <Plus :size="16" />New schedule
       </button>
-    </header>
+    </PageHeader>
     <p v-if="!gateway.connected.value" class="nx-live-alert">
       Disconnected. Changes are unavailable.
     </p>
     <p v-if="error" role="alert" class="nx-live-alert">{{ error }}</p>
     <div v-if="!rows.length" class="nx-live-empty">
       <CalendarClock :size="30" />
-      <h2>No schedules</h2>
-      <p>Save a waiting task to schedule its next step.</p><button v-if="!eligible" class="btn" @click="openSurface('tasks')">Open tasks</button>
+      <h2>No Schedules</h2>
+      <p>Save a waiting task to schedule its next step.</p>
+      <button v-if="!eligible" class="btn btn-outline" @click="openSurface('tasks')">
+        Open tasks
+      </button>
     </div>
     <article
       v-for="row in rows"
@@ -334,13 +343,13 @@ async function control(t: TaskRecord, action: string) {
       </dl>
       <div class="nx-live-actions">
         <button
-          class="btn"
+          class="btn btn-outline"
           :disabled="!available || !['waiting', 'paused', 'ready'].includes(row.task.task.state)"
           @click="edit(row.task, row.schedule)"
         >
           <Pencil :size="15" />Edit plan</button
         ><button
-          class="btn"
+          class="btn btn-outline"
           :disabled="!available || row.schedule.cancelled"
           @click="control(row.task, row.task.task.paused ? 'resume' : 'pause')"
         >
@@ -370,8 +379,8 @@ async function control(t: TaskRecord, action: string) {
         aria-label="Schedule plan"
       >
         <div class="nx-live-between">
-          <h2>Schedule a continuation</h2>
-          <button class="btn" @click="editing = false">Close</button>
+          <h2>Schedule a Continuation</h2>
+          <button class="btn btn-outline" @click="editing = false">Close</button>
         </div>
         <p
           v-if="
@@ -472,7 +481,7 @@ async function control(t: TaskRecord, action: string) {
           permissions and budget</label
         >
         <div class="nx-live-actions">
-          <button class="btn" @click="editing = false">Cancel</button
+          <button class="btn btn-outline" @click="editing = false">Cancel</button
           ><button
             v-if="!review"
             class="btn btn-primary"

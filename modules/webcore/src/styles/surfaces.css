@@ -1,0 +1,95 @@
+/* Shared page geometry and typography. Panels do not own outer gutters. */
+:root {
+  --page-gutter: 24px;
+  --page-title-size: 18px;
+  --page-title-height: 28px;
+  --page-header-height: 56px;
+}
+.surface-page {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  padding: 0 var(--page-gutter) 24px;
+  color: var(--foreground);
+}
+.surface-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+  min-height: var(--page-header-height);
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  padding-block: 12px;
+  margin-bottom: 20px;
+}
+.surface-header-toolbar {
+  padding-inline: var(--page-gutter);
+  margin-bottom: 0;
+  border-bottom: 1px solid var(--divider);
+}
+.surface-heading-group {
+  min-width: 0;
+  max-width: 100%;
+}
+.surface-heading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.surface-title {
+  margin: 0;
+  min-width: 0;
+  font-size: var(--page-title-size);
+  line-height: var(--page-title-height);
+  font-weight: 600;
+  letter-spacing: -0.025em;
+}
+.surface-description {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: var(--muted-foreground);
+  overflow-wrap: anywhere;
+}
+.surface-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: 0;
+  margin-left: auto;
+}
+.surface-tabs {
+  display: flex;
+  gap: 16px;
+  border-bottom: 1px solid var(--divider);
+  margin-bottom: 24px;
+}
+.surface-tabs button {
+  padding: 8px 2px 10px;
+  color: var(--muted-foreground);
+  border-bottom: 2px solid transparent;
+  font-size: 13px;
+}
+.surface-tabs button[aria-selected='true'] {
+  color: var(--foreground);
+  border-color: var(--primary);
+}
+.surface-tabs button:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+@media (max-width: 760px) {
+  .surface-page,
+  .surface-header-toolbar {
+    --page-gutter: 16px;
+  }
+}
+@container (max-width: 600px) {
+  .surface-page,
+  .surface-header-toolbar {
+    --page-gutter: 16px;
+  }
+}

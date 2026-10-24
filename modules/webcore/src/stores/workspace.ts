@@ -54,7 +54,7 @@ function loadLastWorkspace(): string | null {
  * the path; the recent list survives reloads via `localStorage`, while the
  * last-active path is kept per-tab in `sessionStorage`. New windows inherit
  * the opener's `sessionStorage` via `window.open`, so a restored workspace is
- * never closed on the daemon by another window's first switch (`autoRestored`).
+ * never closed on the daemon by another window switching its active view.
  */
 export const useWorkspaceStore = defineStore('workspace', () => {
   /** Workspaces opened earlier, for the switcher / welcome-page list. */
@@ -62,16 +62,9 @@ export const useWorkspaceStore = defineStore('workspace', () => {
   /** The currently open workspace, or `null` to fall back to the welcome page. */
   const active = ref<WorkspaceInfo | null>(null)
   const busy = ref(false)
+  let selectionGeneration = 0
   /** Explorer directory listings keyed by `workspacePath|dir`. */
   const dirCache = ref<Map<string, FileTreeNode[]>>(new Map())
-  /**
-   * True while `active` came from an automatic sessionStorage restore. A new
-   * window copies its opener's sessionStorage, so that workspace may still be
-   * in use by the originating window: the first user-driven switch must detach
-   * locally instead of closing it on the shared daemon.
-   */
-  let autoRestored = false
-
   const hasActive = computed(() => active.value !== null)
 
   /** Back-compat alias of `recents`. */
@@ -117,12 +110,13 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     if (typeof window !== 'undefined' && window.location.search.includes('open=')) return
     const path = loadLastWorkspace()
     if (!path) return
+    const generation = selectionGeneration
     const r = await gateway.openWorkspace(path)
+    if (generation !== selectionGeneration || busy.value || active.value) return
     if (r.ok) {
       dirCache.value = new Map()
       active.value = r.data
       remember(r.data)
-      autoRestored = true
     }
   }
 
@@ -130,14 +124,12 @@ export const useWorkspaceStore = defineStore('workspace', () => {
   async function open(path: string): Promise<{ ok: boolean; message?: string }> {
     const target = path.trim()
     if (!target) return { ok: false, message: 'Path is empty' }
+    if (busy.value) return { ok: false, message: 'A workspace operation is already in progress' }
     busy.value = true
+    selectionGeneration++
     try {
-      // Single-workspace shell: opening a new one closes the current first —
-      // unless it was auto-restored, in which case another window may still be
-      // using it on the shared daemon (detach locally instead).
-      const prev = active.value
-      if (prev && prev.path !== target && !autoRestored) await gateway.closeWorkspace(prev.path)
-      autoRestored = false
+      // A window selects a workspace; it does not own the shared daemon's
+      // workspace lifetime. Validate the new target before detaching locally.
       const r = await gateway.openWorkspace(target)
       if (!r.ok) return { ok: false, message: r.error }
       dirCache.value = new Map()
@@ -177,46 +169,40 @@ export const useWorkspaceStore = defineStore('workspace', () => {
   /** Switch to a previously opened workspace without a filesystem call. */
   async function switchTo(path: string): Promise<void> {
     if (active.value?.path === path) return
-    const prev = active.value
-    if (prev && !autoRestored) await gateway.closeWorkspace(prev.path)
-    autoRestored = false
-    const r = await gateway.openWorkspace(path)
-    if (r.ok) {
-      active.value = r.data
-      remember(r.data)
-      saveLastWorkspace(path)
-    }
+    await open(path)
   }
 
   /** Close a workspace and fall back to the welcome page (kept in recents). */
   async function close() {
     const ws = active.value
     if (!ws) return
-    await closePath(ws.path)
+    return closePath(ws.path)
   }
 
   async function closePath(path: string) {
+    if (busy.value) return false
+    selectionGeneration++
     busy.value = true
     try {
-      await gateway.closeWorkspace(path)
+      const result = await gateway.closeWorkspace(path)
+      if (!result.ok) return false
       if (active.value?.path === path) {
         active.value = null
         saveLastWorkspace(null)
       }
+      return true
     } finally {
       busy.value = false
     }
   }
 
-  function select(path: string) {
-    autoRestored = false
-    active.value = recents.value.find((w) => w.path === path) ?? null
-    if (active.value) remember(active.value)
+  async function select(path: string) {
+    return open(path)
   }
 
   /** Remove a workspace from the switcher list (and close it if active). */
   async function forget(path: string) {
-    if (active.value?.path === path) await closePath(path)
+    if (active.value?.path === path && !(await closePath(path))) return
     recents.value = recents.value.filter((w) => w.path !== path)
     saveRecents(recents.value)
   }
@@ -235,5 +221,25 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     if (active.value && !r.data.some((w) => w.path === active.value!.path)) active.value = null
   }
 
-  return { recents, workspaces, active, hasActive, busy, cachedDir, cacheDir, invalidateDir, invalidateTree, restore, open, switchTo, close, closePath, select, forget, refresh, createCheckpoint, restoreCheckpoint }
+  return {
+    recents,
+    workspaces,
+    active,
+    hasActive,
+    busy,
+    cachedDir,
+    cacheDir,
+    invalidateDir,
+    invalidateTree,
+    restore,
+    open,
+    switchTo,
+    close,
+    closePath,
+    select,
+    forget,
+    refresh,
+    createCheckpoint,
+    restoreCheckpoint,
+  }
 })

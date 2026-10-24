@@ -225,17 +225,26 @@ def main():
     parser.add_argument('--target', type=Path, required=True)
     parser.add_argument('--web-dist', type=Path, required=True)
     parser.add_argument('--node', type=Path, required=True)
-    parser.add_argument('--phase', choices=['development', 'held_out'], required=True)
+    parser.add_argument('--phase', choices=['development', 'held_out', 'all'], required=True)
+    parser.add_argument('--candidate-only', action='store_true', help='Run current candidate once per selected case; no paid baseline repeat')
+    parser.add_argument('--fresh-budget', action='store_true', help='Use a new phase ledger with no imported historical cost')
+    parser.add_argument('--max-model-requests', type=int)
     parser.add_argument('--cases', nargs='*')
     parser.add_argument('--models', nargs='+', choices=['flash', 'pro'], default=['flash', 'pro'])
     args = parser.parse_args()
+    if args.candidate_only and not args.cases:
+        parser.error('Candidate acceptance requires explicitly selected cases')
+    if args.cases and set(args.cases) - {case['id'] for case in tasks()}:
+        parser.error('Unknown acceptance case ID')
     if args.limit_usd > 5:
         parser.error('Current authorization is at most USD 5')
     if args.output.exists():
         parser.error('Use a new output directory; preserve first failures')
     args.output.mkdir(parents=True)
     config = connection(args.credential_config)
-    ledger = Ledger(args.budget_ledger, args.limit_usd, imported_nano_usd=261900)
+    if args.fresh_budget and args.budget_ledger.exists():
+        parser.error('Fresh phase authorization requires a new ledger path; existing ledgers are never reset')
+    ledger = Ledger(args.budget_ledger, args.limit_usd, imported_nano_usd=0 if args.fresh_budget else 261900, max_calls=args.max_model_requests)
     relay = Relay(config, ledger)
     thread = threading.Thread(target=relay.serve_forever, daemon=True)
     thread.start()
@@ -245,6 +254,10 @@ def main():
     owned = []
     handles = []
     summary = {'schema_version': 1, 'phase': args.phase, 'source_sha256_start': source_digest(), 'head': subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=REPO, text=True).strip(), 'cases': [], 'claim_boundary': 'One matched pass per cell; synthetic data. No statistical significance or provider cache reuse inferred. Negative host gates can correctly prevent all provider calls.'}
+    if args.candidate_only:
+        summary['claim_boundary'] = 'Current candidate only, explicitly selected synthetic tasks. No paid baseline repeat, statistical improvement or historical result substitution.'
+    summary['fresh_budget'] = args.fresh_budget
+    summary['max_model_requests'] = args.max_model_requests
     try:
         for name, exe, flags in [
             ('daemon', args.target / 'debug/metteurd.exe', ['--config', str(global_config), '--data-dir', str(args.output / 'data'), '--listen-addr', f'127.0.0.1:{dp}']),
@@ -260,12 +273,14 @@ def main():
             owned.append(child)
             wait_listener(child, dp if name == 'daemon' else wp)
         for spec in tasks():
-            if spec['split'] != args.phase or args.cases and spec['id'] not in args.cases:
+            if (args.phase != 'all' and spec['split'] != args.phase) or args.cases and spec['id'] not in args.cases:
                 continue
             for alias in args.models:
                 workspace = args.output / 'workspaces' / (spec['id'] + '-' + alias)
                 # Counterbalance order; paired cells use the same absolute root.
                 variants = ['baseline', 'candidate'] if int(spec['id'][-2:]) % 2 else ['candidate', 'baseline']
+                if args.candidate_only:
+                    variants = ['candidate']
                 for variant in variants:
                     case_root = args.output / (spec['id'] + '-' + alias + '-' + variant)
                     case_root.mkdir()

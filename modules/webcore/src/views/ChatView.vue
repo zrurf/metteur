@@ -1,8 +1,16 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import {
+  computed,
+  nextTick,
+  onBeforeUnmount,
+  onMounted,
+  onActivated,
+  onDeactivated,
+  ref,
+  watch,
+} from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { Bug, Compass, ListChecks } from '@lucide/vue'
-import ConciergePanel from '@/components/execution/ConciergePanel.vue'
 import { gateway } from '@/core'
 import { useExecutionStore } from '@/stores/execution'
 import { useChatStore } from '@/stores/chat'
@@ -13,11 +21,24 @@ import { fileRoute } from '@/lib/file-token'
 import { onHighlightReady, warmHighlighter } from '@/lib/markdown'
 import { clearRenderCache } from '@/lib/chat/stream-render'
 import ChatHeader from '@/components/chat/ChatHeader.vue'
+import WorkflowReceipts from '@/components/WorkflowReceipts.vue'
+import FileReferenceDialog from '@/components/FileReferenceDialog.vue'
 import ChatThread from '@/components/chat/ChatThread.vue'
 import ChatComposer from '@/components/chat/ChatComposer.vue'
 import ChatStatusBar from '@/components/chat/ChatStatusBar.vue'
 import PlanBar from '@/components/chat/PlanBar.vue'
 import type { ChatOptions, FileTreeNode, LlmModelConfig } from '@/core'
+import { useWorkspaceRefresh } from '@/lib/workspace-refresh'
+import { useWorkspaceStore } from '@/stores/workspace'
+import { useComposerInputsStore } from '@/stores/composer-inputs'
+import RecoveryCopies from '@/components/RecoveryCopies.vue'
+import type { RecoveryRecord } from '@/core/recovery'
+import { useForegroundStore } from '@/stores/foreground'
+import { useDocumentsStore } from '@/stores/documents'
+import { useSurfaceNavigation } from '@/lib/surface'
+import { useCodingWorkflowsStore } from '@/stores/coding-workflows'
+const codingWorkflows=useCodingWorkflowsStore()
+function startTemplate(){if(!workspace.active)return;void codingWorkflows.openPlan(workspace.active.path,chat.sessionId?{session:chat.sessionId,entity:chat.draftEntity}:null,chat.draft);openSurface('tasks')}
 
 /**
  * The ReAct chat surface.
@@ -29,19 +50,171 @@ import type { ChatOptions, FileTreeNode, LlmModelConfig } from '@/core'
  */
 const chat = useChatStore()
 const execution = useExecutionStore()
-let runtimeTimer: ReturnType<typeof setTimeout> | undefined, runtimeDisposed = false
-async function pollRuntime() {
-  await execution.reconcile()
-  if (!runtimeDisposed) runtimeTimer = setTimeout(pollRuntime, 1000)
+const foreground = useForegroundStore()
+const { openSurface } = useSurfaceNavigation()
+const blueprintBusy = computed(
+  () => foreground.current.state === 'blueprint' || execution.launching || execution.active,
+)
+const inputBlocked = computed(
+  () =>
+    blueprintBusy.value ||
+    chat.sessionUnavailable ||
+    ['unknown', 'blocked'].includes(foreground.current.state) ||
+    (foreground.current.state === 'chat' &&
+      (!chat.streaming || foreground.current.session !== chat.sessionId)),
+)
+const foregroundLabel = computed(() =>
+  chat.sessionUnavailable
+    ? 'Conversation unavailable · your drafts are kept'
+    : execution.launching
+      ? 'Blueprint is starting'
+      : foreground.current.reason,
+)
+const foregroundRun = computed(
+  () => foreground.current.run || (execution.active ? execution.runId : null),
+)
+async function openSupervision() {
+  const ws = workspace.active?.path,
+    run = foregroundRun.value
+  if (!ws || !run) return
+  await execution.reconcile(run)
+  if (workspace.active?.path !== ws) return
+  if (execution.current?.runId !== run || !execution.connected) {
+    feedback.toast(
+      'error',
+      'Run Unavailable',
+      execution.error || 'The selected run could not be loaded.',
+    )
+    return
+  }
+  openSurface('execution')
 }
-onMounted(() => { void pollRuntime() })
-onBeforeUnmount(() => { runtimeDisposed = true; clearTimeout(runtimeTimer) })
+async function controlBlueprint(action: 'pause' | 'cancel') {
+  const run = foregroundRun.value
+  if (!run) return
+  await execution[action](run)
+  await foreground.refresh()
+}
+useWorkspaceRefresh(() => execution.reconcile())
 const config = useConfigStore()
 const tabs = useTabsStore()
 const feedback = useFeedbackStore()
 const router = useRouter()
+const route = useRoute()
+const workspace = useWorkspaceStore(),
+  inputs = useComposerInputsStore()
+watch(
+  () => route.query.session,
+  (id) => {
+    if (typeof id === 'string' && id) void chat.switchTo(id)
+  },
+  { immediate: true },
+)
+function selectSession(id: string) {
+  if (route.query.session !== id) void router.replace({ query: { ...route.query, session: id } })
+  else void chat.switchTo(id)
+}
+async function newSession() {
+  await chat.clear()
+  if (route.query.session) {
+    const query = { ...route.query }
+    delete query.session
+    void router.replace({ query })
+  }
+}
+async function deleteSession(id: string) {
+  const target = workspace.active?.path
+  const confirmed = await feedback.confirm({
+    header: 'Delete this conversation?',
+    message:
+      'Delete the saved conversation. Backed-up drafts remain available in Recovery Copies and will not recreate the conversation.',
+    acceptLabel: 'Delete Conversation',
+    rejectLabel: 'Keep Conversation',
+    danger: true,
+  })
+  if (!confirmed || workspace.active?.path !== target) return
+  if (await chat.deleteThread(id)) {
+    if (route.query.session === id) {
+      const query = { ...route.query }
+      delete query.session
+      void router.replace({ query })
+    }
+  } else feedback.toast('error', 'Conversation Kept', chat.sendError)
+}
+const recoveryOpen = ref(false)
+const draftIdentity = computed(() => JSON.stringify([workspace.active?.path, chat.draftEntity]))
+const draftStatus = computed(() => {
+  const input = chat.composerInput
+  if (!input) return ''
+  if (input.state === 'submitting') return 'Submitting…'
+  if (input.state === 'unknown') return 'Receipt Unconfirmed'
+  if (!input.input.raw && !input.input.selections.length) return ''
+  if (input.backup?.state === 'backed_up') return 'Backed Up on Host'
+  if (input.backup?.state === 'backing_up') return 'Backing Up…'
+  return gateway.demo ? 'Demo Draft · This Window' : 'Not Backed Up'
+})
+const draftError = computed(
+  () => chat.sendError || chat.composerInput?.error || chat.composerInput?.backup?.error,
+)
+async function restoreInput(record: RecoveryRecord) {
+  const ws = workspace.active?.path,
+    entity = chat.draftEntity
+  if (!ws) return
+  if (
+    (record.input.entity !== entity && (chat.sessionId || record.input.kind !== 'new_chat')) ||
+    !['chat', 'new_chat'].includes(record.input.kind)
+  ) {
+    feedback.toast(
+      'error',
+      'Different Source',
+      'Open the original conversation, or copy the text into a new draft.',
+    )
+    return
+  }
+  if (!(await inputs.restore(ws, entity, record))) {
+    feedback.toast(
+      'error',
+      'Current Input Kept',
+      'Back up or reconcile the current input before replacing it.',
+    )
+    return
+  }
+  if (workspace.active?.path === ws && chat.draftEntity === entity) recoveryOpen.value = false
+}
+async function reconcileInput() {
+  const ws = workspace.active?.path,
+    entity = chat.draftEntity,
+    session = chat.sessionId
+  if (!ws) return
+  const accepted = await inputs.reconcile(ws, entity)
+  if (accepted && workspace.active?.path === ws && chat.sessionId === session && session)
+    await chat.switchTo(session)
+}
+async function discardInput() {
+  const ws = workspace.active?.path,
+    entity = chat.draftEntity,
+    sequence = chat.composerInput?.input.edit_sequence
+  if (!ws || sequence === undefined) return
+  const confirmed = await feedback.confirm({
+    header: 'Discard this draft?',
+    message:
+      'Discard this input copy. Saved conversations and other recovery copies stay available.',
+    acceptLabel: 'Discard Draft',
+    danger: true,
+  })
+  if (!confirmed || workspace.active?.path !== ws || chat.draftEntity !== entity) return
+  if (!(await inputs.discard(ws, entity, sequence)))
+    feedback.toast('error', 'Draft Kept', 'The input changed or its outcome needs reconciliation.')
+}
 
 const composer = ref<InstanceType<typeof ChatComposer>>()
+let surfaceActive = true
+onActivated(() => {
+  surfaceActive = true
+})
+onDeactivated(() => {
+  surfaceActive = false
+})
 
 /* Models ---------------------------------------------------------------- */
 
@@ -54,9 +227,28 @@ const modelKeys = computed(() => {
   if (fallback && keys.includes(fallback)) return [fallback, ...keys.filter((k) => k !== fallback)]
   return keys
 })
-const hasModel = computed(() => modelKeys.value.length > 0)
+const hasModel = computed(() => config.loaded && modelKeys.value.length > 0)
 
 const model = ref('')
+watch(
+  [draftIdentity, () => chat.composerInput?.backup?.id],
+  () => {
+    const preferred = chat.composerInput?.input.selected_model
+    if (preferred && modelKeys.value.includes(preferred)) model.value = preferred
+  },
+  { immediate: true },
+)
+watch([model, () => chat.draft], ([selected_model, raw]) => {
+  if (workspace.active?.path && selected_model && raw)
+    inputs.edit(workspace.active.path, chat.draftEntity, { selected_model })
+})
+watch(
+  modelKeys,
+  (keys) => {
+    if (!keys.includes(model.value)) model.value = keys[0] ?? ''
+  },
+  { immediate: true },
+)
 const reasoning = ref<NonNullable<ChatOptions['reasoning_effort']>>('medium')
 const temperature = ref(0.7)
 const topP = ref(0.9)
@@ -67,7 +259,7 @@ const chatOptions = computed<ChatOptions>(() => ({
   // The selection can lag the configuration (a workspace that just opened, a
   // model removed from settings); the first configured key is what the
   // selector would show anyway.
-  model: model.value || modelKeys.value[0] || '',
+  model: modelKeys.value.includes(model.value) ? model.value : modelKeys.value[0] || '',
   reasoning_effort: reasoning.value,
   temperature: temperature.value,
   top_p: topP.value,
@@ -80,26 +272,26 @@ const chatOptions = computed<ChatOptions>(() => ({
 const running = computed(() => chat.streaming)
 
 /** Sends a turn, or reports why it cannot. */
-async function send(text: string): Promise<void> {
+async function send(text: string, accepted?: () => void): Promise<boolean> {
   if (!hasModel.value) {
     feedback.toast('error', 'No model configured', 'Add a model under Settings → LLM & Models.')
     openSettings()
-    return
+    return false
   }
-  await chat.send(text, chatOptions.value)
+  return chat.send(text, chatOptions.value, 'normal', accepted)
 }
 
 /** Queues a message into the running turn (Enter while the agent works). */
-async function queue(text: string): Promise<void> {
-  const ok = await chat.queue(text, chat.pendingFiles ?? [])
-  if (!ok) feedback.toast('error', 'Could not queue the message', 'The turn may have just ended.')
-  if (chat.pendingFiles.length) for (const file of [...chat.pendingFiles]) chat.removeQueuedFile(file.path)
+async function queue(text: string): Promise<boolean> {
+  const ok = await chat.queue(text)
+  if (!ok) feedback.toast('error', 'Input Kept', chat.sendError || 'The turn may have just ended.')
+  return ok
 }
 
-/** Sends a message into the running turn before the next model call. */
-async function steer(text: string): Promise<void> {
+async function steer(text: string): Promise<boolean> {
   const ok = await chat.steer(text)
-  if (!ok) feedback.toast('error', 'Could not send the message', 'The turn may have just ended.')
+  if (!ok) feedback.toast('error', 'Input Kept', chat.sendError || 'The turn may have just ended.')
+  return ok
 }
 
 function stop(): void {
@@ -111,18 +303,36 @@ function copy(text: string): void {
 }
 
 /** Puts a turn back in the composer for editing. */
-function edit(text: string): void {
-  composer.value?.setDraft(text)
+async function edit(text: string): Promise<void> {
+  const current = chat.composerInput
+  if (!current) return
+  await restoreInput({
+    schema_version: 1,
+    revision: 0,
+    updated_ms: 0,
+    discarded: false,
+    input: { ...current.controller.capture(), raw: text, pending_submission: null, view: null },
+  })
+  composer.value?.focus()
 }
 
 /** Regenerates against the original pre-turn context, not the old answer. */
 async function retry(assistantId: string): Promise<void> {
-  if (!hasModel.value) { openSettings(); return }
+  if (inputBlocked.value) {
+    feedback.toast('error', 'Chat Input Unavailable', foregroundLabel.value)
+    return
+  }
+  if (!hasModel.value) {
+    openSettings()
+    return
+  }
   if (chat.busy || chat.rewinding || chat.retrying) return
   const confirmed = await feedback.confirm({
     header: 'Retry this turn?',
-    message: 'Restore files and context to before the original request, discard this answer and all later turns, then generate a new answer automatically. Your input draft will be kept.',
-    acceptLabel: 'Retry', danger: true,
+    message:
+      'Restore files and context to before the original request, discard this answer and all later turns, then generate a new answer automatically. Your input draft will be kept.',
+    acceptLabel: 'Retry',
+    danger: true,
   })
   if (!confirmed) return
   const error = await chat.retry(assistantId, chatOptions.value)
@@ -155,13 +365,83 @@ async function restore(snapshotId: string): Promise<void> {
   })
   if (!confirmed) return
   const error = await chat.rewind(snapshotId)
-  if (error === null) feedback.toast('success', 'Conversation restored', 'Files and model context are back to the state before that turn.')
+  if (error === null)
+    feedback.toast(
+      'success',
+      'Conversation restored',
+      'Files and model context are back to the state before that turn.',
+    )
   else feedback.toast('error', 'Restore failed', error)
 }
 
-function attach(file: FileTreeNode): void {
-  chat.queueFile(file)
+const referenceBusy = ref(false),
+  fileReferenceTarget = ref<{ workspace: string; entity: string; file: FileTreeNode } | null>(null)
+let referenceEpoch = 0
+watch([() => workspace.active?.path, () => chat.draftEntity], () => {
+  referenceEpoch++
+  referenceBusy.value = false
+  fileReferenceTarget.value = null
+})
+function finishReference() {
+  fileReferenceTarget.value = null
+  referenceBusy.value = false
 }
+function selectReferencedFile(file: FileTreeNode) {
+  const target = fileReferenceTarget.value
+  if (target && workspace.active?.path === target.workspace && chat.draftEntity === target.entity)
+    chat.queueFile(file)
+  finishReference()
+}
+function reviewReferencedFile() {
+  const path = fileReferenceTarget.value?.file.path
+  finishReference()
+  if (path) openFile(path)
+}
+async function attach(file: FileTreeNode) {
+  const ws = workspace.active?.path,
+    entity = chat.draftEntity
+  if (!ws || referenceBusy.value) return
+  const ticket = ++referenceEpoch
+  referenceBusy.value = true
+  const doc = useDocumentsStore().peek(ws, file.path)
+  if (doc && useDocumentsStore().dirty(doc)) {
+    fileReferenceTarget.value = { workspace: ws, entity, file }
+    return
+  }
+  try {
+    const result = await gateway.readFile(ws, file.path, true)
+    if (ticket !== referenceEpoch || workspace.active?.path !== ws || chat.draftEntity !== entity)
+      return
+    if (!result.ok || !result.data.reference) {
+      feedback.toast(
+        'error',
+        'File Reference Unavailable',
+        result.ok ? 'The host did not confirm a saved version.' : result.error,
+      )
+      return
+    }
+    chat.queueFile({ ...file, reference: result.data.reference })
+  } catch (cause) {
+    if (ticket === referenceEpoch)
+      feedback.toast('error', 'File Reference Unavailable', String(cause))
+  } finally {
+    if (ticket === referenceEpoch) referenceBusy.value = false
+  }
+}
+watch(
+  () => chat.requestedAttachment,
+  (target) => {
+    if (!target) return
+    chat.requestedAttachment = null
+    if (target.workspace !== workspace.active?.path || target.entity !== chat.draftEntity) return
+    void attach({
+      kind: 'file',
+      path: target.path,
+      name: target.path.split('/').at(-1) || target.path,
+    })
+  },
+  { immediate: true },
+)
 
 /**
  * Hands the current plan to the turn.
@@ -173,12 +453,10 @@ function attachPlan(): void {
   const plan = chat.todos
   if (!plan.length) return
   const lines = plan.map((todo, i) => `${i + 1}. [${todo.status}] ${todo.content}`)
-  composer.value?.setDraft(
-    `Current plan:
+  chat.draft = `${chat.draft ? chat.draft + '\n\n' : ''}Current plan:
 ${lines.join('\n')}
-\n
-`,
-  )
+\n`
+  composer.value?.focus()
 }
 
 /* Keyboard ------------------------------------------------------------- */
@@ -188,7 +466,8 @@ ${lines.join('\n')}
  * back in, and `Ctrl+K` focuses the composer from anywhere in the page.
  */
 function onKeydown(event: KeyboardEvent): void {
-  if (execution.active) return
+  if (!surfaceActive) return
+  if (event.defaultPrevented || event.isComposing || event.keyCode === 229 || event.repeat) return
   const mod = event.ctrlKey || event.metaKey
   if (event.key === 'Escape' && running.value) {
     // The draft is otherwise lost on interrupt, which is the opposite of what
@@ -228,28 +507,82 @@ onMounted(() => {
 onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
 
 const starterPrompts = [
-  { label: 'Explain this workspace', description: 'Find your way around the code.', icon: Compass, text: 'Explain how this workspace is organised and what the main entry points are.' },
-  { label: 'Find and fix a bug', description: 'Turn a problem into a solution.', icon: Bug, text: 'Find the most likely bug in the modified files and fix it.' },
-  { label: 'Plan a change', description: 'Make the next step a clear one.', icon: ListChecks, text: 'Plan how to add a new feature end to end, then implement the first step.' },
+  {
+    label: 'Explain this workspace',
+    description: 'Find your way around the code.',
+    icon: Compass,
+    text: 'Explain how this workspace is organised and what the main entry points are.',
+  },
+  {
+    label: 'Find and fix a bug',
+    description: 'Turn a problem into a solution.',
+    icon: Bug,
+    text: 'Find the most likely bug in the modified files and fix it.',
+  },
+  {
+    label: 'Plan a change',
+    description: 'Make the next step a clear one.',
+    icon: ListChecks,
+    text: 'Plan how to add a new feature end to end, then implement the first step.',
+  },
 ]
 </script>
 
 <template>
-  <div v-if="execution.active" class="chat-surface flex h-full min-w-0 flex-col bg-background"><ConciergePanel :run-id="execution.runId" :connected="execution.connected && gateway.connected.value" /></div>
-  <div v-else class="chat-surface flex h-full min-w-0 flex-col bg-background">
+  <div class="chat-surface flex h-full min-w-0 flex-col bg-background">
     <ChatHeader
       :threads="chat.threads"
       :session-id="chat.sessionId"
-      :active-title="chat.threads.find((t) => t.sessionId === chat.sessionId)?.title || 'New chat'"
+      :active-title="
+        chat.sessionUnavailable
+          ? 'Unavailable conversation'
+          : chat.threads.find((t) => t.sessionId === chat.sessionId)?.title || 'New chat'
+      "
       :addons="chat.addons"
       :addons-loading="chat.addonsLoading"
       :busy="chat.busy || chat.retrying || chat.rewinding"
-      :on-select-session="(id) => void chat.switchTo(id)"
-      :on-delete-session="(id) => void chat.deleteThread(id)"
-      :on-new-session="() => void chat.clear()"
+      :on-select-session="selectSession"
+      :on-delete-session="(id) => void deleteSession(id)"
+      :on-new-session="() => void newSession()"
       :on-toggle-addon="(id, enabled) => void chat.toggleAddon(id, enabled)"
     />
 
+    <div
+      v-if="inputBlocked"
+      class="flex flex-wrap items-center gap-3 border-b border-border px-6 py-3 text-[14px]"
+      data-chat-availability
+    >
+      <span role="status" class="mr-auto">{{
+        foregroundLabel || 'Workspace availability is unconfirmed'
+      }}</span>
+      <template v-if="blueprintBusy">
+        <button class="btn" :disabled="!foregroundRun" @click="openSupervision">
+          Open Supervision
+        </button>
+        <button
+          class="btn"
+          :disabled="!foregroundRun || execution.controlBusy"
+          @click="controlBlueprint('pause')"
+        >
+          Pause
+        </button>
+        <button
+          class="btn"
+          :disabled="!foregroundRun || execution.stopping"
+          @click="controlBlueprint('cancel')"
+        >
+          Stop
+        </button>
+      </template>
+      <button v-else class="btn" @click="foreground.refresh">Check State</button>
+      <details v-if="foreground.error || execution.error">
+        <summary>Details</summary>
+        <p class="max-w-lg break-words text-[13px]">{{ foreground.error || execution.error }}</p>
+      </details>
+    </div>
+
+    <WorkflowReceipts />
+    <div class="px-3 py-1 text-[13px]"><button class="btn" :disabled="!workspace.active" @click="startTemplate">Start from template</button></div>
     <ChatThread
       :key="rerender"
       :messages="chat.messages"
@@ -261,7 +594,7 @@ const starterPrompts = [
     >
       <template #empty>
         <div class="chat-welcome">
-          <h2>What should we work on?</h2>
+          <h2>What Should We Work On?</h2>
           <p class="chat-welcome-description">
             Ask about your code, fix a bug, or build something new.
           </p>
@@ -293,8 +626,33 @@ const starterPrompts = [
           :pending-tool="chat.pendingTool"
         />
         <PlanBar :todos="chat.todos" />
+        <div
+          v-if="chat.pendingResults.length"
+          class="flex flex-wrap gap-2 px-4 py-2 text-[13px]"
+          aria-label="Selected saved results"
+        >
+          <span
+            v-for="(result, index) in chat.pendingResults"
+            :key="JSON.stringify(result.reference)"
+            class="rounded border border-divider px-2 py-1"
+          >
+            {{ result.label }} · Saved result
+            <button :aria-label="`Remove result ${result.label}`" @click="chat.removeResult(index)">
+              ×
+            </button>
+          </span>
+        </div>
         <ChatComposer
           ref="composer"
+          :draft-value="chat.draft"
+          :draft-identity="draftIdentity"
+          :on-draft-change="(text) => (chat.draft = text)"
+          :send-blocked="
+            inputBlocked ||
+            referenceBusy ||
+            (chat.busy && !chat.streaming) ||
+            !chat.composerInput?.canSubmit
+          "
           :files="chat.files"
           :pending-files="chat.pendingFiles"
           :addons="chat.addons"
@@ -308,9 +666,9 @@ const starterPrompts = [
           :permission-mode="chat.permissionMode"
           :running="running"
           :ready="hasModel && !chat.rewinding && !chat.retrying"
-          :on-send="(text) => void send(text)"
-          :on-queue="(text) => void queue(text)"
-          :on-steer="(text) => void steer(text)"
+          :on-send="send"
+          :on-queue="queue"
+          :on-steer="steer"
           :on-stop="stop"
           :on-remove-file="(path) => chat.removeQueuedFile(path)"
           :on-attach="attach"
@@ -322,46 +680,130 @@ const starterPrompts = [
           :on-open-parameters="() => (parametersOpen = true)"
           :on-open-settings="openSettings"
         />
-        <p class="chat-composer-hint">
-          <span><kbd>@</kbd> files <span aria-hidden="true">·</span> <kbd>/</kbd> templates</span>
-          <span>Enter to send <span aria-hidden="true">·</span> Shift+Enter for a new line</span>
-        </p>
+        <div
+          class="flex items-center gap-3 py-2 text-[13px] text-muted-foreground"
+          data-chat-draft-status
+        >
+          <span v-if="draftStatus" role="status">{{ draftStatus }}</span>
+          <button class="cursor-pointer hover:text-foreground" @click="recoveryOpen = true">
+            Recovery Copies
+          </button>
+          <button
+            v-if="chat.composerInput?.state === 'unknown'"
+            class="btn"
+            @click="reconcileInput"
+          >
+            Check Receipt
+          </button>
+          <details v-if="chat.draft || draftError" class="relative">
+            <summary class="cursor-pointer">
+              Draft Options{{ draftError ? ' · Needs Review' : '' }}
+            </summary>
+            <div
+              class="absolute bottom-7 right-0 z-20 w-72 rounded border border-border bg-popover p-3 shadow-lg"
+            >
+              <p v-if="draftError" role="alert" class="mb-3 break-words">{{ draftError }}</p>
+              <button
+                v-if="chat.draft"
+                class="btn"
+                @click="inputs.backup(workspace.active?.path ?? '', chat.draftEntity)"
+              >
+                Back Up
+              </button>
+              <button
+                v-if="chat.draft"
+                class="btn"
+                :disabled="!chat.composerInput?.canSubmit"
+                @click="discardInput"
+              >
+                Discard Draft
+              </button>
+            </div>
+          </details>
+        </div>
       </div>
     </div>
+    <RecoveryCopies
+      v-if="recoveryOpen"
+      :key="draftIdentity"
+      :workspace="workspace.active?.path ?? ''"
+      scope="project"
+      :entity="chat.draftEntity"
+      :local-copies="inputs.localCopies(workspace.active?.path ?? '')"
+      @close="recoveryOpen = false"
+      @restore="restoreInput"
+    />
 
     <!-- Generation parameters -->
-    <div v-if="parametersOpen" class="fixed inset-0 z-50 grid place-items-center" style="background: var(--overlay)" @mousedown.self="parametersOpen = false">
+    <div
+      v-if="parametersOpen"
+      class="fixed inset-0 z-50 grid place-items-center"
+      style="background: var(--overlay)"
+      @mousedown.self="parametersOpen = false"
+    >
       <div class="chat-menu w-80 p-3!">
         <p class="mb-2 text-[13px] font-semibold">Generation parameters</p>
         <div class="space-y-2">
-          <label class="flex items-center justify-between text-[12px] text-muted-foreground">
+          <label class="flex items-center justify-between text-[13px] text-muted-foreground">
             Reasoning
-            <select v-model="reasoning" class="input h-6 w-28! px-1.5! text-[11px]!">
+            <select v-model="reasoning" class="input h-8 w-28! px-1.5! text-[13px]!">
               <option value="none">none</option>
               <option value="low">low</option>
               <option value="medium">medium</option>
               <option value="high">high</option>
             </select>
           </label>
-          <label class="flex items-center justify-between text-[12px] text-muted-foreground">
+          <label class="flex items-center justify-between text-[13px] text-muted-foreground">
             Temperature
-            <input v-model.number="temperature" type="number" step="0.1" min="0" max="2" class="input h-6 w-28! px-1.5! text-[11px]!" />
+            <input
+              v-model.number="temperature"
+              type="number"
+              step="0.1"
+              min="0"
+              max="2"
+              class="input h-8 w-28! px-1.5! text-[13px]!"
+            />
           </label>
-          <label class="flex items-center justify-between text-[12px] text-muted-foreground">
+          <label class="flex items-center justify-between text-[13px] text-muted-foreground">
             Top P
-            <input v-model.number="topP" type="number" step="0.05" min="0" max="1" class="input h-6 w-28! px-1.5! text-[11px]!" />
+            <input
+              v-model.number="topP"
+              type="number"
+              step="0.05"
+              min="0"
+              max="1"
+              class="input h-8 w-28! px-1.5! text-[13px]!"
+            />
           </label>
-          <label class="flex items-center justify-between text-[12px] text-muted-foreground">
+          <label class="flex items-center justify-between text-[13px] text-muted-foreground">
             Max tokens
-            <input v-model.number="maxTokens" type="number" step="256" min="256" class="input h-6 w-28! px-1.5! text-[11px]!" />
+            <input
+              v-model.number="maxTokens"
+              type="number"
+              step="256"
+              min="256"
+              class="input h-8 w-28! px-1.5! text-[13px]!"
+            />
           </label>
         </div>
         <div class="mt-3 flex justify-end">
-          <button class="btn btn-primary h-7! px-3! text-[12px]" type="button" @click="parametersOpen = false">
+          <button
+            class="btn btn-primary h-7! px-3! text-[13px]"
+            type="button"
+            @click="parametersOpen = false"
+          >
             Done
           </button>
         </div>
       </div>
     </div>
+    <FileReferenceDialog
+      v-if="fileReferenceTarget"
+      :workspace="fileReferenceTarget.workspace"
+      :file="fileReferenceTarget.file"
+      @close="finishReference"
+      @selected="selectReferencedFile"
+      @review="reviewReferencedFile"
+    />
   </div>
 </template>

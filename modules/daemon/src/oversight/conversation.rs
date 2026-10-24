@@ -14,6 +14,9 @@ use metteur_shared::{
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+mod input;
+pub use input::{InputReceipt, begin_for, input_receipt};
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Turn {
     pub id: Uuid,
@@ -34,16 +37,25 @@ fn key(run: Uuid) -> Vec<u8> {
 }
 pub fn load(db: &Db, run: Uuid) -> DaemonResult<Conversation> {
     db.get(cf::EXECUTION_STATE, &key(run))?
-        .map(|v| serde_json::from_slice(&v).map_err(|e| DaemonError::Serialization(e.to_string())))
+        .map(|v| {
+            if v.len() > 4 * 1024 * 1024 {
+                return Err(DaemonError::Persistence(
+                    "Supervision history exceeds its read bound; retain the database for recovery"
+                        .into(),
+                ));
+            }
+            serde_json::from_slice(&v).map_err(|e| DaemonError::Serialization(e.to_string()))
+        })
         .transpose()
         .map(Option::unwrap_or_default)
 }
 fn save(db: &Db, run: Uuid, conversation: &Conversation) -> DaemonResult<()> {
-    db.put_durable(
-        cf::EXECUTION_STATE,
-        &key(run),
-        &serde_json::to_vec(conversation).map_err(|e| DaemonError::Serialization(e.to_string()))?,
-    )
+    let values = vec![(
+        key(run),
+        serde_json::to_vec(conversation).map_err(|e| DaemonError::Serialization(e.to_string()))?,
+    )];
+    input::check_capacity(db, &values)?;
+    db.supervision_input_batch(&values)
 }
 /// Returns an existing turn on retries; it never replays an unknown provider call.
 pub fn begin(
@@ -53,55 +65,7 @@ pub fn begin(
     id: Uuid,
     text: &str,
 ) -> DaemonResult<Option<Turn>> {
-    if text.trim().is_empty() || text.len() > 16384 {
-        return Err(DaemonError::Execution("message must contain 1–16384 bytes".into()));
-    }
-    let _guard = db
-        .oversight_gate
-        .lock()
-        .map_err(|_| DaemonError::Persistence("oversight lock poisoned".into()))?;
-    let identity_key = format!("oversight:message-id:{id}");
-    let identity = serde_json::to_vec(&(run, conversation_id, text))
-        .map_err(|e| DaemonError::Serialization(e.to_string()))?;
-    if db
-        .get(cf::EXECUTION_STATE, identity_key.as_bytes())?
-        .is_some_and(|stored| stored != identity)
-    {
-        return Err(DaemonError::Execution(
-            "message id belongs to different content or run".into(),
-        ));
-    }
-    let mut history = load(db, run)?;
-    if let Some(existing) = history.turns.iter().find(|t| t.id == id) {
-        if existing.conversation_id != conversation_id || existing.original_text != text {
-            return Err(DaemonError::Execution(
-                "message id already bound to different content".into(),
-            ));
-        }
-        return Ok(Some(existing.clone()));
-    }
-    if history.turns.iter().any(|t| t.conversation_id == conversation_id && t.state == "processing")
-    {
-        return Err(DaemonError::Execution("conversation has an in-flight or interrupted message; inspect its state before starting another conversation".into()));
-    }
-    let cp = DbCheckpointSink::load(db, run)?
-        .ok_or_else(|| DaemonError::NotFound("blueprint run".into()))?;
-    if cp.status != RunStatus::Running || requests::load(db, run)?.closed {
-        return Err(DaemonError::Execution("run is read-only".into()));
-    }
-    db.put_durable(cf::EXECUTION_STATE, identity_key.as_bytes(), &identity)?;
-    history.turns.push(Turn {
-        id,
-        conversation_id,
-        original_text: text.into(),
-        at_ms: chrono::Utc::now().timestamp_millis(),
-        answer: String::new(),
-        state: "processing".into(),
-        request_id: None,
-        error: None,
-    });
-    save(db, run, &history)?;
-    Ok(None)
+    begin_for(db, "local", run, conversation_id, id, text)
 }
 pub fn finish(
     db: &Db,
@@ -185,7 +149,11 @@ pub fn client(
     })?;
     configured_client(config, factory, key)
 }
-pub(crate) fn configured_client(config: &Config, factory: &LlmClientFactory, key: String) -> DaemonResult<(String, std::sync::Arc<dyn LlmClient>)> {
+pub(crate) fn configured_client(
+    config: &Config,
+    factory: &LlmClientFactory,
+    key: String,
+) -> DaemonResult<(String, std::sync::Arc<dyn LlmClient>)> {
     let model =
         config.llm.models.get(&key).ok_or_else(|| {
             DaemonError::Execution("Configured concierge model was not found".into())

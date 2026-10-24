@@ -42,51 +42,127 @@ pub struct Db {
     /// Serializes independent oversight records across all clones of this database.
     pub(crate) oversight_gate: Arc<std::sync::Mutex<()>>,
     pub(crate) oversight_notify: Arc<tokio::sync::Notify>,
+    changes: tokio::sync::watch::Sender<u64>,
+    #[cfg(test)]
+    pub(crate) fail_recovery_write: Arc<std::sync::atomic::AtomicBool>,
+    #[cfg(test)]
+    pub(crate) fail_delivery_write: Arc<std::sync::atomic::AtomicBool>,
 }
 
 impl Db {
-    pub fn directory(&self) -> &Path { self.inner.path() }
+    pub fn subscribe_changes(&self) -> tokio::sync::watch::Receiver<u64> {
+        self.changes.subscribe()
+    }
+    pub fn notify_changes(&self) {
+        self.changes.send_modify(|sequence| *sequence = sequence.wrapping_add(1));
+    }
+    pub fn directory(&self) -> &Path {
+        self.inner.path()
+    }
     /// Publish a derived graph and its file identity together in the existing family.
-    pub fn put_pair(&self, family: &str, key: &[u8], value: &[u8], second_key: &[u8], second_value: &[u8]) -> DaemonResult<()> {
-        let handle = self.inner.cf_handle(family).ok_or_else(|| DaemonError::Internal("missing column family".into()))?;
+    pub fn put_pair(
+        &self,
+        family: &str,
+        key: &[u8],
+        value: &[u8],
+        second_key: &[u8],
+        second_value: &[u8],
+    ) -> DaemonResult<()> {
+        let handle = self
+            .inner
+            .cf_handle(family)
+            .ok_or_else(|| DaemonError::Internal("missing column family".into()))?;
         let mut batch = rocksdb::WriteBatch::default();
         batch.put_cf(handle, key, value);
         batch.put_cf(handle, second_key, second_value);
         self.inner.write(batch).map_err(|e| DaemonError::Persistence(e.to_string()))
     }
     /// Commits review ownership and request lineage together before acknowledgment.
-    pub fn put_pair_durable(&self, family: &str, key: &[u8], value: &[u8], second_key: &[u8], second_value: &[u8]) -> DaemonResult<()> {
-        let handle = self.inner.cf_handle(family).ok_or_else(|| DaemonError::Persistence("missing column family".into()))?;
+    pub fn put_pair_durable(
+        &self,
+        family: &str,
+        key: &[u8],
+        value: &[u8],
+        second_key: &[u8],
+        second_value: &[u8],
+    ) -> DaemonResult<()> {
+        let handle = self
+            .inner
+            .cf_handle(family)
+            .ok_or_else(|| DaemonError::Persistence("missing column family".into()))?;
         let mut batch = rocksdb::WriteBatch::default();
         batch.put_cf(handle, key, value);
         batch.put_cf(handle, second_key, second_value);
-        let mut options = rocksdb::WriteOptions::default(); options.set_sync(true);
-        self.inner.write_opt(batch, &options).map_err(|e| DaemonError::Persistence(e.to_string()))
+        let mut options = rocksdb::WriteOptions::default();
+        options.set_sync(true);
+        self.inner
+            .write_opt(batch, &options)
+            .map_err(|e| DaemonError::Persistence(e.to_string()))?;
+        self.notify_changes();
+        Ok(())
     }
     pub fn chat_revision(&self, session: &[u8]) -> DaemonResult<u64> {
         let key = [b"nx/v1/chat-revision/".as_slice(), session].concat();
-        self.get(cf::EXECUTION_STATE, &key)?.map(|raw| serde_json::from_slice(&raw).map_err(|e| DaemonError::Persistence(e.to_string()))).transpose().map(|v| v.unwrap_or(0))
+        self.get(cf::EXECUTION_STATE, &key)?
+            .map(|raw| {
+                serde_json::from_slice(&raw).map_err(|e| DaemonError::Persistence(e.to_string()))
+            })
+            .transpose()
+            .map(|v| v.unwrap_or(0))
     }
 
     /// The caller holds resource_gate. Session revisions are outside rewind data.
-    pub(crate) fn continuation_batch(&self, values: &[(Vec<u8>, Vec<u8>)], session: Option<(&[u8], &[u8], u64)>) -> DaemonResult<()> {
-        let resources = self.inner.cf_handle(cf::EXECUTION_STATE).ok_or_else(|| DaemonError::Persistence("Missing resource family".into()))?;
+    pub(crate) fn continuation_batch(
+        &self,
+        values: &[(Vec<u8>, Vec<u8>)],
+        session: Option<(&[u8], &[u8], u64)>,
+    ) -> DaemonResult<()> {
+        #[cfg(test)]
+        if self.fail_delivery_write.swap(false, std::sync::atomic::Ordering::SeqCst) {
+            return Err(DaemonError::Persistence("injected input acceptance WAL failure".into()));
+        }
+        let resources = self
+            .inner
+            .cf_handle(cf::EXECUTION_STATE)
+            .ok_or_else(|| DaemonError::Persistence("Missing resource family".into()))?;
         let mut batch = rocksdb::WriteBatch::default();
-        for (key, value) in values { batch.put_cf(resources, key, value); }
+        for (key, value) in values {
+            batch.put_cf(resources, key, value);
+        }
         if let Some((id, data, expected)) = session {
             let current = self.chat_revision(id)?;
-            if current != expected { return Err(DaemonError::Execution("Session revision changed".into())); }
-            let revision = current.checked_add(1).ok_or_else(|| DaemonError::Persistence("Session revision exhausted".into()))?;
-            let threads = self.inner.cf_handle(cf::CHAT_THREADS).ok_or_else(|| DaemonError::Persistence("Missing chat family".into()))?;
+            if current != expected {
+                return Err(DaemonError::Execution("Session revision changed".into()));
+            }
+            let revision = current
+                .checked_add(1)
+                .ok_or_else(|| DaemonError::Persistence("Session revision exhausted".into()))?;
+            let threads = self
+                .inner
+                .cf_handle(cf::CHAT_THREADS)
+                .ok_or_else(|| DaemonError::Persistence("Missing chat family".into()))?;
             batch.put_cf(threads, id, data);
-            batch.put_cf(resources, [b"nx/v1/chat-revision/".as_slice(), id].concat(), serde_json::to_vec(&revision).map_err(|e| DaemonError::Persistence(e.to_string()))?);
+            batch.put_cf(
+                resources,
+                [b"nx/v1/chat-revision/".as_slice(), id].concat(),
+                serde_json::to_vec(&revision)
+                    .map_err(|e| DaemonError::Persistence(e.to_string()))?,
+            );
         }
-        let mut options = rocksdb::WriteOptions::default(); options.set_sync(true);
-        self.inner.write_opt(batch, &options).map_err(|e| DaemonError::Persistence(e.to_string()))
+        let mut options = rocksdb::WriteOptions::default();
+        options.set_sync(true);
+        self.inner
+            .write_opt(batch, &options)
+            .map_err(|e| DaemonError::Persistence(e.to_string()))?;
+        self.notify_changes();
+        Ok(())
     }
 
     pub fn save_chat_revision(&self, id: &[u8], data: &[u8]) -> DaemonResult<()> {
-        let _guard = self.resource_gate.lock().map_err(|_| DaemonError::Persistence("Session revision lock unavailable".into()))?;
+        let _guard = self
+            .resource_gate
+            .lock()
+            .map_err(|_| DaemonError::Persistence("Session revision lock unavailable".into()))?;
         self.continuation_batch(&[], Some((id, data, self.chat_revision(id)?)))
     }
 
@@ -97,9 +173,18 @@ impl Db {
         data: &[u8],
         obsolete: &[Vec<u8>],
     ) -> DaemonResult<()> {
-        let _guard = self.resource_gate.lock().map_err(|_| DaemonError::Persistence("Session revision lock unavailable".into()))?;
-        let revision = self.chat_revision(session_id)?.checked_add(1).ok_or_else(|| DaemonError::Persistence("Session revision exhausted".into()))?;
-        let resources = self.inner.cf_handle(cf::EXECUTION_STATE).ok_or_else(|| DaemonError::Persistence("Missing resource family".into()))?;
+        let _guard = self
+            .resource_gate
+            .lock()
+            .map_err(|_| DaemonError::Persistence("Session revision lock unavailable".into()))?;
+        let revision = self
+            .chat_revision(session_id)?
+            .checked_add(1)
+            .ok_or_else(|| DaemonError::Persistence("Session revision exhausted".into()))?;
+        let resources = self
+            .inner
+            .cf_handle(cf::EXECUTION_STATE)
+            .ok_or_else(|| DaemonError::Persistence("Missing resource family".into()))?;
         let threads = self
             .inner
             .cf_handle(cf::CHAT_THREADS)
@@ -110,13 +195,19 @@ impl Db {
             .ok_or_else(|| DaemonError::Internal("missing chat checkpoints family".into()))?;
         let mut batch = rocksdb::WriteBatch::default();
         batch.put_cf(threads, session_id, data);
-        batch.put_cf(resources, [b"nx/v1/chat-revision/".as_slice(), session_id].concat(), serde_json::to_vec(&revision).map_err(|e| DaemonError::Persistence(e.to_string()))?);
+        batch.put_cf(
+            resources,
+            [b"nx/v1/chat-revision/".as_slice(), session_id].concat(),
+            serde_json::to_vec(&revision).map_err(|e| DaemonError::Persistence(e.to_string()))?,
+        );
         for key in obsolete {
             batch.delete_cf(checkpoints, key);
         }
         self.inner
             .write(batch)
-            .map_err(|e| DaemonError::Internal(format!("chat rewind commit failed: {e}")))
+            .map_err(|e| DaemonError::Internal(format!("chat rewind commit failed: {e}")))?;
+        self.notify_changes();
+        Ok(())
     }
 
     /// Opens (or creates) a database at `path` with the standard column
@@ -152,6 +243,11 @@ impl Db {
             prompt_gate: Arc::new(std::sync::Mutex::new(())),
             oversight_gate: Arc::new(std::sync::Mutex::new(())),
             oversight_notify: Arc::new(tokio::sync::Notify::new()),
+            changes: tokio::sync::watch::channel(0).0,
+            #[cfg(test)]
+            fail_recovery_write: Arc::new(std::sync::atomic::AtomicBool::new(false)),
+            #[cfg(test)]
+            fail_delivery_write: Arc::new(std::sync::atomic::AtomicBool::new(false)),
         })
     }
 
@@ -167,26 +263,109 @@ impl Db {
 
     /// Commits a small resource transaction with synchronous WAL durability.
     pub(crate) fn resource_batch(&self, values: &[(Vec<u8>, Vec<u8>)]) -> DaemonResult<()> {
+        self.durable_resource_batch(values, true)
+    }
+    pub(crate) fn supervision_input_batch(
+        &self,
+        values: &[(Vec<u8>, Vec<u8>)],
+    ) -> DaemonResult<()> {
+        #[cfg(test)]
+        if self.fail_delivery_write.swap(false, std::sync::atomic::Ordering::SeqCst) {
+            return Err(DaemonError::Persistence("injected input WAL failure".into()));
+        }
+        self.resource_batch(values)
+    }
+    pub(crate) fn approval_receipt_batch(&self, values: &[(Vec<u8>, Vec<u8>)]) -> DaemonResult<()> {
+        #[cfg(test)]
+        if self.fail_delivery_write.swap(false, std::sync::atomic::Ordering::SeqCst) {
+            return Err(DaemonError::Persistence("injected approval WAL failure".into()));
+        }
+        self.resource_batch(values)
+    }
+
+    /// Recovery input is not an execution/resource change. Backups must not
+    /// wake every workspace subscriber or the continuation dispatcher.
+    pub(crate) fn recovery_batch(&self, values: &[(Vec<u8>, Vec<u8>)]) -> DaemonResult<()> {
+        self.recovery_compact_batch(values, &[])
+    }
+
+    /// Retirement fences and deleted tombstones must share the durable commit.
+    /// Like backups, compaction must not notify business-state subscribers.
+    pub(crate) fn recovery_compact_batch(
+        &self,
+        values: &[(Vec<u8>, Vec<u8>)],
+        deletes: &[Vec<u8>],
+    ) -> DaemonResult<()> {
+        #[cfg(test)]
+        if self.fail_recovery_write.swap(false, std::sync::atomic::Ordering::SeqCst) {
+            return Err(DaemonError::Persistence("injected recovery WAL failure".into()));
+        }
         let handle = self.inner.cf_handle(cf::EXECUTION_STATE)
             .ok_or_else(|| DaemonError::Persistence("missing resource family".into()))?;
         let mut batch = rocksdb::WriteBatch::default();
+        for key in deletes { batch.delete_cf(handle, key); }
         for (key, value) in values { batch.put_cf(handle, key, value); }
         let mut options = rocksdb::WriteOptions::default();
         options.set_sync(true);
-        self.inner.write_opt(batch, &options).map_err(|e| DaemonError::Persistence(e.to_string()))
+        self.inner.write_opt(batch, &options)
+            .map_err(|e| DaemonError::Persistence(e.to_string()))
     }
 
-    pub(crate) fn resource_scan(&self, prefix: &[u8], after: &[u8], limit: usize) -> DaemonResult<Vec<(Vec<u8>, Vec<u8>)>> {
-        let handle = self.inner.cf_handle(cf::EXECUTION_STATE)
+    fn durable_resource_batch(
+        &self,
+        values: &[(Vec<u8>, Vec<u8>)],
+        notify: bool,
+    ) -> DaemonResult<()> {
+        let handle = self
+            .inner
+            .cf_handle(cf::EXECUTION_STATE)
             .ok_or_else(|| DaemonError::Persistence("missing resource family".into()))?;
-        let start = if after.is_empty() { prefix } else { after };
+        let mut batch = rocksdb::WriteBatch::default();
+        for (key, value) in values {
+            batch.put_cf(handle, key, value);
+        }
+        let mut options = rocksdb::WriteOptions::default();
+        options.set_sync(true);
+        self.inner
+            .write_opt(batch, &options)
+            .map_err(|e| DaemonError::Persistence(e.to_string()))?;
+        if notify {
+            self.notify_changes();
+        }
+        Ok(())
+    }
+
+    pub(crate) fn resource_scan(
+        &self,
+        prefix: &[u8],
+        after: &[u8],
+        limit: usize,
+    ) -> DaemonResult<Vec<(Vec<u8>, Vec<u8>)>> {
+        let handle = self
+            .inner
+            .cf_handle(cf::EXECUTION_STATE)
+            .ok_or_else(|| DaemonError::Persistence("missing resource family".into()))?;
+        let start = if after.is_empty() {
+            prefix
+        } else {
+            after
+        };
         let mut out = Vec::new();
-        for item in self.inner.iterator_cf(handle, rocksdb::IteratorMode::From(start, rocksdb::Direction::Forward)) {
+        for item in self
+            .inner
+            .iterator_cf(handle, rocksdb::IteratorMode::From(start, rocksdb::Direction::Forward))
+        {
             let (key, value) = item.map_err(|e| DaemonError::Persistence(e.to_string()))?;
-            if !key.starts_with(prefix) { break; }
-            if !after.is_empty() && key.as_ref() <= after { continue; }
+            if !key.starts_with(prefix) {
+                break;
+            }
+            if !after.is_empty() && key.as_ref() <= after {
+                continue;
+            }
             out.push((key.to_vec(), value.to_vec()));
-            if out.len() >= limit { break; }
+            if out.len() >= limit {
+                break;
+            }
         }
         Ok(out)
     }
@@ -200,15 +379,27 @@ impl Db {
         self.inner
             .put_cf(handle, key, value)
             .map_err(|e| DaemonError::Internal(format!("db put failed: {e}")))?;
+        if cf == cf::EXECUTION_STATE || cf == cf::CHAT_THREADS {
+            self.notify_changes();
+        }
         Ok(())
     }
 
     /// Acknowledged side-channel state must survive a process or machine crash.
     pub fn put_durable(&self, family: &str, key: &[u8], value: &[u8]) -> DaemonResult<()> {
-        let handle = self.inner.cf_handle(family).ok_or_else(|| DaemonError::Persistence("missing column family".into()))?;
+        let handle = self
+            .inner
+            .cf_handle(family)
+            .ok_or_else(|| DaemonError::Persistence("missing column family".into()))?;
         let mut options = rocksdb::WriteOptions::default();
         options.set_sync(true);
-        self.inner.put_cf_opt(handle, key, value, &options).map_err(|e| DaemonError::Persistence(e.to_string()))
+        self.inner
+            .put_cf_opt(handle, key, value, &options)
+            .map_err(|e| DaemonError::Persistence(e.to_string()))?;
+        if family == cf::EXECUTION_STATE || family == cf::CHAT_THREADS {
+            self.notify_changes();
+        }
+        Ok(())
     }
 
     /// Gets a value from a column family.
@@ -282,7 +473,8 @@ mod tests {
 
     #[test]
     fn canonical_checkpoint_preserves_live_data() {
-        let root = std::env::temp_dir().join(format!("metteur-db-checkpoint-{}", uuid::Uuid::new_v4()));
+        let root =
+            std::env::temp_dir().join(format!("metteur-db-checkpoint-{}", uuid::Uuid::new_v4()));
         std::fs::create_dir_all(&root).unwrap();
         let db = Db::open(&root.join("source")).unwrap();
         db.put_durable(cf::BLUEPRINTS, b"key", b"before").unwrap();

@@ -30,12 +30,13 @@ const props = defineProps<{
 
 /** A transcript row: one message, or a run of tool calls. */
 type Row =
-  | { kind: 'message'; message: ChatMessage }
+  | { kind: 'message'; message: ChatMessage; showTurnTiming: boolean }
   | { kind: 'tools'; messages: ChatMessage[]; key: string }
 
 const rows = computed<Row[]>(() => {
   const out: Row[] = []
   let run: ChatMessage[] = []
+  let showTurnTiming = true
   const flush = () => {
     if (!run.length) return
     const first = run[0]
@@ -43,12 +44,21 @@ const rows = computed<Row[]>(() => {
     run = []
   }
   for (const message of props.messages) {
+    if (message.role === 'user') showTurnTiming = true
+    // Legacy transcripts can omit user boundaries; retain independently recorded timings.
+    if (
+      message.role === 'assistant' &&
+      message.turnElapsedMs !== undefined &&
+      message.reasoningElapsedMs === undefined
+    )
+      showTurnTiming = true
     if (message.role === 'tool') {
       run.push(message)
       continue
     }
     flush()
-    out.push({ kind: 'message', message })
+    out.push({ kind: 'message', message, showTurnTiming })
+    if (message.role === 'assistant') showTurnTiming = false
   }
   flush()
   return out
@@ -103,8 +113,8 @@ watch(
     observer?.disconnect()
     if (!el) return
     observer = new ResizeObserver(() => {
-      updateAtBottom()
       if (atBottom.value) scrollToBottom()
+      else updateAtBottom()
     })
     observer.observe(el)
   },
@@ -128,8 +138,8 @@ watch(
   () => props.messages.length,
   () => {
     // A new turn always pulls the view down, even if the reader had scrolled up.
-    atBottom.value = true
-    scrollToBottom()
+    if (props.messages.at(-1)?.role === 'user') atBottom.value = true
+    if (atBottom.value) scrollToBottom()
   },
   { immediate: true },
 )
@@ -155,11 +165,7 @@ defineExpose({ scrollToBottom })
             :messages="row.messages"
             :on-open-file="onOpenFile"
           />
-          <ToolCallCard
-            v-else
-            :message="row.messages[0]"
-            :on-open-file="onOpenFile"
-          />
+          <ToolCallCard v-else :message="row.messages[0]" :on-open-file="onOpenFile" />
         </div>
         <template v-else>
           <div v-if="row.message.role === 'error'" class="flex justify-center">
@@ -172,8 +178,10 @@ defineExpose({ scrollToBottom })
             v-else-if="row.message.role === 'user'"
             :read-only="readOnly"
             :content="row.message.content"
+            :display-content="row.message.displayContent"
             :created-at="row.message.createdAt"
             :queued="row.message.queued === true"
+            :input-status="row.message.inputStatus"
             :checkpoint="row.message.checkpoint"
             :on-open-file="onOpenFile"
             :on-copy="onCopy"
@@ -182,6 +190,7 @@ defineExpose({ scrollToBottom })
           />
           <TurnAssistant
             v-else
+            :show-turn-timing="row.showTurnTiming"
             :read-only="readOnly"
             :message="row.message"
             :on-copy="onCopy"

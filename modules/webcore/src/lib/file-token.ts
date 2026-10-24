@@ -22,7 +22,7 @@ function hashOf(path: string): string {
 function rememberHash(hash_type: string, path: string) {
   try {
     const map = JSON.parse(localStorage.getItem(FILE_HASHES_KEY) ?? '{}')
-    map[hash_type] = path
+    map[hash_type] = path.replaceAll('\\', '/')
     localStorage.setItem(FILE_HASHES_KEY, JSON.stringify(map))
   } catch {
     // Storage unavailable: the mapping just won't survive reloads.
@@ -46,7 +46,7 @@ export function pathByFileParam(f: string): string {
   if (!f) return ''
   try {
     const map = JSON.parse(localStorage.getItem(FILE_HASHES_KEY) ?? '{}')
-    return typeof map[f] === 'string' ? map[f] : ''
+    return typeof map[f] === 'string' ? map[f].replaceAll('\\', '/') : ''
   } catch {
     return ''
   }

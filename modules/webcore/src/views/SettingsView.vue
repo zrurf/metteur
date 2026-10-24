@@ -1,18 +1,30 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
-import { useRouter } from 'vue-router'
-import { Check, FileCog, Moon, Plus, RotateCcw, Sun, Trash2, UserCog, Wifi, WifiOff } from '@lucide/vue'
+import { computed, onMounted, ref, watch } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
+import {
+  Check,
+  FileCog,
+  Moon,
+  Plus,
+  RotateCcw,
+  Sun,
+  Trash2,
+  UserCog,
+  Wifi,
+  WifiOff,
+} from '@lucide/vue'
 import type { DaemonConfig } from '@/core'
 import { useAddonStore } from '@/stores/addon'
 import { useConfigStore } from '@/stores/config'
 import { useThemeStore } from '@/stores/theme'
-import { useSettingsStore, SETTINGS_SCOPES } from '@/stores/settings'
+import { useSettingsStore, SETTINGS_SCOPES, SETTINGS_GROUPS } from '@/stores/settings'
+import AddonPagesPanel from '@/components/addons/AddonPagesPanel.vue'
+import PageHeader from '@/components/PageHeader.vue'
 import { useWorkspaceStore } from '@/stores/workspace'
 import { useTabsStore } from '@/stores/tabs'
 import { usePanelStore } from '@/stores/panel'
 import { useFeedbackStore } from '@/stores/feedback'
 import { gateway } from '@/core'
-import { projectName } from '@/lib/path'
 import { USER_CONFIG_PATH, WORKSPACE_CONFIG_PATH } from '@/lib/toml'
 import { fileRoute } from '@/lib/file-token'
 import SettingsNav from '@/components/SettingsNav.vue'
@@ -46,6 +58,19 @@ const addons = useAddonStore()
 const config = useConfigStore()
 const theme = useThemeStore()
 const settings = useSettingsStore()
+const route = useRoute()
+const configGroup = computed(() => !['general', 'addons', 'addon-pages'].includes(settings.active))
+const groupTitle = computed(
+  () => SETTINGS_GROUPS.find((group) => group.key === settings.active)?.label ?? 'Settings',
+)
+watch(
+  () => route.query.section,
+  (section) => {
+    if (typeof section === 'string' && SETTINGS_GROUPS.some((group) => group.key === section))
+      settings.select(section)
+  },
+  { immediate: true },
+)
 const workspace = useWorkspaceStore()
 const panel = usePanelStore()
 const feedback = useFeedbackStore()
@@ -206,7 +231,9 @@ const edition = computed<DaemonConfig>(() =>
 
 function sectionOf(cfg: DaemonConfig, name: string): Record<string, unknown> {
   const sec = cfg[name]
-  return sec && typeof sec === 'object' && !Array.isArray(sec) ? (sec as Record<string, unknown>) : {}
+  return sec && typeof sec === 'object' && !Array.isArray(sec)
+    ? (sec as Record<string, unknown>)
+    : {}
 }
 
 /** Value shown for a setting: the layer being edited, falling back up. */
@@ -219,8 +246,8 @@ function sourceOf(def: SettingDef): 'User' | 'Workspace' | 'Inherit' | 'Default'
   const wsSec = sectionOf(wsCfg.value, def.section)
   const userSec = sectionOf(userCfg.value, def.section)
   const override = wsSec[def.key]
-  const provided = override !== undefined && override !== null &&
-    (!Array.isArray(override) || override.length > 0)
+  const provided =
+    override !== undefined && override !== null && (!Array.isArray(override) || override.length > 0)
   if (provided && (def.section !== 'addon' || def.key === 'call_timeout_ms')) return 'Workspace'
   if (def.key in userSec) return settings.layer === 'workspace' ? 'Inherit' : 'User'
   return 'Default'
@@ -244,19 +271,53 @@ function resettable(def: SettingDef): boolean {
 /* Model modal (Add/Edit) ------------------------------------------------------ */
 
 const MODEL_FIELDS: ModalField[] = [
-  { key: 'name', label: 'Model ID', type: 'text', required: true, placeholder: 'e.g. deepseek-v4-pro-202606' },
+  {
+    key: 'name',
+    label: 'Model ID',
+    type: 'text',
+    required: true,
+    placeholder: 'e.g. deepseek-v4-pro-202606',
+  },
   { key: 'display_name', label: 'Display name', type: 'text', placeholder: 'e.g. DeepSeek V4 Pro' },
-  { key: 'api_type', label: 'API type', type: 'select', required: true, options: ['openai-chat', 'openai-responses', 'anthropic'] },
-  { key: 'api_endpoint', label: 'API endpoint', type: 'text', required: true, placeholder: 'https://api.example.com/v1' },
-  { key: 'model_id', label: 'Model ID (sent in requests)', type: 'text', required: true, placeholder: 'e.g. deepseek-v4-pro-202606' },
+  {
+    key: 'api_type',
+    label: 'API type',
+    type: 'select',
+    required: true,
+    options: ['openai-chat', 'openai-responses', 'anthropic'],
+  },
+  {
+    key: 'api_endpoint',
+    label: 'API endpoint',
+    type: 'text',
+    required: true,
+    placeholder: 'https://api.example.com/v1',
+  },
+  {
+    key: 'model_id',
+    label: 'Model ID (sent in requests)',
+    type: 'text',
+    required: true,
+    placeholder: 'e.g. deepseek-v4-pro-202606',
+  },
   { key: 'api_key', label: 'API key', type: 'password', required: true, placeholder: 'sk-…' },
   {
     key: 'advanced',
     label: 'Advanced',
     type: 'group',
     children: [
-      { key: 'context_window_input', label: 'Context window (input)', type: 'number', placeholder: 'e.g. 200000' },
-      { key: 'context_window_output', label: 'Context window (output)', type: 'number', placeholder: 'e.g. 64000' },
+      {
+        key: 'context_window_input',
+        label: 'Context window (input)',
+        type: 'number',
+        placeholder: 'e.g. 200000',
+      },
+      {
+        key: 'context_window_output',
+        label: 'Context window (output)',
+        type: 'number',
+        placeholder: 'e.g. 64000',
+      },
       { key: 'supports_vision', label: 'Supports vision', type: 'switch' },
     ],
   },
@@ -265,11 +326,36 @@ const MODEL_FIELDS: ModalField[] = [
     label: 'Pricing',
     type: 'group',
     children: [
-      { key: 'pricing_kind', label: 'Kind', type: 'select', options: ['default', 'tiered', 'peak'] },
-      { key: 'prices', label: 'Default prices', type: 'prices', showIf: (v) => String(v.pricing_kind ?? 'default') === 'default' },
-      { key: 'tiers', label: 'Tiers', type: 'tiers', showIf: (v) => String(v.pricing_kind) === 'tiered' },
-      { key: 'default_prices', label: 'Off-peak prices', type: 'prices', showIf: (v) => String(v.pricing_kind) === 'peak' },
-      { key: 'windows', label: 'Peak / off-peak windows', type: 'windows', showIf: (v) => String(v.pricing_kind) === 'peak' },
+      {
+        key: 'pricing_kind',
+        label: 'Kind',
+        type: 'select',
+        options: ['default', 'tiered', 'peak'],
+      },
+      {
+        key: 'prices',
+        label: 'Default prices',
+        type: 'prices',
+        showIf: (v) => String(v.pricing_kind ?? 'default') === 'default',
+      },
+      {
+        key: 'tiers',
+        label: 'Tiers',
+        type: 'tiers',
+        showIf: (v) => String(v.pricing_kind) === 'tiered',
+      },
+      {
+        key: 'default_prices',
+        label: 'Off-peak prices',
+        type: 'prices',
+        showIf: (v) => String(v.pricing_kind) === 'peak',
+      },
+      {
+        key: 'windows',
+        label: 'Peak / off-peak windows',
+        type: 'windows',
+        showIf: (v) => String(v.pricing_kind) === 'peak',
+      },
     ],
   },
 ]
@@ -374,7 +460,8 @@ function pricingFromValues(values: Record<string, unknown>): Record<string, unkn
   } else if (kind === 'peak') {
     const dp = group.default_prices
     if (dp && typeof dp === 'object' && Object.keys(dp as object).length) out.default_prices = dp
-    if (Array.isArray(group.windows) && (group.windows as unknown[]).length) out.windows = group.windows
+    if (Array.isArray(group.windows) && (group.windows as unknown[]).length)
+      out.windows = group.windows
   }
   return Object.keys(out).length ? out : undefined
 }
@@ -446,21 +533,42 @@ function openLspModal() {
   lspModal.value = true
 }
 const MCP_FIELDS: ModalField[] = [
-  { key: 'name', label: 'Server alias', type: 'text', required: true, placeholder: 'e.g. filesystem' },
-  { key: 'transport', label: 'Transport', type: 'select', required: true, options: ['stdio', 'http'] },
+  {
+    key: 'name',
+    label: 'Server alias',
+    type: 'text',
+    required: true,
+    placeholder: 'e.g. filesystem',
+  },
+  {
+    key: 'transport',
+    label: 'Transport',
+    type: 'select',
+    required: true,
+    options: ['stdio', 'http'],
+  },
   { key: 'command', label: 'Command (executable)', type: 'text', placeholder: 'e.g. npx' },
-  { key: 'args', label: 'Args (one per line)', type: 'textarea', placeholder: 'e.g. -y\n@modelcontextprotocol/server-filesystem' },
+  {
+    key: 'args',
+    label: 'Args (one per line)',
+    type: 'textarea',
+    placeholder: 'e.g. -y\n@modelcontextprotocol/server-filesystem',
+  },
   { key: 'url', label: 'Server URL (http)', type: 'text', placeholder: 'https://…' },
   { key: 'enabled', label: 'Connected', type: 'switch' },
 ]
 function makeMcp() {
   const layer = edition.value
   if (!('mcp' in layer)) layer.mcp = {}
-  if (!('servers' in (layer.mcp as Record<string, unknown>))) (layer.mcp as Record<string, unknown>).servers = {}
+  if (!('servers' in (layer.mcp as Record<string, unknown>)))
+    (layer.mcp as Record<string, unknown>).servers = {}
 }
 /** Servers of the edited layer, falling back to inherited rows (see `llmModels`). */
 function mcpServers(): Record<string, Record<string, unknown>> {
-  const own = (sectionOf(edition.value, 'mcp').servers ?? {}) as Record<string, Record<string, unknown>>
+  const own = (sectionOf(edition.value, 'mcp').servers ?? {}) as Record<
+    string,
+    Record<string, unknown>
+  >
   if (Object.keys(own).length) return own
   return (sectionOf(eff.value, 'mcp').servers ?? {}) as Record<string, Record<string, unknown>>
 }
@@ -476,7 +584,10 @@ function mcpCommandText(name: string): string {
 }
 function setMcpField(name: string, field: string, v: unknown) {
   materializeMcp()
-  const s = sectionOf(edition.value as DaemonConfig, 'mcp').servers as Record<string, Record<string, unknown>>
+  const s = sectionOf(edition.value as DaemonConfig, 'mcp').servers as Record<
+    string,
+    Record<string, unknown>
+  >
   s[name] = { ...s[name], [field]: v }
   void persistNow()
 }
@@ -498,15 +609,22 @@ function submitMcp(values: Record<string, unknown>) {
   // Materialize inherited servers first so editing one keeps its siblings.
   materializeMcp()
   makeMcp()
-  const s = sectionOf(edition.value as DaemonConfig, 'mcp').servers as Record<string, Record<string, unknown>>
+  const s = sectionOf(edition.value as DaemonConfig, 'mcp').servers as Record<
+    string,
+    Record<string, unknown>
+  >
   const prev = s[name] ?? {}
   // command argv = executable word(s) + whitespace-split args, merged.
   s[name] = {
     ...(prev as Record<string, unknown>),
     transport: String(values.transport ?? 'stdio'),
     command: [
-      ...String(values.command ?? '').split(/\s+/).filter(Boolean),
-      ...String(values.args ?? '').split(/\s+/).filter(Boolean),
+      ...String(values.command ?? '')
+        .split(/\s+/)
+        .filter(Boolean),
+      ...String(values.args ?? '')
+        .split(/\s+/)
+        .filter(Boolean),
     ],
     url: values.url ? String(values.url) : undefined,
     enabled: values.enabled === true,
@@ -516,7 +634,9 @@ function submitMcp(values: Record<string, unknown>) {
 }
 function removeMcp(name: string) {
   materializeMcp()
-  const s = sectionOf(edition.value as DaemonConfig, 'mcp').servers as Record<string, unknown> | undefined
+  const s = sectionOf(edition.value as DaemonConfig, 'mcp').servers as
+    | Record<string, unknown>
+    | undefined
   if (s) delete s[name]
   void persistNow()
 }
@@ -524,7 +644,12 @@ function removeMcp(name: string) {
 const LSP_FIELDS: ModalField[] = [
   { key: 'id', label: 'Language id', type: 'text', required: true, placeholder: 'e.g. rust' },
   { key: 'extensions', label: 'Extensions', type: 'text', placeholder: 'e.g. rs, toml' },
-  { key: 'command', label: 'Command (executable)', type: 'text', placeholder: 'e.g. rust-analyzer' },
+  {
+    key: 'command',
+    label: 'Command (executable)',
+    type: 'text',
+    placeholder: 'e.g. rust-analyzer',
+  },
   { key: 'args', label: 'Args (one per line)', type: 'textarea', placeholder: 'e.g. --stdio' },
 ]
 function submitLsp(values: Record<string, unknown>) {
@@ -537,10 +662,17 @@ function submitLsp(values: Record<string, unknown>) {
   // command argv = executable word(s) + whitespace-split args, merged.
   list.push({
     id,
-    extensions: String(values.extensions ?? '').split(',').map((s) => s.trim()).filter(Boolean),
+    extensions: String(values.extensions ?? '')
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean),
     command: [
-      ...String(values.command ?? '').split(/\s+/).filter(Boolean),
-      ...String(values.args ?? '').split(/\s+/).filter(Boolean),
+      ...String(values.command ?? '')
+        .split(/\s+/)
+        .filter(Boolean),
+      ...String(values.args ?? '')
+        .split(/\s+/)
+        .filter(Boolean),
     ],
   })
   lspModal.value = false
@@ -550,7 +682,8 @@ function submitLsp(values: Record<string, unknown>) {
 function makeLsp() {
   const layer = edition.value
   if (!('lsp' in layer)) layer.lsp = {}
-  if (!('languages' in (layer.lsp as Record<string, unknown>))) (layer.lsp as Record<string, unknown>).languages = []
+  if (!('languages' in (layer.lsp as Record<string, unknown>)))
+    (layer.lsp as Record<string, unknown>).languages = []
 }
 /** Languages of the edited layer, falling back to inherited rows. */
 function lspLanguages(): Array<Record<string, unknown>> {
@@ -581,17 +714,26 @@ function materializeLsp() {
   if (own.length) return
   makeLsp()
   const list = sectionOf(edition.value, 'lsp').languages as Array<Record<string, unknown>>
-  list.push(...(((sectionOf(eff.value, 'lsp').languages as Array<Record<string, unknown>>) ?? [])))
+  list.push(...((sectionOf(eff.value, 'lsp').languages as Array<Record<string, unknown>>) ?? []))
 }
 function setLspCommand(idx: number, text: string) {
   setLspField(idx, 'command', text.split(/\s+/).filter(Boolean))
 }
 function setLspExts(idx: number, text: string) {
-  setLspField(idx, 'extensions', text.split(',').map((s) => s.trim()).filter(Boolean))
+  setLspField(
+    idx,
+    'extensions',
+    text
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean),
+  )
 }
 function removeLsp(idx: number) {
   materializeLsp()
-  const list = sectionOf(edition.value, 'lsp').languages as Array<Record<string, unknown>> | undefined
+  const list = sectionOf(edition.value, 'lsp').languages as
+    | Array<Record<string, unknown>>
+    | undefined
   list?.splice(idx, 1)
   void persistNow()
 }
@@ -607,17 +749,54 @@ function openConfigDoc(scope: 'user' | 'workspace') {
 /* Billing display options ----------------------------------------------------- */
 
 const CURRENCIES = [
-  'USD', 'CNY', 'EUR', 'GBP', 'JPY', 'HKD', 'SGD', 'TWD', 'KRW', 'INR',
-  'AUD', 'CAD', 'NZD', 'CHF', 'SEK', 'NOK', 'DKK', 'PLN', 'CZK', 'HUF',
-  'TRY', 'ZAR', 'BRL', 'MXN', 'RUB', 'AED', 'SAR', 'THB', 'IDR', 'MYR',
-  'PHP', 'VND',
+  'USD',
+  'CNY',
+  'EUR',
+  'GBP',
+  'JPY',
+  'HKD',
+  'SGD',
+  'TWD',
+  'KRW',
+  'INR',
+  'AUD',
+  'CAD',
+  'NZD',
+  'CHF',
+  'SEK',
+  'NOK',
+  'DKK',
+  'PLN',
+  'CZK',
+  'HUF',
+  'TRY',
+  'ZAR',
+  'BRL',
+  'MXN',
+  'RUB',
+  'AED',
+  'SAR',
+  'THB',
+  'IDR',
+  'MYR',
+  'PHP',
+  'VND',
 ]
 
-const TIMEZONES: string[] = (Intl as unknown as { supportedValuesOf?: (key: 'timeZone') => string[] })
-  .supportedValuesOf?.('timeZone') ?? [
-  'UTC', 'Asia/Shanghai', 'Asia/Hong_Kong', 'Asia/Tokyo', 'Asia/Singapore',
-  'America/New_York', 'America/Los_Angeles', 'Europe/London', 'Europe/Berlin',
-  'Australia/Sydney', 'Europe/Moscow',
+const TIMEZONES: string[] = (
+  Intl as unknown as { supportedValuesOf?: (key: 'timeZone') => string[] }
+).supportedValuesOf?.('timeZone') ?? [
+  'UTC',
+  'Asia/Shanghai',
+  'Asia/Hong_Kong',
+  'Asia/Tokyo',
+  'Asia/Singapore',
+  'America/New_York',
+  'America/Los_Angeles',
+  'Europe/London',
+  'Europe/Berlin',
+  'Australia/Sydney',
+  'Europe/Moscow',
 ]
 
 function billingValue(key: 'currency' | 'timezone'): string {
@@ -665,16 +844,9 @@ const modelsText = computed(() => {
 </script>
 
 <template>
-  <div class="h-full min-w-0 flex-1 overflow-auto">
-    <!-- Sticky header: group title, layer tabs, save/reload -->
-    <div class="sticky top-0 z-10 flex items-center gap-3 border-b border-divider bg-background/90 px-5 py-3 backdrop-blur">
-      <div class="min-w-0">
-        <h1 class="text-[15px] font-semibold capitalize">{{ settings.active }}</h1>
-        <p class="mt-0.5 text-[11.5px] text-muted-foreground">
-          {{ config.hasWorkspace ? `Workspace: ${projectName(workspace.active!.path)}` : 'No workspace open' }}
-        </p>
-      </div>
-      <div class="ml-auto flex items-center gap-1">
+  <div class="surface-page h-full min-w-0 flex-1 overflow-auto">
+    <PageHeader :title="groupTitle">
+      <div v-if="configGroup" class="surface-actions">
         <div
           class="flex items-center gap-1 rounded-lg bg-input p-0.5"
           style="box-shadow: inset 0 0 0 1px var(--border)"
@@ -682,18 +854,26 @@ const modelsText = computed(() => {
           <button
             v-for="s in SETTINGS_SCOPES"
             :key="s.key"
-            class="rounded-md px-2.5 py-1 text-[12px] transition-colors duration-150"
-            :class="settings.layer === s.key ? 'bg-surface text-foreground shadow-card' : 'text-muted-foreground hover:text-foreground'"
+            class="rounded-md px-2.5 py-1 text-[13px] transition-colors duration-150"
+            :class="
+              settings.layer === s.key
+                ? 'bg-surface text-foreground shadow-card'
+                : 'text-muted-foreground hover:text-foreground'
+            "
             type="button"
             :disabled="s.key === 'workspace' && !config.hasWorkspace"
-            :title="s.key === 'workspace' && !config.hasWorkspace ? 'Open a workspace to edit its layer' : undefined"
+            :title="
+              s.key === 'workspace' && !config.hasWorkspace
+                ? 'Open a workspace to edit its layer'
+                : undefined
+            "
             @click="settings.layer = s.key"
           >
             {{ s.label }}
           </button>
         </div>
         <button
-          class="btn-icon h-7! w-7!"
+          class="btn-icon"
           type="button"
           title="Open the user config.toml in the editor"
           :aria-label="'Open user config.toml'"
@@ -702,47 +882,79 @@ const modelsText = computed(() => {
           <UserCog class="h-4 w-4" />
         </button>
         <button
-          class="btn-icon h-7! w-7!"
+          class="btn-icon"
           type="button"
-          :title="config.hasWorkspace ? 'Open the workspace config.toml in the editor' : 'Open a workspace first'"
+          :title="
+            config.hasWorkspace
+              ? 'Open the workspace config.toml in the editor'
+              : 'Open a workspace first'
+          "
           :aria-label="'Open workspace config.toml'"
           :disabled="!config.hasWorkspace"
           @click="openConfigDoc('workspace')"
         >
           <FileCog class="h-4 w-4" />
         </button>
-        <button class="btn btn-outline h-7! px-2.5! text-[12px]!" type="button" :disabled="config.saving" @click="reload">
+        <button class="btn btn-outline" type="button" :disabled="config.saving" @click="reload">
           <RotateCcw class="h-3.5 w-3.5" />
           Reload
         </button>
-        <button class="btn btn-primary h-7! px-2.5! text-[12px]!" type="button" :disabled="config.saving" @click="saveLayer">
+        <button class="btn btn-primary" type="button" :disabled="config.saving" @click="saveLayer">
           <Check class="h-3.5 w-3.5" />
           Save
         </button>
       </div>
-    </div>
-    <p class="mx-5 mt-2 text-[12px] text-muted-foreground">
-      LSP reloads for subsequent operations; language servers connect on first use and report connection errors there. Model and permission defaults apply to the next request or turn. Process/addon settings need a daemon restart; automatic snapshots need a workspace reopen. Save reports any pending application or connection failure.
+    </PageHeader>
+    <details v-if="configGroup" class="mb-5 text-[12px] text-muted-foreground">
+      <summary class="cursor-pointer">How Settings Apply</summary>
+      <p class="mt-2">
+        LSP reloads for subsequent operations. Model and permission defaults apply to the next
+        request or turn. Process and addon settings need a daemon restart; automatic snapshots need
+        a workspace reopen. Saving reports any pending application or connection failure.
+      </p>
+    </details>
+    <p
+      v-if="configGroup && (settings.layer === 'user' ? config.legacyUser : config.legacyWorkspace)"
+      class="mb-4 text-[12px]"
+      role="status"
+    >
+      Legacy configuration: default values previously meant inherit. Saving this form explicitly
+      migrates this layer to presence-based overrides while preserving its effective values.
+      Afterwards false and 0 are explicit; Reset restores inheritance. The TOML editor keeps the
+      original format unless you set config_version = 2.
     </p>
-    <p v-if="settings.layer === 'user' ? config.legacyUser : config.legacyWorkspace" class="mx-5 mt-2 text-[12px]" role="status">
-      Legacy configuration: default values previously meant inherit. Saving this form explicitly migrates this layer to presence-based overrides while preserving its effective values. Afterwards false and 0 are explicit; Reset restores inheritance. The TOML editor keeps the original format unless you set config_version = 2.
-    </p>
-    <p v-if="config.lastError" class="mx-5 mt-2 rounded-md px-3 py-2 text-[12px]" style="background: var(--danger-soft); color: var(--danger)" role="alert">
+    <p
+      v-if="config.lastError"
+      class="mb-4 rounded-md px-3 py-2 text-[12px]"
+      style="background: var(--danger-soft); color: var(--danger)"
+      role="alert"
+    >
       {{ config.lastError }}
     </p>
 
+    <section v-if="settings.active === 'addon-pages'">
+      <AddonPagesPanel v-if="workspace.hasActive" embedded />
+      <p v-else class="text-muted-foreground">Open a workspace to view its addon pages.</p>
+    </section>
     <!-- General: theme, daemon connection, workspace -->
-    <section v-if="settings.active === 'general'" class="max-w-2xl space-y-4 p-5">
+    <section v-else-if="settings.active === 'general'" class="max-w-2xl space-y-4">
       <div class="panel divide-y divide-divider">
         <div class="flex items-center justify-between gap-4 px-4 py-3">
           <div>
             <p class="text-[13px] font-medium">Appearance</p>
             <p class="text-[12px] text-muted-foreground">Switch between light and dark mode.</p>
           </div>
-          <div class="flex shrink-0 items-center gap-1 rounded-lg bg-input p-0.5" style="box-shadow: inset 0 0 0 1px var(--border)">
+          <div
+            class="flex shrink-0 items-center gap-1 rounded-lg bg-input p-0.5"
+            style="box-shadow: inset 0 0 0 1px var(--border)"
+          >
             <button
               class="flex items-center gap-1 rounded-md px-2.5 py-1 text-[12px] transition-colors duration-150"
-              :class="theme.mode === 'light' ? 'bg-surface text-foreground shadow-card' : 'text-muted-foreground hover:text-foreground'"
+              :class="
+                theme.mode === 'light'
+                  ? 'bg-surface text-foreground shadow-card'
+                  : 'text-muted-foreground hover:text-foreground'
+              "
               type="button"
               @click="theme.mode = 'light'"
             >
@@ -750,7 +962,11 @@ const modelsText = computed(() => {
             </button>
             <button
               class="flex items-center gap-1 rounded-md px-2.5 py-1 text-[12px] transition-colors duration-150"
-              :class="theme.mode === 'dark' ? 'bg-surface text-foreground shadow-card' : 'text-muted-foreground hover:text-foreground'"
+              :class="
+                theme.mode === 'dark'
+                  ? 'bg-surface text-foreground shadow-card'
+                  : 'text-muted-foreground hover:text-foreground'
+              "
               type="button"
               @click="theme.mode = 'dark'"
             >
@@ -759,22 +975,40 @@ const modelsText = computed(() => {
           </div>
         </div>
 
-        <SettingRow label="Daemon connection" :description="connectedLabel" source="Default" :resettable="false">
+        <SettingRow
+          label="Daemon connection"
+          :description="connectedLabel"
+          source="Default"
+          :resettable="false"
+        >
           <span
             class="flex h-8 w-8 items-center justify-center rounded-lg"
-            :class="gateway.connected.value ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400' : 'bg-surface-muted text-muted-foreground'"
+            :class="
+              gateway.connected.value
+                ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400'
+                : 'bg-surface-muted text-muted-foreground'
+            "
           >
             <Wifi v-if="gateway.connected.value" class="h-4 w-4" />
             <WifiOff v-else class="h-4 w-4" />
           </span>
         </SettingRow>
 
-        <SettingRow label="Current workspace" :description="workspace.active ? `${workspace.active.path} (locked: ${workspace.active.locked})` : 'None — open a folder from the title bar.'" source="Default" :resettable="false" />
+        <SettingRow
+          label="Current workspace"
+          :description="
+            workspace.active
+              ? `${workspace.active.path} (locked: ${workspace.active.locked})`
+              : 'None — open a folder from the title bar.'
+          "
+          source="Default"
+          :resettable="false"
+        />
       </div>
     </section>
 
     <!-- LLM -->
-    <section v-else-if="settings.active === 'llm'" class="max-w-2xl space-y-4 p-5">
+    <section v-else-if="settings.active === 'llm'" class="max-w-2xl space-y-4">
       <div class="panel divide-y divide-divider">
         <SettingRow
           v-for="def in GROUPS.llm"
@@ -789,7 +1023,7 @@ const modelsText = computed(() => {
             v-if="def.type === 'text'"
             class="input h-7! w-44! text-[12px]!"
             :placeholder="def.placeholder"
-            :value="liveValue(def) as string | undefined ?? ''"
+            :value="(liveValue(def) as string | undefined) ?? ''"
             @change="setValue(def, ($event.target as HTMLInputElement).value)"
           />
           <input
@@ -798,7 +1032,7 @@ const modelsText = computed(() => {
             type="number"
             step="any"
             :placeholder="def.placeholder"
-            :value="liveValue(def) as number | undefined ?? ''"
+            :value="(liveValue(def) as number | undefined) ?? ''"
             @change="setValue(def, Number(($event.target as HTMLInputElement).value))"
           />
         </SettingRow>
@@ -809,22 +1043,38 @@ const modelsText = computed(() => {
         <div class="flex items-center gap-3 px-4 py-2.5">
           <div class="min-w-0 flex-1">
             <p class="text-[13px] font-medium">Models</p>
-            <p class="text-[12px] text-muted-foreground">Full model definitions (connection, advanced options, pricing); configured models appear in the Chat picker.</p>
+            <p class="text-[12px] text-muted-foreground">
+              Full model definitions (connection, advanced options, pricing); configured models
+              appear in the Chat picker.
+            </p>
           </div>
           <span class="chip">{{ modelsText }}</span>
         </div>
         <div v-for="name in modelKeys()" :key="name" class="flex items-center gap-2 px-4 py-2">
-          <span class="min-w-0 flex-1 truncate text-[13px] font-medium">{{ modelDisplay(name) }}</span>
+          <span class="min-w-0 flex-1 truncate text-[13px] font-medium">{{
+            modelDisplay(name)
+          }}</span>
           <span class="text-[11.5px] text-subtle">{{ modelApiType(name) }}</span>
           <span class="text-[11.5px] text-subtle">
-            ${{ modelDefaultPrice(name, 'input_per_mtok') }} in / ${{ modelDefaultPrice(name, 'output_per_mtok') }} out
+            ${{ modelDefaultPrice(name, 'input_per_mtok') }} in / ${{
+              modelDefaultPrice(name, 'output_per_mtok')
+            }}
+            out
           </span>
           <span class="chip">{{ modelPricingKind(name) }}</span>
           <span class="chip">{{ modelWindowCount(name) }} window(s)</span>
-          <button class="btn btn-outline h-7! px-2! text-[12px]!" type="button" @click="openModelModal(name)">
+          <button
+            class="btn btn-outline h-7! px-2! text-[12px]!"
+            type="button"
+            @click="openModelModal(name)"
+          >
             Edit
           </button>
-          <button class="btn btn-danger-outline h-7! px-2! text-[12px]!" type="button" @click="removeModel(name)">
+          <button
+            class="btn btn-danger-outline h-7! px-2! text-[12px]!"
+            type="button"
+            @click="removeModel(name)"
+          >
             Delete
           </button>
         </div>
@@ -833,14 +1083,17 @@ const modelsText = computed(() => {
             <Plus class="h-4 w-4" /> Add model
           </button>
         </div>
-        <p v-if="!modelKeys().length" class="px-4 py-3 text-center text-[12px] text-muted-foreground">
+        <p
+          v-if="!modelKeys().length"
+          class="px-4 py-3 text-center text-[12px] text-muted-foreground"
+        >
           No models configured — connection and pricing fall back to the daemon defaults.
         </p>
       </div>
     </section>
 
     <!-- Sandbox -->
-    <section v-else-if="settings.active === 'sandbox'" class="max-w-2xl space-y-4 p-5">
+    <section v-else-if="settings.active === 'sandbox'" class="max-w-2xl space-y-4">
       <div class="panel divide-y divide-divider">
         <SettingRow
           v-for="def in GROUPS.sandbox"
@@ -861,13 +1114,21 @@ const modelsText = computed(() => {
             class="input w-52! resize-none text-[11.5px]! leading-relaxed!"
             rows="3"
             :value="((liveValue(def) as string[] | undefined) ?? []).join('\n')"
-            @change="setValue(def, ($event.target as HTMLTextAreaElement).value.split('\n').map((s) => s.trim()).filter(Boolean))"
+            @change="
+              setValue(
+                def,
+                ($event.target as HTMLTextAreaElement).value
+                  .split('\n')
+                  .map((s) => s.trim())
+                  .filter(Boolean),
+              )
+            "
           />
           <input
             v-else
             class="input h-7! w-24! text-[12px]!"
             type="number"
-            :value="liveValue(def) as number | undefined ?? ''"
+            :value="(liveValue(def) as number | undefined) ?? ''"
             @change="setValue(def, Number(($event.target as HTMLInputElement).value))"
           />
         </SettingRow>
@@ -875,18 +1136,31 @@ const modelsText = computed(() => {
     </section>
 
     <!-- MCP -->
-    <section v-else-if="settings.active === 'mcp'" class="max-w-2xl space-y-4 p-5">
+    <section v-else-if="settings.active === 'mcp'" class="max-w-2xl space-y-4">
       <div class="panel divide-y divide-divider" data-testid="mcp-status">
         <div class="flex items-center justify-between px-4 py-3">
-          <h3 class="text-[13px] font-medium">Live connections</h3>
-          <button class="btn btn-outline" type="button" @click="addons.refresh()">Refresh status</button>
+          <h3 class="text-[13px] font-medium">Live Connections</h3>
+          <button class="btn btn-outline" type="button" @click="addons.refresh()">
+            Refresh status
+          </button>
         </div>
-        <div v-for="server in addons.mcpServers" :key="`${server.scopeRoot}:${server.owner}:${server.name}`" class="space-y-1 px-4 py-3">
+        <div
+          v-for="server in addons.mcpServers"
+          :key="`${server.scopeRoot}:${server.owner}:${server.name}`"
+          class="space-y-1 px-4 py-3"
+        >
           <p class="text-[13px] font-medium">{{ server.name }} · {{ server.status }}</p>
-          <p class="break-all text-[12px] text-muted-foreground">{{ server.owner ? `Addon ${server.owner}` : 'User configuration' }} · {{ server.scopeRoot || 'Global' }} · {{ server.toolCount }} tools</p>
-          <p v-if="server.error" role="alert" class="text-[12px] text-destructive">{{ server.error }}</p>
+          <p class="break-all text-[12px] text-muted-foreground">
+            {{ server.owner ? `Addon ${server.owner}` : 'User configuration' }} ·
+            {{ server.scopeRoot || 'Global' }} · {{ server.toolCount }} tools
+          </p>
+          <p v-if="server.error" role="alert" class="text-[12px] text-destructive">
+            {{ server.error }}
+          </p>
         </div>
-        <p v-if="addons.mcpError" role="alert" class="px-4 py-3 text-[12px] text-destructive">{{ addons.mcpError }}</p>
+        <p v-if="addons.mcpError" role="alert" class="px-4 py-3 text-[12px] text-destructive">
+          {{ addons.mcpError }}
+        </p>
       </div>
       <div class="panel divide-y divide-divider">
         <SettingRow
@@ -901,7 +1175,7 @@ const modelsText = computed(() => {
           <input
             class="input h-7! w-24! text-[12px]!"
             type="number"
-            :value="liveValue(def) as number | undefined ?? ''"
+            :value="(liveValue(def) as number | undefined) ?? ''"
             @change="setValue(def, Number(($event.target as HTMLInputElement).value))"
           />
         </SettingRow>
@@ -929,7 +1203,12 @@ const modelsText = computed(() => {
           >
             {{ mcpField(name, 'enabled') ? 'On' : 'Off' }}
           </button>
-          <button class="btn-icon h-6! w-6!" type="button" :aria-label="`Remove ${name}`" @click="removeMcp(name)">
+          <button
+            class="btn-icon h-6! w-6!"
+            type="button"
+            :aria-label="`Remove ${name}`"
+            @click="removeMcp(name)"
+          >
             <Trash2 class="h-3.5 w-3.5" />
           </button>
         </div>
@@ -945,7 +1224,7 @@ const modelsText = computed(() => {
     </section>
 
     <!-- LSP -->
-    <section v-else-if="settings.active === 'lsp'" class="max-w-2xl space-y-4 p-5">
+    <section v-else-if="settings.active === 'lsp'" class="max-w-2xl space-y-4">
       <div class="panel divide-y divide-divider">
         <SettingRow
           v-for="def in GROUPS.lsp"
@@ -956,10 +1235,7 @@ const modelsText = computed(() => {
           :resettable="resettable(def)"
           @reset="resetValue(def)"
         >
-          <Toggle
-            :model-value="!!liveValue(def)"
-            @update:model-value="setValue(def, $event)"
-          />
+          <Toggle :model-value="!!liveValue(def)" @update:model-value="setValue(def, $event)" />
         </SettingRow>
 
         <div v-for="(_, idx) in lspList()" :key="idx" class="flex items-center gap-2 px-4 py-2">
@@ -981,7 +1257,12 @@ const modelsText = computed(() => {
             placeholder="server command args…"
             @change="setLspCommand(idx, ($event.target as HTMLInputElement).value)"
           />
-          <button class="btn-icon h-6! w-6!" type="button" :aria-label="`Remove ${lspField(idx, 'id')}`" @click="removeLsp(idx)">
+          <button
+            class="btn-icon h-6! w-6!"
+            type="button"
+            :aria-label="`Remove ${lspField(idx, 'id')}`"
+            @click="removeLsp(idx)"
+          >
             <Trash2 class="h-3.5 w-3.5" />
           </button>
         </div>
@@ -997,10 +1278,16 @@ const modelsText = computed(() => {
     </section>
 
     <!-- Addons (live daemon data) -->
-    <section v-else-if="settings.active === 'addons'" class="max-w-2xl space-y-4 p-5">
-      <button class="btn btn-outline" type="button" @click="addons.refresh()">Refresh addon status</button>
+    <section v-else-if="settings.active === 'addons'" class="max-w-2xl space-y-4">
+      <button class="btn btn-outline" type="button" @click="addons.refresh()">
+        Refresh addon status
+      </button>
       <div class="panel divide-y divide-divider">
-        <div v-for="a in addons.addons" :key="`${a.scopeRoot ?? a.scope}:${a.id}`" class="flex items-center gap-3 px-4 py-3">
+        <div
+          v-for="a in addons.addons"
+          :key="`${a.scopeRoot ?? a.scope}:${a.id}`"
+          class="flex items-center gap-3 px-4 py-3"
+        >
           <div class="min-w-0 flex-1">
             <div class="flex items-center gap-2">
               <span class="text-[13px] font-medium">{{ a.name }}</span>
@@ -1008,19 +1295,39 @@ const modelsText = computed(() => {
               <span class="chip">{{ a.scope }}</span>
               <span class="chip">{{ a.toolCount }} tool{{ a.toolCount === 1 ? '' : 's' }}</span>
             </div>
-            <p class="mt-0.5 text-[12px] text-muted-foreground">{{ a.description || 'No description' }}</p>
-            <p class="break-all text-[12px] text-muted-foreground">{{ a.scopeRoot || 'Global' }} · {{ a.status || 'Status unavailable' }}</p>
+            <p class="mt-0.5 text-[12px] text-muted-foreground">
+              {{ a.description || 'No description' }}
+            </p>
+            <p class="break-all text-[12px] text-muted-foreground">
+              {{ a.scopeRoot || 'Global' }} · {{ a.status || 'Status unavailable' }}
+            </p>
             <p v-if="a.error" class="break-words text-[12px] text-destructive">{{ a.error }}</p>
-            <p class="text-[12px] text-muted-foreground">Granted: {{ a.grantedPermissions?.join(', ') || 'None' }}</p>
-            <div v-if="a.hooks?.length" class="mt-2 space-y-2 border-t border-divider pt-2" data-testid="addon-hook-status">
+            <p class="text-[12px] text-muted-foreground">
+              Granted: {{ a.grantedPermissions?.join(', ') || 'None' }}
+            </p>
+            <div
+              v-if="a.hooks?.length"
+              class="mt-2 space-y-2 border-t border-divider pt-2"
+              data-testid="addon-hook-status"
+            >
               <p class="text-[12px] font-medium">Lifecycle observers</p>
-              <div v-for="hook in a.hooks" :key="`${hook.scopeRoot}:${hook.name}`" class="break-words text-[12px]">
+              <div
+                v-for="hook in a.hooks"
+                :key="`${hook.scopeRoot}:${hook.name}`"
+                class="break-words text-[12px]"
+              >
                 <p>{{ hook.name }} · {{ hook.event }} · {{ hook.status }}</p>
-                <p class="text-muted-foreground">{{ hook.completed }} completed · {{ hook.failed }} failed · {{ hook.scopeRoot }}</p>
-                <p v-if="hook.eventId" class="break-all text-muted-foreground">Event {{ hook.eventId }}</p>
+                <p class="text-muted-foreground">
+                  {{ hook.completed }} completed · {{ hook.failed }} failed · {{ hook.scopeRoot }}
+                </p>
+                <p v-if="hook.eventId" class="break-all text-muted-foreground">
+                  Event {{ hook.eventId }}
+                </p>
                 <p v-if="hook.error" class="text-destructive">{{ hook.error }}</p>
               </div>
-              <p class="text-[11px] text-muted-foreground">Read-only notifications. Delivery is bounded and is not replayed after restart.</p>
+              <p class="text-[11px] text-muted-foreground">
+                Read-only notifications. Delivery is bounded and is not replayed after restart.
+              </p>
             </div>
           </div>
           <button
@@ -1033,16 +1340,21 @@ const modelsText = computed(() => {
             {{ a.enabled ? 'Enabled' : 'Disabled' }}
           </button>
         </div>
-        <p v-if="addons.addons.length === 0" class="px-4 py-6 text-center text-[12.5px] text-muted-foreground">
+        <p
+          v-if="addons.addons.length === 0"
+          class="px-4 py-6 text-center text-[12.5px] text-muted-foreground"
+        >
           No addons installed.
         </p>
       </div>
-      <p v-if="addons.error" role="alert" class="text-[12px] text-destructive">{{ addons.error }}</p>
+      <p v-if="addons.error" role="alert" class="text-[12px] text-destructive">
+        {{ addons.error }}
+      </p>
       <AddonFunctions :workspace-path="workspace.active?.path ?? ''" />
     </section>
 
     <!-- Versioning -->
-    <section v-else-if="settings.active === 'versioning'" class="max-w-2xl space-y-4 p-5">
+    <section v-else-if="settings.active === 'versioning'" class="max-w-2xl space-y-4">
       <div class="panel divide-y divide-divider">
         <SettingRow
           v-for="def in GROUPS.versioning"
@@ -1053,35 +1365,52 @@ const modelsText = computed(() => {
           :resettable="resettable(def)"
           @reset="resetValue(def)"
         >
-          <Toggle
-            :model-value="!!liveValue(def)"
-            @update:model-value="setValue(def, $event)"
-          />
+          <Toggle :model-value="!!liveValue(def)" @update:model-value="setValue(def, $event)" />
         </SettingRow>
       </div>
     </section>
 
     <!-- Billing (cost display only) -->
-    <section v-else-if="settings.active === 'billing'" class="max-w-2xl space-y-4 p-5">
+    <section v-else-if="settings.active === 'billing'" class="max-w-2xl space-y-4">
       <div>
-        <h1 class="text-[15px] font-semibold">Billing</h1>
+        <h2 class="text-[15px] font-semibold">Billing</h2>
         <p class="mt-0.5 text-[12px] text-muted-foreground">
-          Cost display configuration. Per-model pricing and peak/off-peak rules
-          are configured per model in <span class="font-medium">LLM &amp; Models</span>.
+          Cost display configuration. Per-model pricing and peak/off-peak rules are configured per
+          model in <span class="font-medium">LLM &amp; Models</span>.
         </p>
       </div>
       <div class="panel divide-y divide-divider">
-        <SettingRow label="Currency" description="Currency code used for cost reporting." source="Default" :resettable="false">
-          <Combobox :model-value="billingValue('currency')" :options="CURRENCIES" placeholder="USD" @update:model-value="setBilling('currency', $event)" />
+        <SettingRow
+          label="Currency"
+          description="Currency code used for cost reporting."
+          source="Default"
+          :resettable="false"
+        >
+          <Combobox
+            :model-value="billingValue('currency')"
+            :options="CURRENCIES"
+            placeholder="USD"
+            @update:model-value="setBilling('currency', $event)"
+          />
         </SettingRow>
-        <SettingRow label="Timezone" description="IANA zone used for the reported timestamps." source="Default" :resettable="false">
-          <Combobox :model-value="billingValue('timezone')" :options="TIMEZONES" placeholder="UTC" @update:model-value="setBilling('timezone', $event)" />
+        <SettingRow
+          label="Timezone"
+          description="IANA zone used for the reported timestamps."
+          source="Default"
+          :resettable="false"
+        >
+          <Combobox
+            :model-value="billingValue('timezone')"
+            :options="TIMEZONES"
+            placeholder="UTC"
+            @update:model-value="setBilling('timezone', $event)"
+          />
         </SettingRow>
       </div>
     </section>
 
     <!-- Daemon / execution -->
-    <section v-else-if="settings.active === 'daemon'" class="max-w-2xl space-y-4 p-5">
+    <section v-else-if="settings.active === 'daemon'" class="max-w-2xl space-y-4">
       <div class="panel divide-y divide-divider">
         <SettingRow
           v-for="def in GROUPS.daemon"
@@ -1109,14 +1438,14 @@ const modelsText = computed(() => {
             v-else-if="def.type === 'number'"
             class="input h-7! w-24! text-[12px]!"
             type="number"
-            :value="liveValue(def) as number | undefined ?? ''"
+            :value="(liveValue(def) as number | undefined) ?? ''"
             @change="setValue(def, Number(($event.target as HTMLInputElement).value))"
           />
           <input
             v-else
             class="input h-7! w-44! text-[12px]!"
             :placeholder="def.placeholder"
-            :value="liveValue(def) as string | undefined ?? ''"
+            :value="(liveValue(def) as string | undefined) ?? ''"
             @change="setValue(def, ($event.target as HTMLInputElement).value)"
           />
         </SettingRow>
@@ -1124,12 +1453,13 @@ const modelsText = computed(() => {
     </section>
 
     <!-- Settings TOML: open the config file in the editor -->
-    <section v-else-if="settings.active === 'toml'" class="max-w-2xl space-y-4 p-5">
+    <section v-else-if="settings.active === 'toml'" class="max-w-2xl space-y-4">
       <div>
-        <h1 class="text-[15px] font-semibold">Settings TOML</h1>
+        <h2 class="text-[15px] font-semibold">Settings TOML</h2>
         <p class="mt-0.5 text-[12px] text-muted-foreground">
-          The layered configuration is persisted as <code class="chip">.metteur/config.toml</code>
-          (user: <code class="chip">config.toml</code> in the daemon home, workspace:
+          The layered configuration is persisted as
+          <code class="chip">.metteur/config.toml</code> (user:
+          <code class="chip">config.toml</code> in the daemon home, workspace:
           <code class="chip">&lt;workspace&gt;/.metteur/config.toml</code>). Open the desired file
           in the editor to edit it with full syntax support; saving the tab persists the layer
           through the daemon.
@@ -1144,9 +1474,13 @@ const modelsText = computed(() => {
           <UserCog class="h-4 w-4 text-primary" />
           <div class="min-w-0 flex-1">
             <p class="text-[13px] font-medium">User config.toml</p>
-            <p class="text-[12px] text-muted-foreground">Global settings, applied to every workspace.</p>
+            <p class="text-[12px] text-muted-foreground">
+              Global settings, applied to every workspace.
+            </p>
           </div>
-          <span class="btn btn-outline h-7! px-2.5! text-[12px]! pointer-events-none">Open in editor</span>
+          <span class="btn btn-outline h-7! px-2.5! text-[12px]! pointer-events-none"
+            >Open in editor</span
+          >
         </button>
         <button
           class="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-accent"
@@ -1158,9 +1492,13 @@ const modelsText = computed(() => {
           <FileCog class="h-4 w-4 text-primary" />
           <div class="min-w-0 flex-1">
             <p class="text-[13px] font-medium">Workspace config.toml</p>
-            <p class="text-[12px] text-muted-foreground">Overrides the user layer per key for this workspace.</p>
+            <p class="text-[12px] text-muted-foreground">
+              Overrides the user layer per key for this workspace.
+            </p>
           </div>
-          <span class="btn btn-outline h-7! px-2.5! text-[12px]! pointer-events-none">Open in editor</span>
+          <span class="btn btn-outline h-7! px-2.5! text-[12px]! pointer-events-none"
+            >Open in editor</span
+          >
         </button>
       </div>
     </section>

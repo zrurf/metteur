@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { onMounted, ref, watch } from 'vue'
+import { onMounted, onUnmounted, ref, watch } from 'vue'
+import { vDialogFocus } from '@/components/resources/dialog-focus'
 import { ArrowUp, File, Folder, X } from '@lucide/vue'
 import { gateway } from '@/core'
 import type { FileTreeNode } from '@/core'
@@ -47,18 +48,27 @@ const error = ref('')
 const selected = ref('')
 /** Entered file name (mode `save`). */
 const name = ref('')
+let generation = 0
 
 async function load(dirPath: string) {
+  const ticket = ++generation,
+    workspace = props.workspacePath
+  entries.value = []
+  selected.value = ''
   dir.value = dirPath
   loading.value = true
   error.value = ''
   try {
-    const r = await gateway.listFiles(props.workspacePath, dirPath)
+    const r = await gateway.listFiles(workspace, dirPath)
+    if (ticket !== generation || props.workspacePath !== workspace) return
     if (r.ok) {
       // Directories first, then files (extensions filter applies to files).
       const dirs = r.data.filter((e) => e.kind === 'dir')
       const files = r.data.filter(
-        (e) => e.kind === 'file' && (props.extensions.length === 0 || props.extensions.some((x) => e.name.toLowerCase().endsWith(x.toLowerCase()))),
+        (e) =>
+          e.kind === 'file' &&
+          (props.extensions.length === 0 ||
+            props.extensions.some((x) => e.name.toLowerCase().endsWith(x.toLowerCase()))),
       )
       entries.value = [...dirs, ...files]
     } else {
@@ -66,7 +76,7 @@ async function load(dirPath: string) {
       entries.value = []
     }
   } finally {
-    loading.value = false
+    if (ticket === generation) loading.value = false
   }
 }
 
@@ -94,28 +104,40 @@ function confirm() {
 /** Directory display label: `''` shows as `Workspace root`. */
 const dirLabel = () => (dir.value === '' ? 'Workspace root' : dir.value)
 
-watch(
-  () => props.open,
-  (open) => {
-    if (open) {
-      name.value = ''
-      selected.value = ''
-      void load('')
-    }
-  },
-)
+watch([() => props.open, () => props.workspacePath], ([open]) => {
+  if (open) {
+    name.value = ''
+    selected.value = ''
+    void load('')
+  }
+})
 
 onMounted(() => {
   if (props.open) void load('')
+})
+onUnmounted(() => {
+  generation++
 })
 </script>
 
 <template>
   <Teleport to="body">
-    <div v-if="open" class="fixed inset-0 z-50 grid place-items-center bg-black/40 p-4" @click.self="emit('close')">
-      <div class="glass flex max-h-[75vh] w-120 max-w-full flex-col overflow-hidden rounded-xl border border-border shadow-2xl">
+    <div
+      v-if="open"
+      class="fixed inset-0 z-50 grid place-items-center bg-black/40 p-4"
+      @click.self="emit('close')"
+    >
+      <div
+        v-dialog-focus
+        role="dialog"
+        aria-modal="true"
+        :aria-label="title"
+        tabindex="-1"
+        class="glass flex max-h-[75vh] w-120 max-w-full flex-col overflow-hidden rounded-xl border border-border shadow-2xl"
+        @keydown.esc.stop="emit('close')"
+      >
         <header class="flex items-center gap-2 border-b border-border px-3 py-2">
-          <span class="truncate text-[13px] font-semibold text-foreground">{{ title }}</span>
+          <h2 class="truncate text-[13px] font-semibold text-foreground">{{ title }}</h2>
           <button
             class="ml-auto grid h-6 w-6 place-items-center rounded-md text-subtle transition-colors hover:bg-hover hover:text-foreground"
             type="button"
@@ -144,19 +166,28 @@ onMounted(() => {
         <div class="min-h-0 flex-1 overflow-y-auto px-2 py-1.5">
           <p v-if="loading" class="px-2 py-1 text-[12px] text-subtle">Loading…</p>
           <p v-else-if="error" class="px-2 py-1 text-[12px] text-danger">{{ error }}</p>
-          <p v-else-if="entries.length === 0" class="px-2 py-1 text-[12px] text-subtle">Empty folder</p>
-          <div
+          <p v-else-if="entries.length === 0" class="px-2 py-1 text-[12px] text-subtle">
+            Empty folder
+          </p>
+          <button
+            type="button"
             v-for="entry in entries"
             :key="entry.path"
-            class="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 transition-colors"
-            :class="selected === entry.path ? 'bg-accent text-accent-foreground' : 'text-foreground hover:bg-hover'"
+            class="flex w-full cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-left transition-colors"
+            :class="
+              selected === entry.path
+                ? 'bg-accent text-accent-foreground'
+                : 'text-foreground hover:bg-hover'
+            "
             @click="enter(entry)"
-            @dblclick="entry.kind === 'dir' ? enter(entry) : (props.mode === 'open' ? confirm() : undefined)"
+            @dblclick="
+              entry.kind === 'dir' ? enter(entry) : props.mode === 'open' ? confirm() : undefined
+            "
           >
             <Folder v-if="entry.kind === 'dir'" class="h-4 w-4 shrink-0 text-[#e2a13c]" />
             <File v-else class="h-4 w-4 shrink-0 text-subtle" />
             <span class="truncate text-[12.5px]">{{ entry.name }}</span>
-          </div>
+          </button>
         </div>
 
         <!-- Save-mode file name -->
@@ -171,9 +202,15 @@ onMounted(() => {
 
         <!-- Actions -->
         <footer class="flex items-center justify-end gap-2 border-t border-border px-3 py-2">
-          <button class="btn-secondary h-7! px-3 text-[12px]" type="button" @click="emit('close')">Cancel</button>
           <button
-            class="btn-primary h-7! px-3 text-[12px] rounded-md"
+            class="btn btn-outline h-7! px-3 text-[12px]"
+            type="button"
+            @click="emit('close')"
+          >
+            Cancel
+          </button>
+          <button
+            class="btn btn-primary h-7! px-3 text-[12px] rounded-md"
             type="button"
             :disabled="mode === 'open' ? !selected : !name.trim()"
             @click="confirm"

@@ -6,6 +6,19 @@ use metteur_shared::{FileSystem, NativeFileSystem, Uri};
 
 use crate::error::{DaemonError, DaemonResult};
 
+/// Metadata must come from symlink_metadata: following links first loses the
+/// Windows junction/reparse identity. All contained file stores share this check.
+pub(crate) fn is_link(metadata: &std::fs::Metadata) -> bool {
+    #[cfg(windows)]
+    {
+        use std::os::windows::fs::MetadataExt;
+        if metadata.file_attributes() & 0x400 != 0 {
+            return true;
+        }
+    }
+    metadata.file_type().is_symlink()
+}
+
 /// A filesystem rooted at a workspace that rejects paths escaping it.
 #[derive(Clone)]
 pub struct WorkspaceFs {

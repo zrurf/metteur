@@ -49,7 +49,11 @@ fn pump_stream<T: Send + 'static>(
     let (tx, rx) = tokio::sync::mpsc::channel(64);
     tokio::spawn(async move {
         let mut stream = response.into_inner();
-        while let Some(item) = stream.message().await.transpose() {
+        loop {
+            let item = tokio::select! { _ = tx.closed() => break, item = stream.message() => item.transpose() };
+            let Some(item) = item else {
+                break;
+            };
             if tx.send(item).await.is_err() {
                 break;
             }
@@ -60,27 +64,140 @@ fn pump_stream<T: Send + 'static>(
 
 #[tonic::async_trait]
 impl Daemon for ForwardService {
-    async fn addon_pages(&self, request: Request<metteur_proto::proto::ResourceRequest>) -> Result<Response<metteur_proto::proto::ResourceResponse>, Status> { self.client.clone().addon_pages(request).await }
-    async fn select_prompt_resource(&self, request: Request<metteur_proto::proto::ResourceRequest>) -> Result<Response<metteur_proto::proto::ResourceResponse>, Status> { self.client.clone().select_prompt_resource(request).await }
-    async fn write_schedule(&self, request: Request<metteur_proto::proto::ResourceRequest>) -> Result<Response<metteur_proto::proto::ResourceResponse>, Status> { self.client.clone().write_schedule(request).await }
-    async fn confirm_blueprint_launch(&self, request: Request<metteur_proto::proto::ResourceRequest>) -> Result<Response<metteur_proto::proto::ResourceResponse>, Status> { self.client.clone().confirm_blueprint_launch(request).await }
-    async fn query_blueprint_launch(&self, request: Request<metteur_proto::proto::ResourceRequest>) -> Result<Response<metteur_proto::proto::ResourceResponse>, Status> { self.client.clone().query_blueprint_launch(request).await }
-    async fn query_continuations(&self, request: Request<metteur_proto::proto::ResourceRequest>) -> Result<Response<metteur_proto::proto::ResourceResponse>, Status> { self.client.clone().query_continuations(request).await }
-    async fn control_continuation(&self, request: Request<metteur_proto::proto::ResourceRequest>) -> Result<Response<metteur_proto::proto::ResourceResponse>, Status> { self.client.clone().control_continuation(request).await }
-    async fn query_prompt_resources(&self, request: Request<metteur_proto::proto::ResourceRequest>) -> Result<Response<metteur_proto::proto::ResourceResponse>, Status> { self.client.clone().query_prompt_resources(request).await }
-    async fn write_prompt_resource(&self, request: Request<metteur_proto::proto::ResourceRequest>) -> Result<Response<metteur_proto::proto::ResourceResponse>, Status> { self.client.clone().write_prompt_resource(request).await }
-    async fn delete_prompt_resource(&self, request: Request<metteur_proto::proto::ResourceRequest>) -> Result<Response<metteur_proto::proto::ResourceResponse>, Status> { self.client.clone().delete_prompt_resource(request).await }
-    async fn copy_prompt_to_project(&self, request: Request<metteur_proto::proto::ResourceRequest>) -> Result<Response<metteur_proto::proto::ResourceResponse>, Status> { self.client.clone().copy_prompt_to_project(request).await }
-    async fn query_project_memory(&self, request: Request<metteur_proto::proto::ResourceRequest>) -> Result<Response<metteur_proto::proto::ResourceResponse>, Status> { self.client.clone().query_project_memory(request).await }
-    async fn write_project_note(&self, request: Request<metteur_proto::proto::ResourceRequest>) -> Result<Response<metteur_proto::proto::ResourceResponse>, Status> { self.client.clone().write_project_note(request).await }
-    async fn promote_project_convention(&self, request: Request<metteur_proto::proto::ResourceRequest>) -> Result<Response<metteur_proto::proto::ResourceResponse>, Status> { self.client.clone().promote_project_convention(request).await }
-    async fn update_project_memory_status(&self, request: Request<metteur_proto::proto::ResourceRequest>) -> Result<Response<metteur_proto::proto::ResourceResponse>, Status> { self.client.clone().update_project_memory_status(request).await }
-    type SendConciergeMessageStream = ReceiverStream<Result<metteur_proto::proto::ConciergeEvent, Status>>;
-    async fn list_oversight_reports(&self, request: Request<metteur_proto::proto::OversightReportsRequest>) -> Result<Response<metteur_proto::proto::OversightReports>, Status> { self.client.clone().list_oversight_reports(request).await }
-    async fn get_concierge_state(&self, request: Request<metteur_proto::proto::ConciergeStateRequest>) -> Result<Response<metteur_proto::proto::ConciergeState>, Status> {
+    async fn approval_delivery(
+        &self,
+        request: Request<metteur_proto::proto::ResourceRequest>,
+    ) -> Result<Response<metteur_proto::proto::ResourceResponse>, Status> {
+        self.client.clone().approval_delivery(request).await
+    }
+    async fn concierge_delivery(
+        &self,
+        request: Request<metteur_proto::proto::ResourceRequest>,
+    ) -> Result<Response<metteur_proto::proto::ResourceResponse>, Status> {
+        self.client.clone().concierge_delivery(request).await
+    }
+    async fn chat_delivery(
+        &self,
+        request: Request<metteur_proto::proto::ResourceRequest>,
+    ) -> Result<Response<metteur_proto::proto::ResourceResponse>, Status> {
+        self.client.clone().chat_delivery(request).await
+    }
+    async fn recovery(
+        &self,
+        request: Request<metteur_proto::proto::ResourceRequest>,
+    ) -> Result<Response<metteur_proto::proto::ResourceResponse>, Status> {
+        self.client.clone().recovery(request).await
+    }
+    async fn addon_pages(
+        &self,
+        request: Request<metteur_proto::proto::ResourceRequest>,
+    ) -> Result<Response<metteur_proto::proto::ResourceResponse>, Status> {
+        self.client.clone().addon_pages(request).await
+    }
+    async fn select_prompt_resource(
+        &self,
+        request: Request<metteur_proto::proto::ResourceRequest>,
+    ) -> Result<Response<metteur_proto::proto::ResourceResponse>, Status> {
+        self.client.clone().select_prompt_resource(request).await
+    }
+    async fn write_schedule(
+        &self,
+        request: Request<metteur_proto::proto::ResourceRequest>,
+    ) -> Result<Response<metteur_proto::proto::ResourceResponse>, Status> {
+        self.client.clone().write_schedule(request).await
+    }
+    async fn confirm_blueprint_launch(
+        &self,
+        request: Request<metteur_proto::proto::ResourceRequest>,
+    ) -> Result<Response<metteur_proto::proto::ResourceResponse>, Status> {
+        self.client.clone().confirm_blueprint_launch(request).await
+    }
+    async fn query_blueprint_launch(
+        &self,
+        request: Request<metteur_proto::proto::ResourceRequest>,
+    ) -> Result<Response<metteur_proto::proto::ResourceResponse>, Status> {
+        self.client.clone().query_blueprint_launch(request).await
+    }
+    async fn query_continuations(
+        &self,
+        request: Request<metteur_proto::proto::ResourceRequest>,
+    ) -> Result<Response<metteur_proto::proto::ResourceResponse>, Status> {
+        self.client.clone().query_continuations(request).await
+    }
+    async fn query_coding_workflows(&self,request:Request<metteur_proto::proto::ResourceRequest>)->Result<Response<metteur_proto::proto::ResourceResponse>,Status>{self.client.clone().query_coding_workflows(request).await}
+    async fn record_workflow_review(&self,request:Request<metteur_proto::proto::ResourceRequest>)->Result<Response<metteur_proto::proto::ResourceResponse>,Status>{self.client.clone().record_workflow_review(request).await}
+    async fn control_continuation(
+        &self,
+        request: Request<metteur_proto::proto::ResourceRequest>,
+    ) -> Result<Response<metteur_proto::proto::ResourceResponse>, Status> {
+        self.client.clone().control_continuation(request).await
+    }
+    async fn query_prompt_resources(
+        &self,
+        request: Request<metteur_proto::proto::ResourceRequest>,
+    ) -> Result<Response<metteur_proto::proto::ResourceResponse>, Status> {
+        self.client.clone().query_prompt_resources(request).await
+    }
+    async fn write_prompt_resource(
+        &self,
+        request: Request<metteur_proto::proto::ResourceRequest>,
+    ) -> Result<Response<metteur_proto::proto::ResourceResponse>, Status> {
+        self.client.clone().write_prompt_resource(request).await
+    }
+    async fn delete_prompt_resource(
+        &self,
+        request: Request<metteur_proto::proto::ResourceRequest>,
+    ) -> Result<Response<metteur_proto::proto::ResourceResponse>, Status> {
+        self.client.clone().delete_prompt_resource(request).await
+    }
+    async fn copy_prompt_to_project(
+        &self,
+        request: Request<metteur_proto::proto::ResourceRequest>,
+    ) -> Result<Response<metteur_proto::proto::ResourceResponse>, Status> {
+        self.client.clone().copy_prompt_to_project(request).await
+    }
+    async fn query_project_memory(
+        &self,
+        request: Request<metteur_proto::proto::ResourceRequest>,
+    ) -> Result<Response<metteur_proto::proto::ResourceResponse>, Status> {
+        self.client.clone().query_project_memory(request).await
+    }
+    async fn write_project_note(
+        &self,
+        request: Request<metteur_proto::proto::ResourceRequest>,
+    ) -> Result<Response<metteur_proto::proto::ResourceResponse>, Status> {
+        self.client.clone().write_project_note(request).await
+    }
+    async fn promote_project_convention(
+        &self,
+        request: Request<metteur_proto::proto::ResourceRequest>,
+    ) -> Result<Response<metteur_proto::proto::ResourceResponse>, Status> {
+        self.client.clone().promote_project_convention(request).await
+    }
+    async fn update_project_memory_status(
+        &self,
+        request: Request<metteur_proto::proto::ResourceRequest>,
+    ) -> Result<Response<metteur_proto::proto::ResourceResponse>, Status> {
+        self.client.clone().update_project_memory_status(request).await
+    }
+    type SendConciergeMessageStream =
+        ReceiverStream<Result<metteur_proto::proto::ConciergeEvent, Status>>;
+    async fn list_oversight_reports(
+        &self,
+        request: Request<metteur_proto::proto::OversightReportsRequest>,
+    ) -> Result<Response<metteur_proto::proto::OversightReports>, Status> {
+        self.client.clone().list_oversight_reports(request).await
+    }
+    async fn get_concierge_state(
+        &self,
+        request: Request<metteur_proto::proto::ConciergeStateRequest>,
+    ) -> Result<Response<metteur_proto::proto::ConciergeState>, Status> {
         self.client.clone().get_concierge_state(request).await
     }
-    async fn send_concierge_message(&self, request: Request<metteur_proto::proto::SendConciergeMessageRequest>) -> Result<Response<Self::SendConciergeMessageStream>, Status> {
+    async fn send_concierge_message(
+        &self,
+        request: Request<metteur_proto::proto::SendConciergeMessageRequest>,
+    ) -> Result<Response<Self::SendConciergeMessageStream>, Status> {
         Ok(Response::new(pump_stream(self.client.clone().send_concierge_message(request).await?)))
     }
     async fn rewind_chat(
@@ -166,7 +283,10 @@ impl Daemon for ForwardService {
     }
 
     // Registry.
-    async fn list_tools(&self, request: Request<metteur_proto::proto::RegistryRequest>) -> Result<Response<ToolList>, Status> {
+    async fn list_tools(
+        &self,
+        request: Request<metteur_proto::proto::RegistryRequest>,
+    ) -> Result<Response<ToolList>, Status> {
         self.client.clone().list_tools(request).await
     }
 
@@ -414,6 +534,16 @@ impl Daemon for ForwardService {
     }
 
     type WatchWorkspaceStream = ReceiverStream<Result<WatchEvent, Status>>;
+    type WatchWorkspaceChangesStream =
+        ReceiverStream<Result<metteur_proto::proto::WorkspaceChange, Status>>;
+
+    async fn watch_workspace_changes(
+        &self,
+        request: Request<WatchWorkspaceRequest>,
+    ) -> Result<Response<Self::WatchWorkspaceChangesStream>, Status> {
+        let response = self.client.clone().watch_workspace_changes(request).await?;
+        Ok(Response::new(pump_stream(response)))
+    }
 
     async fn watch_workspace(
         &self,
@@ -512,35 +642,167 @@ mod tests {
 
     #[tonic::async_trait]
     impl Daemon for TestBackend {
-        async fn write_schedule(&self, _: Request<metteur_proto::proto::ResourceRequest>) -> Result<Response<metteur_proto::proto::ResourceResponse>, Status> { Err(Status::unimplemented("write_schedule")) }
-        async fn confirm_blueprint_launch(&self, _: Request<metteur_proto::proto::ResourceRequest>) -> Result<Response<metteur_proto::proto::ResourceResponse>, Status> { Err(Status::unimplemented("confirm_blueprint_launch")) }
-        async fn query_blueprint_launch(&self, _: Request<metteur_proto::proto::ResourceRequest>) -> Result<Response<metteur_proto::proto::ResourceResponse>, Status> { Err(Status::unimplemented("query_blueprint_launch")) }
-        async fn query_continuations(&self, _: Request<metteur_proto::proto::ResourceRequest>) -> Result<Response<metteur_proto::proto::ResourceResponse>, Status> { Err(Status::unimplemented("query_continuations")) }
-        async fn control_continuation(&self, _: Request<metteur_proto::proto::ResourceRequest>) -> Result<Response<metteur_proto::proto::ResourceResponse>, Status> { Err(Status::unimplemented("control_continuation")) }
-        async fn select_prompt_resource(&self, _: Request<metteur_proto::proto::ResourceRequest>) -> Result<Response<metteur_proto::proto::ResourceResponse>, Status> { Err(Status::unimplemented("select_prompt_resource")) }
-        async fn query_prompt_resources(&self, _: Request<metteur_proto::proto::ResourceRequest>) -> Result<Response<metteur_proto::proto::ResourceResponse>, Status> { Err(Status::unimplemented("query_prompt_resources")) }
-        async fn write_prompt_resource(&self, _: Request<metteur_proto::proto::ResourceRequest>) -> Result<Response<metteur_proto::proto::ResourceResponse>, Status> { Err(Status::unimplemented("write_prompt_resource")) }
-        async fn delete_prompt_resource(&self, _: Request<metteur_proto::proto::ResourceRequest>) -> Result<Response<metteur_proto::proto::ResourceResponse>, Status> { Err(Status::unimplemented("delete_prompt_resource")) }
-        async fn copy_prompt_to_project(&self, _: Request<metteur_proto::proto::ResourceRequest>) -> Result<Response<metteur_proto::proto::ResourceResponse>, Status> { Err(Status::unimplemented("copy_prompt_to_project")) }
-        async fn query_project_memory(&self, _: Request<metteur_proto::proto::ResourceRequest>) -> Result<Response<metteur_proto::proto::ResourceResponse>, Status> { Err(Status::unimplemented("query_project_memory")) }
-        async fn write_project_note(&self, _: Request<metteur_proto::proto::ResourceRequest>) -> Result<Response<metteur_proto::proto::ResourceResponse>, Status> { Err(Status::unimplemented("write_project_note")) }
-        async fn promote_project_convention(&self, _: Request<metteur_proto::proto::ResourceRequest>) -> Result<Response<metteur_proto::proto::ResourceResponse>, Status> { Err(Status::unimplemented("promote_project_convention")) }
-        async fn update_project_memory_status(&self, _: Request<metteur_proto::proto::ResourceRequest>) -> Result<Response<metteur_proto::proto::ResourceResponse>, Status> { Err(Status::unimplemented("update_project_memory_status")) }
-
-        async fn addon_pages(&self, _: Request<metteur_proto::proto::ResourceRequest>) -> Result<Response<metteur_proto::proto::ResourceResponse>, Status> { Err(Status::unimplemented("addon_pages")) }
-        async fn list_oversight_reports(&self, request: Request<metteur_proto::proto::OversightReportsRequest>) -> Result<Response<metteur_proto::proto::OversightReports>, Status> { let r=request.into_inner(); if r.workspace_path=="denied" {return Err(Status::permission_denied("denied"));} Ok(Response::new(metteur_proto::proto::OversightReports{reports_json:r.run_id})) }
-
-        type SendConciergeMessageStream = ReceiverStream<Result<metteur_proto::proto::ConciergeEvent, Status>>;
-        async fn get_concierge_state(&self, request: Request<metteur_proto::proto::ConciergeStateRequest>) -> Result<Response<metteur_proto::proto::ConciergeState>, Status> {
-            let r=request.into_inner();
-            if r.workspace_path=="denied" {return Err(Status::permission_denied("denied"));}
-            Ok(Response::new(metteur_proto::proto::ConciergeState{state_json:r.run_id}))
+        async fn approval_delivery(
+            &self,
+            _: Request<metteur_proto::proto::ResourceRequest>,
+        ) -> Result<Response<metteur_proto::proto::ResourceResponse>, Status> {
+            Err(Status::unimplemented("not used"))
         }
-        async fn send_concierge_message(&self, request: Request<metteur_proto::proto::SendConciergeMessageRequest>) -> Result<Response<Self::SendConciergeMessageStream>, Status> {
-            let r=request.into_inner();
-            if r.workspace_path=="denied" {return Err(Status::permission_denied("denied"));}
-            let (tx,rx)=tokio::sync::mpsc::channel(2);
-            tx.send(Ok(metteur_proto::proto::ConciergeEvent{run_id:r.run_id,message_id:r.message_id,kind:"received".into(),detail_json:r.message})).await.unwrap();
+        async fn concierge_delivery(
+            &self,
+            _: Request<metteur_proto::proto::ResourceRequest>,
+        ) -> Result<Response<metteur_proto::proto::ResourceResponse>, Status> {
+            Err(Status::unimplemented("not used"))
+        }
+        async fn chat_delivery(
+            &self,
+            _: Request<metteur_proto::proto::ResourceRequest>,
+        ) -> Result<Response<metteur_proto::proto::ResourceResponse>, Status> {
+            Err(Status::unimplemented("not used"))
+        }
+        async fn recovery(
+            &self,
+            _: Request<metteur_proto::proto::ResourceRequest>,
+        ) -> Result<Response<metteur_proto::proto::ResourceResponse>, Status> {
+            Err(Status::unimplemented("recovery"))
+        }
+        async fn write_schedule(
+            &self,
+            _: Request<metteur_proto::proto::ResourceRequest>,
+        ) -> Result<Response<metteur_proto::proto::ResourceResponse>, Status> {
+            Err(Status::unimplemented("write_schedule"))
+        }
+        async fn confirm_blueprint_launch(
+            &self,
+            _: Request<metteur_proto::proto::ResourceRequest>,
+        ) -> Result<Response<metteur_proto::proto::ResourceResponse>, Status> {
+            Err(Status::unimplemented("confirm_blueprint_launch"))
+        }
+        async fn query_blueprint_launch(
+            &self,
+            _: Request<metteur_proto::proto::ResourceRequest>,
+        ) -> Result<Response<metteur_proto::proto::ResourceResponse>, Status> {
+            Err(Status::unimplemented("query_blueprint_launch"))
+        }
+        async fn query_continuations(
+            &self,
+            _: Request<metteur_proto::proto::ResourceRequest>,
+        ) -> Result<Response<metteur_proto::proto::ResourceResponse>, Status> {
+            Err(Status::unimplemented("query_continuations"))
+        }
+        async fn query_coding_workflows(&self,_:Request<metteur_proto::proto::ResourceRequest>)->Result<Response<metteur_proto::proto::ResourceResponse>,Status>{Err(Status::unimplemented("query_coding_workflows"))}
+        async fn record_workflow_review(&self,_:Request<metteur_proto::proto::ResourceRequest>)->Result<Response<metteur_proto::proto::ResourceResponse>,Status>{Err(Status::unimplemented("record_workflow_review"))}
+        async fn control_continuation(
+            &self,
+            _: Request<metteur_proto::proto::ResourceRequest>,
+        ) -> Result<Response<metteur_proto::proto::ResourceResponse>, Status> {
+            Err(Status::unimplemented("control_continuation"))
+        }
+        async fn select_prompt_resource(
+            &self,
+            _: Request<metteur_proto::proto::ResourceRequest>,
+        ) -> Result<Response<metteur_proto::proto::ResourceResponse>, Status> {
+            Err(Status::unimplemented("select_prompt_resource"))
+        }
+        async fn query_prompt_resources(
+            &self,
+            _: Request<metteur_proto::proto::ResourceRequest>,
+        ) -> Result<Response<metteur_proto::proto::ResourceResponse>, Status> {
+            Err(Status::unimplemented("query_prompt_resources"))
+        }
+        async fn write_prompt_resource(
+            &self,
+            _: Request<metteur_proto::proto::ResourceRequest>,
+        ) -> Result<Response<metteur_proto::proto::ResourceResponse>, Status> {
+            Err(Status::unimplemented("write_prompt_resource"))
+        }
+        async fn delete_prompt_resource(
+            &self,
+            _: Request<metteur_proto::proto::ResourceRequest>,
+        ) -> Result<Response<metteur_proto::proto::ResourceResponse>, Status> {
+            Err(Status::unimplemented("delete_prompt_resource"))
+        }
+        async fn copy_prompt_to_project(
+            &self,
+            _: Request<metteur_proto::proto::ResourceRequest>,
+        ) -> Result<Response<metteur_proto::proto::ResourceResponse>, Status> {
+            Err(Status::unimplemented("copy_prompt_to_project"))
+        }
+        async fn query_project_memory(
+            &self,
+            _: Request<metteur_proto::proto::ResourceRequest>,
+        ) -> Result<Response<metteur_proto::proto::ResourceResponse>, Status> {
+            Err(Status::unimplemented("query_project_memory"))
+        }
+        async fn write_project_note(
+            &self,
+            _: Request<metteur_proto::proto::ResourceRequest>,
+        ) -> Result<Response<metteur_proto::proto::ResourceResponse>, Status> {
+            Err(Status::unimplemented("write_project_note"))
+        }
+        async fn promote_project_convention(
+            &self,
+            _: Request<metteur_proto::proto::ResourceRequest>,
+        ) -> Result<Response<metteur_proto::proto::ResourceResponse>, Status> {
+            Err(Status::unimplemented("promote_project_convention"))
+        }
+        async fn update_project_memory_status(
+            &self,
+            _: Request<metteur_proto::proto::ResourceRequest>,
+        ) -> Result<Response<metteur_proto::proto::ResourceResponse>, Status> {
+            Err(Status::unimplemented("update_project_memory_status"))
+        }
+
+        async fn addon_pages(
+            &self,
+            _: Request<metteur_proto::proto::ResourceRequest>,
+        ) -> Result<Response<metteur_proto::proto::ResourceResponse>, Status> {
+            Err(Status::unimplemented("addon_pages"))
+        }
+        async fn list_oversight_reports(
+            &self,
+            request: Request<metteur_proto::proto::OversightReportsRequest>,
+        ) -> Result<Response<metteur_proto::proto::OversightReports>, Status> {
+            let r = request.into_inner();
+            if r.workspace_path == "denied" {
+                return Err(Status::permission_denied("denied"));
+            }
+            Ok(Response::new(metteur_proto::proto::OversightReports {
+                reports_json: r.run_id,
+            }))
+        }
+
+        type SendConciergeMessageStream =
+            ReceiverStream<Result<metteur_proto::proto::ConciergeEvent, Status>>;
+        async fn get_concierge_state(
+            &self,
+            request: Request<metteur_proto::proto::ConciergeStateRequest>,
+        ) -> Result<Response<metteur_proto::proto::ConciergeState>, Status> {
+            let r = request.into_inner();
+            if r.workspace_path == "denied" {
+                return Err(Status::permission_denied("denied"));
+            }
+            Ok(Response::new(metteur_proto::proto::ConciergeState {
+                state_json: r.run_id,
+            }))
+        }
+        async fn send_concierge_message(
+            &self,
+            request: Request<metteur_proto::proto::SendConciergeMessageRequest>,
+        ) -> Result<Response<Self::SendConciergeMessageStream>, Status> {
+            let r = request.into_inner();
+            if r.workspace_path == "denied" {
+                return Err(Status::permission_denied("denied"));
+            }
+            let (tx, rx) = tokio::sync::mpsc::channel(2);
+            tx.send(Ok(metteur_proto::proto::ConciergeEvent {
+                run_id: r.run_id,
+                message_id: r.message_id,
+                kind: "received".into(),
+                detail_json: r.message,
+            }))
+            .await
+            .unwrap();
             Ok(Response::new(ReceiverStream::new(rx)))
         }
         async fn rewind_chat(
@@ -652,7 +914,10 @@ mod tests {
         ) -> Result<Response<Empty>, Status> {
             Err(Status::unimplemented("send_interrupt"))
         }
-        async fn list_tools(&self, _: Request<metteur_proto::proto::RegistryRequest>) -> Result<Response<ToolList>, Status> {
+        async fn list_tools(
+            &self,
+            _: Request<metteur_proto::proto::RegistryRequest>,
+        ) -> Result<Response<ToolList>, Status> {
             Err(Status::unimplemented("list_tools"))
         }
         async fn get_config(
@@ -692,8 +957,16 @@ mod tests {
             &self,
             request: Request<ListExecutionsRequest>,
         ) -> Result<Response<ExecutionList>, Status> {
-            if request.into_inner().workspace_path != "scale-fixture" { return Err(Status::permission_denied("fixture owner mismatch")); }
-            Ok(Response::new(ExecutionList { executions: vec![metteur_proto::proto::ExecutionInfo { run_id: "scale".into(), data_json: "x".repeat(7_200_000), ..Default::default() }] }))
+            if request.into_inner().workspace_path != "scale-fixture" {
+                return Err(Status::permission_denied("fixture owner mismatch"));
+            }
+            Ok(Response::new(ExecutionList {
+                executions: vec![metteur_proto::proto::ExecutionInfo {
+                    run_id: "scale".into(),
+                    data_json: "x".repeat(7_200_000),
+                    ..Default::default()
+                }],
+            }))
         }
         async fn get_execution_tree(
             &self,
@@ -842,6 +1115,14 @@ mod tests {
             Err(Status::unimplemented("get_file_at_snapshot"))
         }
         type WatchWorkspaceStream = ReceiverStream<Result<WatchEvent, Status>>;
+        type WatchWorkspaceChangesStream =
+            ReceiverStream<Result<metteur_proto::proto::WorkspaceChange, Status>>;
+        async fn watch_workspace_changes(
+            &self,
+            _: Request<WatchWorkspaceRequest>,
+        ) -> Result<Response<Self::WatchWorkspaceChangesStream>, Status> {
+            Err(Status::unimplemented("watch_workspace_changes"))
+        }
         async fn watch_workspace(
             &self,
             _: Request<WatchWorkspaceRequest>,
@@ -982,17 +1263,51 @@ mod tests {
 
     #[tokio::test]
     async fn proxy_forwards_concierge_state_stream_and_denials() {
-        let backend=serve_client(DaemonServer::new(TestBackend)).await;
-        let mut proxy=serve_client(DaemonServer::new(ForwardService::new(backend))).await;
-        let state=proxy.get_concierge_state(metteur_proto::proto::ConciergeStateRequest{workspace_path:"allowed".into(),run_id:"run".into(),conversation_id:"conversation".into()}).await.unwrap().into_inner();
-        assert_eq!(state.state_json,"run");
-        let mut stream=proxy.send_concierge_message(metteur_proto::proto::SendConciergeMessageRequest{workspace_path:"allowed".into(),run_id:"run".into(),message_id:"message".into(),message:"request".into(),..Default::default()}).await.unwrap().into_inner();
-        let event=stream.message().await.unwrap().unwrap();assert_eq!(event.message_id,"message");assert_eq!(event.detail_json,"request");
+        let backend = serve_client(DaemonServer::new(TestBackend)).await;
+        let mut proxy = serve_client(DaemonServer::new(ForwardService::new(backend))).await;
+        let state = proxy
+            .get_concierge_state(metteur_proto::proto::ConciergeStateRequest {
+                workspace_path: "allowed".into(),
+                run_id: "run".into(),
+                conversation_id: "conversation".into(),
+            })
+            .await
+            .unwrap()
+            .into_inner();
+        assert_eq!(state.state_json, "run");
+        let mut stream = proxy
+            .send_concierge_message(metteur_proto::proto::SendConciergeMessageRequest {
+                workspace_path: "allowed".into(),
+                run_id: "run".into(),
+                message_id: "message".into(),
+                message: "request".into(),
+                ..Default::default()
+            })
+            .await
+            .unwrap()
+            .into_inner();
+        let event = stream.message().await.unwrap().unwrap();
+        assert_eq!(event.message_id, "message");
+        assert_eq!(event.detail_json, "request");
         assert!(stream.message().await.unwrap().is_none());
-        let denied=proxy.send_concierge_message(metteur_proto::proto::SendConciergeMessageRequest{workspace_path:"denied".into(),..Default::default()}).await.err().unwrap();
-        assert_eq!(denied.code(),tonic::Code::PermissionDenied);
-        let denied=proxy.get_concierge_state(metteur_proto::proto::ConciergeStateRequest{workspace_path:"denied".into(),..Default::default()}).await.err().unwrap();
-        assert_eq!(denied.code(),tonic::Code::PermissionDenied);
+        let denied = proxy
+            .send_concierge_message(metteur_proto::proto::SendConciergeMessageRequest {
+                workspace_path: "denied".into(),
+                ..Default::default()
+            })
+            .await
+            .err()
+            .unwrap();
+        assert_eq!(denied.code(), tonic::Code::PermissionDenied);
+        let denied = proxy
+            .get_concierge_state(metteur_proto::proto::ConciergeStateRequest {
+                workspace_path: "denied".into(),
+                ..Default::default()
+            })
+            .await
+            .err()
+            .unwrap();
+        assert_eq!(denied.code(), tonic::Code::PermissionDenied);
     }
 
     #[tokio::test]
@@ -1067,14 +1382,34 @@ mod tests {
     }
     #[tokio::test]
     async fn nx_scale_proxy_forwards_bounded_seven_megabyte_evidence() {
-        let cap=metteur_proto::MAX_RPC_MESSAGE_BYTES;
-        let backend=serve_client(DaemonServer::new(TestBackend).max_encoding_message_size(cap)).await.max_decoding_message_size(cap);
-        let mut client=serve_client(DaemonServer::new(ForwardService::new(backend)).max_encoding_message_size(cap)).await.max_decoding_message_size(cap);
-        let start=std::time::Instant::now();
-        let result=client.list_executions(ListExecutionsRequest{workspace_path:"scale-fixture".into()}).await.unwrap().into_inner();
-        assert_eq!(result.executions[0].data_json.len(),7_200_000);
-        eprintln!("7.2MB backend -> proxy -> client elapsed_ms={}",start.elapsed().as_millis());
-        assert_eq!(client.list_executions(ListExecutionsRequest{workspace_path:"denied".into()}).await.unwrap_err().code(),tonic::Code::PermissionDenied);
+        let cap = metteur_proto::MAX_RPC_MESSAGE_BYTES;
+        let backend = serve_client(DaemonServer::new(TestBackend).max_encoding_message_size(cap))
+            .await
+            .max_decoding_message_size(cap);
+        let mut client = serve_client(
+            DaemonServer::new(ForwardService::new(backend)).max_encoding_message_size(cap),
+        )
+        .await
+        .max_decoding_message_size(cap);
+        let start = std::time::Instant::now();
+        let result = client
+            .list_executions(ListExecutionsRequest {
+                workspace_path: "scale-fixture".into(),
+            })
+            .await
+            .unwrap()
+            .into_inner();
+        assert_eq!(result.executions[0].data_json.len(), 7_200_000);
+        eprintln!("7.2MB backend -> proxy -> client elapsed_ms={}", start.elapsed().as_millis());
+        assert_eq!(
+            client
+                .list_executions(ListExecutionsRequest {
+                    workspace_path: "denied".into()
+                })
+                .await
+                .unwrap_err()
+                .code(),
+            tonic::Code::PermissionDenied
+        );
     }
-
 }

@@ -784,6 +784,50 @@ fn context_with_jobs(tag: &str) -> ExecutionContext {
 }
 
 #[tokio::test]
+async fn delivered_command_results_do_not_wake_subsequent_model_turns() {
+    use metteur_daemon::registry::tools::command::{ExecuteCommand, StartCommand, WaitJob};
+    let mut ctx = context_with_jobs("delivered-command");
+    // A deterministic blueprint baseline predates the model loop.
+    ExecuteCommand
+        .call(&[Value::Json(serde_json::json!({"command":"echo baseline"}))], &mut ctx)
+        .await
+        .unwrap();
+    let job = StartCommand
+        .call(&[Value::Json(serde_json::json!({"command":"echo waited"}))], &mut ctx)
+        .await
+        .unwrap();
+    let Value::Json(job) = job else {
+        panic!("expected job payload")
+    };
+    WaitJob
+        .call(&[Value::Json(serde_json::json!({"job_id":job["job_id"]}))], &mut ctx)
+        .await
+        .unwrap();
+    let outcome = run_with_steps(
+        &mut ctx,
+        vec![
+            MockStep::Tools(vec![call(
+                "ExecuteCommand",
+                serde_json::json!({"command":"echo checked"}),
+            )]),
+            MockStep::Text("finished once".to_string()),
+        ],
+        scripted(),
+    )
+    .await
+    .unwrap();
+    assert_eq!(outcome.text, "finished once");
+    assert!(
+        !outcome
+            .context
+            .messages
+            .iter()
+            .any(|m| m.text_content().contains("[engine] background job"))
+    );
+    assert!(ctx.jobs.first_finished(ctx.run_id, &[]).is_none());
+}
+
+#[tokio::test]
 async fn a_finished_job_wakes_the_parked_turn() {
     let mut ctx = context_with_jobs("auto-wake");
     let steps = vec![

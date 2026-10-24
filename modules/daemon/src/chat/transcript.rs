@@ -56,6 +56,9 @@ pub struct TranscriptEntry {
     /// Rendered text (the answer, the user's turn, the tool's output).
     #[serde(default)]
     pub content: String,
+    /// User-authored text without selected context; full content stays inspectable.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub display_content: Option<String>,
     /// Pre-turn file/model checkpoint. Only user entries carry this id.
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub checkpoint: String,
@@ -94,6 +97,7 @@ impl TranscriptEntry {
             role,
             at,
             content: String::new(),
+            display_content: None,
             checkpoint: String::new(),
             reasoning: String::new(),
             reasoning_elapsed_ms: None,
@@ -149,6 +153,11 @@ impl Transcript {
         let mut entry = TranscriptEntry::new(EntryRole::User, at);
         entry.content = text.into();
         self.entries.push(entry);
+    }
+    pub fn set_user_display(&mut self, text: &str) {
+        if let Some(entry) = self.entries.last_mut().filter(|e| e.role == EntryRole::User) {
+            entry.display_content = Some(text.to_owned());
+        }
     }
 
     /// Links the latest user turn to its paired file/model checkpoint.

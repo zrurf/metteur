@@ -3,6 +3,7 @@ import { computed, ref } from 'vue'
 import { gateway } from '@/core'
 import type { JobInfo, JobNotice } from '@/core'
 import { useWorkspaceStore } from '@/stores/workspace'
+import { followStream } from '@/lib/follow-stream'
 
 /** Bytes of live output kept per job in the panel. */
 const MAX_OUTPUT_CHARS = 200_000
@@ -49,19 +50,22 @@ export const useJobsStore = defineStore('jobs', () => {
     active.value = true
     abort = new AbortController()
     const signal = abort.signal
-    const listed = await gateway.listJobs(ws.path)
-    if (!active.value) return
-    if (listed.ok) {
-      entries.value = listed.data.map((job) => ({
-        ...job,
-        output: job.tail,
-        live: job.state === 'running',
-      }))
-    }
-    void gateway.watchJobs(
-      ws.path,
+    void followStream<JobNotice>(
+      async (receive, subscriptionSignal) => {
+        const listed = await gateway.listJobs(ws.path)
+        if (subscriptionSignal.aborted || workspaceStore.active?.path !== ws.path)
+          return { ok: true, data: undefined }
+        if (listed.ok) {
+          entries.value = listed.data.map((job) => ({
+            ...job,
+            output: job.tail,
+            live: job.state === 'running',
+          }))
+        }
+        return gateway.watchJobs(ws.path, receive, subscriptionSignal)
+      },
       (notice) => {
-        if (!active.value) return
+        if (signal.aborted || workspaceStore.active?.path !== ws.path) return
         apply(notice)
       },
       signal,
@@ -102,8 +106,7 @@ export const useJobsStore = defineStore('jobs', () => {
       return
     }
     const job = entries.value[index]
-    const output =
-      notice.kind === 'output' ? trim(`${job.output}${notice.chunk}`) : job.output
+    const output = notice.kind === 'output' ? trim(`${job.output}${notice.chunk}`) : job.output
     entries.value[index] = {
       ...job,
       output,

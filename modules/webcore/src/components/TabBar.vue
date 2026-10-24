@@ -3,10 +3,13 @@ import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { Plus, X } from '@lucide/vue'
 import { SURFACES, useTabsStore, type TabItem } from '@/stores/tabs'
-import { useWorkspaceStore } from '@/stores/workspace'
 import { useSurfaceNavigation, type SurfaceKey } from '@/lib/surface'
 import { wurl } from '@/lib/workspace-url'
 import ContextMenu, { type MenuGroup } from '@/components/ContextMenu.vue'
+import { useFeedbackStore } from '@/stores/feedback'
+import { useRecoveryStore } from '@/stores/recovery'
+import { useWorkspaceStore } from '@/stores/workspace'
+import { useDocumentsStore } from '@/stores/documents'
 
 /**
  * IDE-style file tab strip (single-workspace shell).
@@ -20,7 +23,46 @@ import ContextMenu, { type MenuGroup } from '@/components/ContextMenu.vue'
 
 const router = useRouter()
 const tabs = useTabsStore()
-const workspace = useWorkspaceStore()
+const feedback = useFeedbackStore()
+const recovery = useRecoveryStore(),
+  workspace = useWorkspaceStore(),
+  documents = useDocumentsStore()
+async function canClose(list: TabItem[]) {
+  const dirty = list.filter((t) => t.path && tabs.isDirty(t.path))
+  const target = workspace.active?.path
+  const revisions = dirty.map((tab) => documents.get(target ?? '', tab.path).revision)
+  if (!dirty.length) return true
+  const confirmed = await feedback.confirm({
+    header: 'Discard Unsaved Changes?',
+    message: `${dirty.map((t) => t.label).join(', ')} has unsaved changes. Closing discards the buffer.`,
+    acceptLabel: 'Discard Changes',
+    rejectLabel: 'Keep Editing',
+    danger: true,
+  })
+  if (!confirmed || target !== workspace.active?.path) return false
+  if (
+    dirty.some((tab, index) => documents.get(target ?? '', tab.path).revision !== revisions[index])
+  )
+    return false
+  for (const tab of dirty) {
+    if (target && !(await recovery.discard(target, documents.recoveryKind(tab.path), tab.path))) {
+      feedback.toast(
+        'error',
+        'Draft Kept',
+        'The recovery discard could not be confirmed. Reconcile the backup before closing.',
+      )
+      return false
+    }
+    if (
+      workspace.active?.path !== target ||
+      dirty.some(
+        (item, index) => documents.get(target ?? '', item.path).revision !== revisions[index],
+      )
+    )
+      return false
+  }
+  return true
+}
 
 const dragId = ref<string | null>(null)
 const menu = ref<{ x: number; y: number; tab: TabItem } | null>(null)
@@ -40,7 +82,8 @@ function activate(tab: TabItem) {
   router.push(tab.route)
 }
 
-function closeTab(tab: TabItem) {
+async function closeTab(tab: TabItem) {
+  if (!(await canClose([tab]))) return
   const wasActive = tabs.activeId === tab.id
   tabs.close(tab.id)
   // Re-point the editor region so it follows the tab that just took focus.
@@ -102,11 +145,13 @@ async function onMenuSelect(id: string) {
       closeTab(tab)
       break
     case 'close-others':
+      if (!(await canClose(tabs.items.filter((t) => t.id !== tab.id)))) break
       tabs.closeOthers(tab.id)
       if (tabs.activeItem) router.push(tabs.activeItem.route)
       else router.push(wurl('/explorer'))
       break
     case 'close-all':
+      if (!(await canClose(tabs.items))) break
       tabs.closeAll()
       router.push(wurl('/explorer'))
       break
@@ -114,14 +159,13 @@ async function onMenuSelect(id: string) {
 }
 
 async function openWelcome() {
-  await workspace.close()
-  router.push('/')
+  router.push('/welcome')
 }
 
 const plusGroups: MenuGroup[] = [
   {
     label: 'Pages',
-    items: SURFACES.map((s) => ({ id: s.key, label: s.label })),
+    items: SURFACES.filter((s) => s.menu !== false).map((s) => ({ id: s.key, label: s.label })),
   },
   {
     label: 'Workspace',
@@ -178,12 +222,18 @@ function onPlusSelect(id: string) {
         style="background: var(--primary)"
       />
       <component :is="tab.icon" class="h-3 w-3 shrink-0 text-subtle" />
-      <span class="min-w-0 flex-1 truncate font-medium">{{ tab.label }}</span>
+      <span
+        class="min-w-0 flex-1 truncate font-medium"
+        :class="tabs.isDeleted(tab.path) ? 'text-danger line-through' : ''"
+        >{{ tab.label }}</span
+      >
       <span
         v-if="tabs.isDirty(tab.path) || tabs.isConflict(tab.path)"
         class="h-1.5 w-1.5 shrink-0 rounded-full"
         :style="{ background: tabs.isConflict(tab.path) ? '#e0a13c' : 'var(--primary)' }"
-        :title="tabs.isConflict(tab.path) ? 'Changed on disk | resolve in the editor' : 'Unsaved changes'"
+        :title="
+          tabs.isConflict(tab.path) ? 'Changed on disk | resolve in the editor' : 'Unsaved changes'
+        "
       />
       <span
         class="flex h-4 w-4 shrink-0 cursor-pointer items-center justify-center rounded opacity-0 transition-opacity duration-150 hover:bg-hover group-hover/tabbar:opacity-100"

@@ -162,6 +162,7 @@ async fn rewind_waits_for_active_turn_and_late_finalize_cannot_resurrect_it() {
         Request::new(metteur_proto::proto::ExecuteBlueprintRequest {
             workspace_path: root.to_string_lossy().into(),
             blueprint_id: blueprint.id.to_string(),
+            workflow_confirmation: String::new(),
             blueprint_json: serde_json::to_string(&blueprint).unwrap(),
         }),
     )

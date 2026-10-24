@@ -12,8 +12,8 @@ type Monaco = typeof import('@/lib/monaco').default
  * existing URI throws) while VSCode semantics require two panes on the same
  * file to share one model — edits, undo history and dirty state are per file,
  * not per pane. This registry provides both: the URI is derived from the
- * workspace-scoped file identity, and a reference count decides when the model
- * is disposed.
+ * workspace-scoped file identity. Hidden tabs retain their model and undo stack;
+ * closing a tab disposes its model after the last pane detaches.
  *
  * Without it, opening the same file twice (or two `.mbp` files, which used to
  * share a hard-coded URI) threw inside `setupMonaco`, and the pane stayed
@@ -24,6 +24,7 @@ interface Entry {
   model: MonacoEditor.ITextModel
   /** Number of live editors holding this model. */
   refs: number
+  closing?: boolean
 }
 
 const entries = new Map<string, Entry>()
@@ -49,6 +50,7 @@ export function acquireModel(
   const existing = entries.get(identity)
   if (existing && !existing.model.isDisposed()) {
     existing.refs += 1
+    if (existing.model.getValue(undefined, true) !== value) existing.model.setValue(value)
     if (existing.model.getLanguageId() !== language) {
       monaco.editor.setModelLanguage(existing.model, language)
     }
@@ -64,14 +66,24 @@ export function acquireModel(
   return model
 }
 
-/** Drops one reference; the model is disposed with the last one. */
+/** A hidden tab retains its undo stack; only closing the document releases it. */
 export function releaseModel(identity: string): void {
   const entry = entries.get(identity)
   if (!entry) return
   entry.refs -= 1
-  if (entry.refs > 0) return
+  if (entry.refs > 0 || !entry.closing) return
   entries.delete(identity)
   if (!entry.model.isDisposed()) entry.model.dispose()
+}
+
+export function closeModel(identity: string): void {
+  const entry = entries.get(identity)
+  if (!entry) return
+  entry.closing = true
+  if (entry.refs === 0) {
+    entries.delete(identity)
+    if (!entry.model.isDisposed()) entry.model.dispose()
+  }
 }
 
 /** Number of live models, for tests and diagnostics. */

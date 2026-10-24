@@ -44,6 +44,7 @@ fn response(root: &Path, id: &str, decision: &str) -> Request<ApprovalDecisionRe
         workspace_path: root.to_string_lossy().into(),
         request_id: id.into(),
         decision: decision.into(),
+        ..Default::default()
     })
 }
 
@@ -132,10 +133,28 @@ async fn abort_and_disconnect_invalidate_chat_approvals() {
             .await
             .unwrap();
         } else {
+            let response = Daemon::chat_delivery(
+                &service,
+                Request::new(metteur_proto::proto::ResourceRequest {
+                    workspace_path: root.to_string_lossy().into(),
+                    schema_version: 1,
+                    payload_json: r#"{"operation":"admission"}"#.into(),
+                    ..Default::default()
+                }),
+            )
+            .await
+            .unwrap()
+            .into_inner();
+            assert!(response.error_json.is_empty());
+            let owner: serde_json::Value = serde_json::from_str(&response.payload_json).unwrap();
+            assert_eq!(owner["state"], "chat");
             Daemon::abort_chat(
                 &service,
                 Request::new(AbortChatRequest {
                     workspace_path: root.to_string_lossy().into(),
+                    session_id: owner["session"].as_str().unwrap().into(),
+                    turn_id: owner["turn"].as_str().unwrap().into(),
+                    ..Default::default()
                 }),
             )
             .await

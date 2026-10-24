@@ -167,18 +167,13 @@ async fn r_batch_real_rpc_combines_http_accounting_concierge_approval_versions_a
         .execute_blueprint(ExecuteBlueprintRequest {
             workspace_path: path.clone(),
             blueprint_id: graph.id.to_string(),
+            workflow_confirmation: String::new(),
             blueprint_json: String::new(),
         })
         .await
         .unwrap()
         .into_inner();
-    client
-        .pause_execution(proto::PauseRequest {
-            workspace_path: path.clone(),
-            run_id: String::new(),
-        })
-        .await
-        .unwrap();
+    dispatch(&mut client, &mut state, parse("pause").unwrap()).await.unwrap();
     let (run, initial) = tokio::time::timeout(Duration::from_secs(5), async {
         loop {
             let f = facts(&mut client, &path).await;
@@ -222,6 +217,7 @@ async fn r_batch_real_rpc_combines_http_accounting_concierge_approval_versions_a
                         workspace_path: path.clone(),
                         request_id: event.message,
                         decision: "AllowOnce".into(),
+                        ..Default::default()
                     })
                     .await
                     .unwrap();
@@ -247,6 +243,7 @@ async fn r_batch_real_rpc_combines_http_accounting_concierge_approval_versions_a
         .resume_execution(proto::ResumeRequest {
             workspace_path: path.clone(),
             run_id: run.clone(),
+            receipt_json: serde_json::json!({"id":uuid::Uuid::new_v4(),"revision":1}).to_string(),
         })
         .await
         .unwrap();
@@ -263,6 +260,7 @@ async fn r_batch_real_rpc_combines_http_accounting_concierge_approval_versions_a
                         workspace_path: path.clone(),
                         request_id: event.message,
                         decision: "AllowOnce".into(),
+                        ..Default::default()
                     })
                     .await
                     .unwrap();

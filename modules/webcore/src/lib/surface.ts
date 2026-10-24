@@ -4,6 +4,8 @@ import SettingsNav from '@/components/SettingsNav.vue'
 import { useTabsStore } from '@/stores/tabs'
 import { usePanelStore } from '@/stores/panel'
 import { wurl } from '@/lib/workspace-url'
+import { useSettingsStore } from '@/stores/settings'
+import FileTree from '@/components/FileTree.vue'
 
 /**
  * Surface navigation with its owning sidebar panel asserted.
@@ -20,7 +22,17 @@ import { wurl } from '@/lib/workspace-url'
  * reuses the returned `openSurface`.
  */
 
-type SurfaceKey = 'addon-pages' | 'chat' | 'version' | 'settings' | 'execution' | 'execution-preview' | 'memory' | 'prompts' | 'tasks' | 'schedules'
+type SurfaceKey =
+  | 'addon-pages'
+  | 'chat'
+  | 'version'
+  | 'settings'
+  | 'execution'
+  | 'execution-preview'
+  | 'memory'
+  | 'prompts'
+  | 'tasks'
+  | 'schedules'
 type PanelSurface = Exclude<SurfaceKey, 'chat'>
 
 interface SurfacePanel {
@@ -31,7 +43,8 @@ interface SurfacePanel {
 
 /** Sidebar each surface should show; `null` means full-width (no rail). */
 function surfacePanel(surface: PanelSurface): SurfacePanel | null {
-  if (surface === 'version') return { owner: 'version', comp: VersionSidebar, title: 'Version Flow' }
+  if (surface === 'version')
+    return { owner: 'version', comp: VersionSidebar, title: 'Version Flow' }
   if (surface === 'settings') return { owner: 'settings', comp: SettingsNav, title: 'Settings' }
   return null
 }
@@ -40,15 +53,35 @@ export function useSurfaceNavigation() {
   const router = useRouter()
   const panel = usePanelStore()
   const tabs = useTabsStore()
+  const settings = useSettingsStore()
 
   /** Open (or focus) a surface tab, navigate to it, and assert its sidebar. */
   function openSurface(key: SurfaceKey) {
+    if (key === 'addon-pages') {
+      settings.select('addon-pages')
+      tabs.openSurface('settings')
+      void router.push('/settings?section=addon-pages')
+      panel.show('settings', SettingsNav, 'Settings')
+      return
+    }
+    if (key === 'schedules') {
+      tabs.openSurface('tasks')
+      void router.push(wurl('/tasks') + '?view=schedules')
+      panel.clear()
+      return
+    }
     tabs.openSurface(key)
-    const target = key === 'execution-preview' ? '/preview/execution'
-      : key === 'settings' ? '/settings' : wurl(`/${key}`)
+    const target =
+      key === 'execution-preview'
+        ? '/preview/execution'
+        : key === 'settings'
+          ? '/settings'
+          : wurl(`/${key}`)
     router.push(target)
     const p = surfacePanel(key as PanelSurface)
-    if (key === 'addon-pages' || key === 'prompts' || key === 'memory' || key === 'tasks' || key === 'schedules' || key === 'execution-preview' || key === 'execution') panel.clear()
+    if (key === 'memory' || key === 'tasks' || key === 'execution-preview' || key === 'execution')
+      panel.clear()
+    if (key === 'prompts') panel.show('explorer', FileTree, 'Explorer')
     if (p) panel.show(p.owner, p.comp, p.title)
     // chat is a full-page surface: it owns no sidebar, so the current panel
     // (e.g. the Explorer) stays open instead of being cleared.

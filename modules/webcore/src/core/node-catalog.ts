@@ -34,8 +34,8 @@ export function fromWirePin(p: WirePin): BlueprintPin {
   const kind = p.pinType === 'ExecInput' ? 'exec-in' : p.pinType === 'ExecOutput' ? 'exec-out'
     : p.pinType === 'DataInput' ? 'data-in' : 'data-out'
   return {
-    id: p.id, key: p.key || p.name || undefined,
-    name: kind.startsWith('exec') && ['x-in', 'x-out'].includes(p.name) ? '' : p.name,
+    id: p.id, key: p.key || undefined,
+    name: p.name,
     kind, type: pinType(p.dataType), choices: p.choices,
     default: parseDefault(p.defaultJson), optional: p.optional, description: p.description,
   }

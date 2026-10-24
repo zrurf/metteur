@@ -21,7 +21,9 @@ impl DaemonService {
         let _config_guard = self.state.config_gate.lock().await;
         let already_open = self.state.workspaces.get(&PathBuf::from(&req.path)).await.is_some();
         let ws = self.state.workspaces.open(&PathBuf::from(req.path)).await.map_err(to_status)?;
-        if let Some(host)=&self.state.addon_host {host.opened_workspace(ws.root()).await;}
+        if let Some(host) = &self.state.addon_host {
+            host.opened_workspace(ws.root()).await;
+        }
         // Register this workspace's function library into the shared registry,
         // remembering the names so only this workspace's set is retired later.
         match self.state.registry.load_functions(&ws.db, FunctionSource::Workspace) {
@@ -36,7 +38,9 @@ impl DaemonService {
             // available through ListMcpServers; SetConfig reports this failure.
             tracing::warn!("workspace MCP reload failed: {error}");
         }
-        if !already_open && let Some(host) = &self.state.addon_host { host.observe_workspace_open(ws.root()); }
+        if !already_open && let Some(host) = &self.state.addon_host {
+            host.observe_workspace_open(ws.root());
+        }
         record_global_audit(
             &self.state,
             &subject,
@@ -48,10 +52,12 @@ impl DaemonService {
             std::sync::atomic::Ordering::Relaxed,
         );
         if !already_open {
-            let store=crate::continuation::store::ContinuationStore::new(ws.db.clone(),ws.root()).map_err(to_status)?;
+            let store =
+                crate::continuation::store::ContinuationStore::new(ws.db.clone(), ws.root())
+                    .map_err(to_status)?;
             store.recover().map_err(to_status)?;
         }
-        super::continuations::start_monitor(self.state.clone(),ws.root().to_path_buf()).await;
+        super::continuations::start_monitor(self.state.clone(), ws.root().to_path_buf()).await;
         Ok(Response::new(WorkspaceInfo {
             path: ws.root().to_string_lossy().to_string(),
             locked: true,
@@ -67,24 +73,67 @@ impl DaemonService {
         let _config_guard = self.state.config_gate.lock().await;
         // Resolve the workspace first: its `root()` is the normalized key used
         // when its functions were registered.
-        let root = self
+        let workspace = self
             .state
             .workspaces
             .get(&PathBuf::from(&req.path))
             .await
-            .map(|ws| ws.root().to_path_buf())
             .ok_or_else(|| Status::not_found("workspace is not open"))?;
-        if self.state.running.read().await.contains_key(&root) || self.state.chats.read().await.contains_key(&root) {return Err(Status::failed_precondition("Workspace has an active execution or chat turn"));}
-        self.state.continuation_workers.lock().await.remove(&root);
-        if let Some(ws)=self.state.workspaces.get(&root).await {
-            let store=crate::continuation::store::ContinuationStore::new(ws.db.clone(),ws.root()).map_err(to_status)?;
-            let mut after=None;
-            loop { let page=store.list(after).map_err(to_status)?;if page.is_empty(){break;}
-                for r in page {after=Some(r.task.id);if !matches!(r.task.state,crate::continuation::state::TaskState::Stopped|crate::continuation::state::TaskState::Completed) {store.update(r.task.id,r.revision,|r|{r.task.paused=true;r.task.state=crate::continuation::state::TaskState::Paused;r.task.attention=Some("Workspace closed".into());Ok(())}).map_err(to_status)?;}}
-            }
+        let root = workspace.root().to_path_buf();
+        let admission = workspace.admit().await.map_err(to_status)?;
+        if self.state.running.read().await.contains_key(&root)
+            || self.state.chats.read().await.contains_key(&root)
+        {
+            return Err(Status::failed_precondition(
+                "Workspace has an active execution or chat turn",
+            ));
         }
-        if let Some(host)=&self.state.addon_host {host.close_workspace(&root,&self.state.workspaces).await.map_err(to_status)?;}
-        else {self.state.workspaces.close(&root).await.map_err(to_status)?;}
+        workspace.set_closing(true);
+        drop(admission);
+        let closed = async {
+            self.state.continuation_workers.lock().await.remove(&root);
+            if let Some(ws) = self.state.workspaces.get(&root).await {
+                let store =
+                    crate::continuation::store::ContinuationStore::new(ws.db.clone(), ws.root())
+                        .map_err(to_status)?;
+                let mut after = None;
+                loop {
+                    let page = store.list(after).map_err(to_status)?;
+                    if page.is_empty() {
+                        break;
+                    }
+                    for r in page {
+                        after = Some(r.task.id);
+                        if !matches!(
+                            r.task.state,
+                            crate::continuation::state::TaskState::Stopped
+                                | crate::continuation::state::TaskState::Completed
+                        ) {
+                            store
+                                .update(r.task.id, r.revision, |r| {
+                                    r.task.paused = true;
+                                    r.task.state = crate::continuation::state::TaskState::Paused;
+                                    r.task.attention = Some("Workspace closed".into());
+                                    Ok(())
+                                })
+                                .map_err(to_status)?;
+                        }
+                    }
+                }
+            }
+            if let Some(host) = &self.state.addon_host {
+                host.close_workspace(&root, &self.state.workspaces).await.map_err(to_status)?;
+            } else {
+                self.state.workspaces.close(&root).await.map_err(to_status)?;
+            }
+            Ok::<_, Status>(())
+        }
+        .await;
+        if let Err(error) = closed {
+            workspace.set_closing(false);
+            super::continuations::start_monitor(self.state.clone(), root).await;
+            return Err(error);
+        }
         // Retire exactly this workspace's functions. A name another open
         // workspace also defines is restored from that workspace's database;
         // otherwise the global definition (if any) takes over, so closing one
@@ -108,9 +157,7 @@ impl DaemonService {
                     break;
                 }
             }
-            if !restored
-                && let Some(db) = &global_db
-            {
+            if !restored && let Some(db) = &global_db {
                 let _ = self.state.registry.restore_function(db, &name, FunctionSource::Global);
             }
         }

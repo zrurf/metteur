@@ -4,6 +4,7 @@ import { gateway } from '@/core'
 import type { FileHistoryEntry, SnapshotInfo } from '@/core'
 import type { VersionRef } from '@/core/execution-view'
 import { useWorkspaceStore } from './workspace'
+import { useDocumentsStore } from './documents'
 
 /**
  * Version timeline.
@@ -13,28 +14,52 @@ import { useWorkspaceStore } from './workspace'
  */
 export const useVersionStore = defineStore('version', () => {
   const workspace = useWorkspaceStore()
+  const documents = useDocumentsStore()
   const snapshots = ref<SnapshotInfo[]>([])
   const history = ref<FileHistoryEntry[]>([])
   const selectedFile = ref<string | null>(null)
   const selectedId = ref<string | null>(null)
-  const reference = ref<{ version: VersionRef; label: string; runId: string; proposalId?: string } | null>(null)
+  const reference = ref<{
+    version: VersionRef
+    label: string
+    runId: string
+    proposalId?: string
+  } | null>(null)
   const error = ref('')
-  let generation = 0, historyRequest = 0, snapshotRequest = 0
-  watch(() => workspace.active?.path, () => {
-    generation++; historyRequest++; snapshotRequest++
-    snapshots.value = []; history.value = []; selectedFile.value = null; selectedId.value = null; reference.value = null; error.value = ''
-  })
+  const restoring = ref(false)
+  let generation = 0,
+    historyRequest = 0,
+    snapshotRequest = 0
+  watch(
+    () => workspace.active?.path,
+    () => {
+      generation++
+      historyRequest++
+      snapshotRequest++
+      snapshots.value = []
+      history.value = []
+      selectedFile.value = null
+      selectedId.value = null
+      reference.value = null
+      error.value = ''
+    },
+  )
 
   async function refresh() {
     const ws = workspace.active
     if (!ws) return
-    const ticket = generation, request = ++snapshotRequest
+    const ticket = generation,
+      request = ++snapshotRequest
     const r = await gateway.listSnapshots(ws.path)
-    if (ticket !== generation || request !== snapshotRequest || ws.path !== workspace.active?.path) return
+    if (ticket !== generation || request !== snapshotRequest || ws.path !== workspace.active?.path)
+      return
     if (r.ok) {
       snapshots.value = r.data
       error.value = ''
-    } else { snapshots.value = []; error.value = r.error }
+    } else {
+      snapshots.value = []
+      error.value = r.error
+    }
   }
 
   function select(id: string | null) {
@@ -54,18 +79,49 @@ export const useVersionStore = defineStore('version', () => {
     error.value = ''
     const ws = workspace.active
     if (!ws) return
-    const ticket = generation, request = ++historyRequest
+    const ticket = generation,
+      request = ++historyRequest
     const r = await gateway.listFileHistory(ws.path, path)
-    if (ticket !== generation || request !== historyRequest || ws.path !== workspace.active?.path) return
+    if (ticket !== generation || request !== historyRequest || ws.path !== workspace.active?.path)
+      return
     if (r.ok) history.value = r.data
     else error.value = r.error
   }
 
-  async function rollback(snapshotId: string) {
-    const ws = workspace.active
-    if (!ws) return
-    const r = await gateway.rollback(ws.path, snapshotId)
-    if (r.ok) await refresh()
+  async function rollback(snapshotId: string, expectedWorkspace = workspace.active?.path) {
+    const target = expectedWorkspace,
+      ticket = generation
+    if (!target || target !== workspace.active?.path || restoring.value) return false
+    restoring.value = true
+    error.value = ''
+    const current = () => ticket === generation && workspace.active?.path === target
+    try {
+      if (!(await documents.protectWorkspaceDrafts(target))) {
+        if (current())
+          error.value =
+            'A current draft could not be protected. Keep or export it before restoring files.'
+        return false
+      }
+      if (!current()) return false
+      const result = await gateway.rollback(target, snapshotId)
+      if (!result.ok) {
+        if (current()) error.value = result.error
+        return false
+      }
+      workspace.invalidateTree(target)
+      await Promise.all(
+        [...documents.records.values()]
+          .filter((doc) => doc.workspace === target && doc.loaded)
+          .map((doc) => documents.sync(target, doc.path)),
+      )
+      if (current()) await refresh()
+      return true
+    } catch (cause) {
+      if (current()) error.value = String(cause)
+      return false
+    } finally {
+      restoring.value = false
+    }
   }
 
   /** Create a snapshot of the workspace with an optional alias. */
@@ -77,5 +133,19 @@ export const useVersionStore = defineStore('version', () => {
     return r.ok
   }
 
-  return { snapshots, history, selectedFile, selectedId, reference, error, refresh, select, openReference, pickFile, rollback, create }
+  return {
+    snapshots,
+    history,
+    selectedFile,
+    selectedId,
+    reference,
+    error,
+    restoring,
+    refresh,
+    select,
+    openReference,
+    pickFile,
+    rollback,
+    create,
+  }
 })

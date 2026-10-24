@@ -1,11 +1,24 @@
 import { defineStore } from 'pinia'
 import type { Component } from 'vue'
-import { computed, ref } from 'vue'
-import { FileCode2, FileJson, FileText, History, MessageSquare, Settings, Workflow, Puzzle } from '@lucide/vue'
+import { computed, ref, watch } from 'vue'
+import {
+  FileCode2,
+  FileJson,
+  FileText,
+  History,
+  MessageSquare,
+  Settings,
+  Workflow,
+} from '@lucide/vue'
 import { projectName } from '@/lib/path'
 import { fileRoute } from '@/lib/file-token'
 import { wurl } from '@/lib/workspace-url'
 import { USER_CONFIG_PATH, WORKSPACE_CONFIG_PATH } from '@/lib/toml'
+import { useDocumentsStore } from './documents'
+import { useWorkspaceStore } from './workspace'
+import { closeModel } from '@/lib/editor-models'
+import { useWorkspaceViewStore } from './workspace-view'
+import { VIEW_SURFACES, type ViewTab } from '@/core/workspace-view'
 
 /**
  * IDE-style tabs for the current shell.
@@ -27,7 +40,18 @@ export interface TabItem {
 
 /** App surfaces exposed as closable tabs, reopened from the activity bar. */
 export interface SurfaceDef {
-  key: 'addon-pages' | 'chat' | 'version' | 'settings' | 'execution' | 'execution-preview' | 'memory' | 'prompts' | 'tasks' | 'schedules'
+  menu?: boolean
+  key:
+    | 'addon-pages'
+    | 'chat'
+    | 'version'
+    | 'settings'
+    | 'execution'
+    | 'execution-preview'
+    | 'memory'
+    | 'prompts'
+    | 'tasks'
+    | 'schedules'
   label: string
   /** Surface route fragment, e.g. `/chat`. */
   path: string
@@ -37,14 +61,28 @@ export interface SurfaceDef {
 }
 
 export const SURFACES: SurfaceDef[] = [
-  {key:'addon-pages',label:'Addon pages',path:'/addon-pages',workspace:true,icon:Puzzle},
-  {key:'tasks',label:'Task continuation',path:'/tasks',workspace:true,icon:Workflow},
-  {key:'schedules',label:'Schedules',path:'/schedules',workspace:true,icon:History},
-  { key: 'prompts', label: 'Prompt resources', path: '/prompts', workspace: true, icon: FileText },
-  { key: 'memory', label: 'Project memory', path: '/memory', workspace: true, icon: FileText },
+  { key: 'tasks', label: 'Tasks', path: '/tasks', workspace: true, icon: Workflow },
+  {
+    key: 'prompts',
+    label: 'Prompt Library',
+    path: '/prompts',
+    workspace: true,
+    icon: FileText,
+    menu: false,
+  },
+  { key: 'memory', label: 'Project Memory', path: '/memory', workspace: true, icon: FileText },
   { key: 'execution', label: 'Execution', path: '/execution', workspace: true, icon: Workflow },
   ...(import.meta.env.DEV && import.meta.env.VITE_MOCK === '1'
-    ? [{ key: 'execution-preview' as const, label: 'Execution preview', path: '/preview/execution', workspace: false, icon: Workflow }] : []),
+    ? [
+        {
+          key: 'execution-preview' as const,
+          label: 'Execution Preview',
+          path: '/preview/execution',
+          workspace: false,
+          icon: Workflow,
+        },
+      ]
+    : []),
   { key: 'chat', label: 'Chat', path: '/chat', workspace: true, icon: MessageSquare },
   { key: 'version', label: 'Version Flow', path: '/version', workspace: true, icon: History },
   { key: 'settings', label: 'Settings', path: '/settings', workspace: false, icon: Settings },
@@ -72,6 +110,9 @@ function configDocLabel(path: string): string {
 }
 
 export const useTabsStore = defineStore('tabs', () => {
+  const documents = useDocumentsStore()
+  const workspace = useWorkspaceStore()
+  const views = useWorkspaceViewStore()
   const items = ref<TabItem[]>([])
   const activeId = ref(HOME_ID)
   /** Unsaved indicator per file path (`true` = shows the blue dot). */
@@ -83,6 +124,101 @@ export const useTabsStore = defineStore('tabs', () => {
   const splitPath = ref<string | null>(null)
   /** Fraction of the editor area given to the primary pane. */
   const splitRatio = ref(0.5)
+  const workspaceTabs = new Map<
+    string,
+    {
+      items: TabItem[]
+      active: string
+      split: string | null
+      dirty: Record<string, boolean>
+      conflicts: Record<string, boolean>
+      ratio: number
+    }
+  >()
+  let viewGeneration = 0,
+    localRevision = 0
+  const restored = new Set<string>()
+  watch(
+    () => workspace.active?.path,
+    (path, previous) => {
+      const generation = ++viewGeneration
+      if (previous)
+        workspaceTabs.set(previous, {
+          items: items.value,
+          active: activeId.value,
+          split: splitPath.value,
+          dirty: dirty.value,
+          conflicts: conflicts.value,
+          ratio: splitRatio.value,
+        })
+      const saved = path ? workspaceTabs.get(path) : undefined
+      items.value = saved?.items ?? []
+      activeId.value = saved?.active ?? HOME_ID
+      splitPath.value = saved?.split ?? null
+      dirty.value = saved?.dirty ?? {}
+      conflicts.value = saved?.conflicts ?? {}
+      splitRatio.value = saved?.ratio ?? 0.5
+      if (path && !saved) {
+        const revision = localRevision
+        void views.ready(path).then((view) => {
+          if (generation !== viewGeneration || workspace.active?.path !== path) return
+          if (revision === localRevision) {
+            items.value = view.tabs.map((tab) => {
+              if ('file' in tab)
+                return {
+                  id: `file:${tab.file}`,
+                  label: configDocLabel(tab.file),
+                  path: tab.file,
+                  route: fileRoute(tab.file),
+                  icon: fileIcon(tab.file),
+                }
+              const def = SURFACES.find((surface) => surface.key === tab.surface)!
+              return {
+                id: def.key,
+                label: def.label,
+                path: '',
+                route: surfaceRoute(def),
+                icon: def.icon,
+              }
+            })
+            activeId.value = items.value.some((tab) => tab.id === view.active)
+              ? view.active
+              : HOME_ID
+            splitPath.value = view.split
+            splitRatio.value = view.ratio
+          }
+          restored.add(path)
+          persistView()
+        })
+      }
+    },
+    { flush: 'sync', immediate: true },
+  )
+  function persistView() {
+    const path = workspace.active?.path
+    if (!path || !restored.has(path)) return
+    const tabs = items.value.flatMap<ViewTab>((tab) =>
+      tab.path
+        ? [{ file: tab.path }]
+        : VIEW_SURFACES.includes(tab.id as (typeof VIEW_SURFACES)[number])
+          ? [{ surface: tab.id as (typeof VIEW_SURFACES)[number] }]
+          : [],
+    )
+    views.edit(path, {
+      tabs,
+      active: activeId.value,
+      split: splitPath.value,
+      ratio: splitRatio.value,
+    })
+  }
+  watch(
+    [items, activeId, splitPath, splitRatio],
+    () => {
+      localRevision++
+      persistView()
+    },
+    { deep: true, flush: 'sync' },
+  )
 
   const byId = computed(() => new Map(items.value.map((t) => [t.id, t])))
   /** The active file tab, if any. */
@@ -95,7 +231,8 @@ export const useTabsStore = defineStore('tabs', () => {
   }
 
   /** Open (or focus) a file tab for a workspace-relative path. */
-  function openFile(path: string): string {
+  function openFile(path: string, label?: string): string {
+    path = path.replaceAll('\\', '/')
     const existing = items.value.find((t) => t.path === path)
     if (existing) {
       activeId.value = existing.id
@@ -103,7 +240,7 @@ export const useTabsStore = defineStore('tabs', () => {
     }
     const tab: TabItem = {
       id: `file:${path}`,
-      label: configDocLabel(path),
+      label: label ?? configDocLabel(path),
       path,
       route: fileRoute(path),
       icon: fileIcon(path),
@@ -145,11 +282,14 @@ export const useTabsStore = defineStore('tabs', () => {
 
   function close(id: string) {
     if (!byId.value.has(id)) return
-    items.value = items.value.filter((t) => t.id !== id)
     const path = byId.value.get(id)?.path
+    items.value = items.value.filter((t) => t.id !== id)
     if (path) {
       delete dirty.value[path]
       delete conflicts.value[path]
+      const ws = workspace.active?.path ?? ''
+      documents.forget(ws, path)
+      closeModel(`${ws}::${path}`)
     }
     if (activeId.value === id) {
       const rest = items.value
@@ -160,12 +300,12 @@ export const useTabsStore = defineStore('tabs', () => {
   }
 
   function closeOthers(id: string) {
-    items.value = items.value.filter((t) => t.id === id)
+    for (const tab of [...items.value]) if (tab.id !== id) close(tab.id)
     activeId.value = id
   }
 
   function closeAll() {
-    items.value = []
+    for (const tab of [...items.value]) close(tab.id)
     dirty.value = {}
     conflicts.value = {}
     activeId.value = HOME_ID
@@ -206,7 +346,8 @@ export const useTabsStore = defineStore('tabs', () => {
   }
 
   function isDirty(path: string): boolean {
-    return dirty.value[path] === true
+    const doc = documents.peek(workspace.active?.path ?? '', path)
+    return (doc ? documents.dirty(doc) : false) || dirty.value[path] === true
   }
 
   function markConflict(path: string, value: boolean) {
@@ -219,7 +360,32 @@ export const useTabsStore = defineStore('tabs', () => {
   }
 
   function isConflict(path: string): boolean {
-    return conflicts.value[path] === true
+    return (
+      documents.peek(workspace.active?.path ?? '', path)?.conflict === true ||
+      conflicts.value[path] === true
+    )
+  }
+  function isDeleted(path: string): boolean {
+    return documents.peek(workspace.active?.path ?? '', path)?.deleted === true
+  }
+
+  function renameFile(from: string, to: string) {
+    from = from.replaceAll('\\', '/')
+    to = to.replaceAll('\\', '/')
+    const ws = workspace.active?.path ?? ''
+    documents.rename(ws, from, to)
+    for (const tab of items.value) {
+      if (!tab.path || (tab.path !== from && !tab.path.startsWith(from + '/'))) continue
+      const oldId = tab.id
+      closeModel(`${ws}::${tab.path}`)
+      tab.path = to + tab.path.slice(from.length)
+      tab.id = `file:${tab.path}`
+      tab.label = configDocLabel(tab.path)
+      tab.route = fileRoute(tab.path)
+      if (activeId.value === oldId) activeId.value = tab.id
+    }
+    if (splitPath.value === from || splitPath.value?.startsWith(from + '/'))
+      splitPath.value = to + splitPath.value.slice(from.length)
   }
 
   return {
@@ -246,5 +412,7 @@ export const useTabsStore = defineStore('tabs', () => {
     isDirty,
     markConflict,
     isConflict,
+    isDeleted,
+    renameFile,
   }
 })

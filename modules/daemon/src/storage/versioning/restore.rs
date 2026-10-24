@@ -1,7 +1,7 @@
 //! Preflight and compensating restore. Never rewrite unchanged files: on Windows
 //! a readable executable/Git object can still be unwritable while in use.
 use std::collections::BTreeSet;
-use std::fs::{File, Metadata, OpenOptions, Permissions};
+use std::fs::{File, OpenOptions, Permissions};
 use std::io::{Seek, SeekFrom, Write};
 use std::path::{Component, Path, PathBuf};
 
@@ -34,16 +34,7 @@ pub(super) fn excluded(path: &Path) -> bool {
     })
 }
 
-pub(super) fn is_link(metadata: &Metadata) -> bool {
-    #[cfg(windows)]
-    {
-        use std::os::windows::fs::MetadataExt;
-        if metadata.file_attributes() & 0x400 != 0 {
-            return true;
-        }
-    }
-    metadata.file_type().is_symlink()
-}
+pub(super) use crate::workspace::fs::is_link;
 
 pub(super) fn io_at(operation: &str, path: &Path, error: std::io::Error) -> DaemonError {
     DaemonError::Io(std::io::Error::new(

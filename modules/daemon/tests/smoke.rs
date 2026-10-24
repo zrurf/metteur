@@ -10,18 +10,41 @@ use metteur_daemon::grpc::proto::{
     self, AbortChatRequest, CancelRequest, CloseWorkspaceRequest, CompileDslRequest,
     ContinueExecutionRequest, CreateDirRequest, CreateSnapshotRequest, DecompileBlueprintRequest,
     DeleteChatSessionRequest, DeleteFunctionRequest, ExecuteBlueprintRequest, FnPin, FunctionInfo,
-    GetChatSessionRequest, GetConfigRequest, GetExecutionUsageRequest, GetFileHistoryRequest,
-    ListAuditLogRequest, ListChatSessionsRequest, ListExecutionsRequest, ListFilesRequest,
-    GetFileAtSnapshotRequest, KillJobRequest, ListFunctionsRequest, ListJobsRequest,
-    ListSnapshotsRequest, LoadFunctionRequest, OpenWorkspaceRequest, WatchJobsRequest,
-    ReadFileRequest, RemoveFileRequest, RenameFileRequest, RollbackRequest, SaveBlueprintRequest,
-    SaveFunctionRequest, SendChatRequest, SetConfigRequest, StatFileRequest, WriteFileRequest,
+    GetChatSessionRequest, GetConfigRequest, GetExecutionUsageRequest, GetFileAtSnapshotRequest,
+    GetFileHistoryRequest, KillJobRequest, ListAuditLogRequest, ListChatSessionsRequest,
+    ListExecutionsRequest, ListFilesRequest, ListFunctionsRequest, ListJobsRequest,
+    ListSnapshotsRequest, LoadFunctionRequest, OpenWorkspaceRequest, ReadFileRequest,
+    RemoveFileRequest, RenameFileRequest, RollbackRequest, SaveBlueprintRequest,
+    SaveFunctionRequest, SendChatRequest, SetConfigRequest, StatFileRequest, WatchJobsRequest,
+    WriteFileRequest,
 };
 use metteur_daemon::grpc::{AppState, DaemonService};
 use metteur_daemon::registry::Registry;
 use metteur_daemon::workspace::WorkspaceManager;
 use metteur_shared::config::AclRule;
 use tonic::transport::{Certificate, Channel, ClientTlsConfig, Identity, Server};
+
+async fn bound_chat_abort(client: &mut DaemonClient<Channel>, workspace: &str) -> AbortChatRequest {
+    let response = client
+        .chat_delivery(proto::ResourceRequest {
+            workspace_path: workspace.into(),
+            schema_version: 1,
+            payload_json: r#"{"operation":"admission"}"#.into(),
+            ..Default::default()
+        })
+        .await
+        .unwrap()
+        .into_inner();
+    assert!(response.error_json.is_empty());
+    let owner: serde_json::Value = serde_json::from_str(&response.payload_json).unwrap();
+    assert_eq!(owner["state"], "chat");
+    AbortChatRequest {
+        workspace_path: workspace.into(),
+        session_id: owner["session"].as_str().unwrap().into(),
+        turn_id: owner["turn"].as_str().unwrap().into(),
+        ..Default::default()
+    }
+}
 
 /// A client certificate identity for mTLS tests.
 #[derive(Clone)]
@@ -128,14 +151,13 @@ async fn start_server_inner(
             ..Default::default()
         },
     );
-    let app =
-        AppState::new(
-            WorkspaceManager::new().with_global_config_path(global_config_path.clone()),
-            registry,
-            config,
-        )
-        .with_addon_host(addon_host)
-        .await;
+    let app = AppState::new(
+        WorkspaceManager::new().with_global_config_path(global_config_path.clone()),
+        registry,
+        config,
+    )
+    .with_addon_host(addon_host)
+    .await;
     let state = Arc::new(app);
 
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
@@ -598,7 +620,9 @@ async fn smoke_open_save_execute() {
     // Save a blueprint.
     let blueprint = build_blueprint();
     client
-        .save_blueprint(SaveBlueprintRequest { file_path: format!("blueprints/{}.blueprint", uuid::Uuid::new_v4()), file_json: String::new(),
+        .save_blueprint(SaveBlueprintRequest {
+            file_path: format!("blueprints/{}.blueprint", uuid::Uuid::new_v4()),
+            file_json: String::new(),
             workspace_path: ws_path.clone(),
             blueprint: Some(blueprint.clone()),
         })
@@ -610,6 +634,7 @@ async fn smoke_open_save_execute() {
         .execute_blueprint(ExecuteBlueprintRequest {
             workspace_path: ws_path.clone(),
             blueprint_id: blueprint.id.clone(),
+            workflow_confirmation: String::new(),
             blueprint_json: String::new(),
         })
         .await
@@ -663,6 +688,7 @@ async fn smoke_completed_run_cannot_continue() {
         .execute_blueprint(ExecuteBlueprintRequest {
             workspace_path: ws_path.clone(),
             blueprint_id: blueprint.id.clone(),
+            workflow_confirmation: String::new(),
             blueprint_json: String::new(),
         })
         .await
@@ -689,8 +715,13 @@ async fn smoke_completed_run_cannot_continue() {
     assert!(!invocations.is_empty());
     assert!(invocations.iter().all(|i| i["status"] == "Completed"));
     assert!(invocations.iter().all(|i| i["version"] == facts["blueprint_version"]));
-    let again = client.list_executions(ListExecutionsRequest { workspace_path: ws_path.clone() })
-        .await.unwrap().into_inner();
+    let again = client
+        .list_executions(ListExecutionsRequest {
+            workspace_path: ws_path.clone(),
+        })
+        .await
+        .unwrap()
+        .into_inner();
     assert_eq!(again.executions.len(), 1);
     assert_eq!(again.executions[0].data_json, list.executions[0].data_json);
 
@@ -731,6 +762,7 @@ async fn smoke_cancel_marks_run_cancelled() {
         .execute_blueprint(ExecuteBlueprintRequest {
             workspace_path: ws_path.clone(),
             blueprint_id: blueprint.id.clone(),
+            workflow_confirmation: String::new(),
             blueprint_json: String::new(),
         })
         .await
@@ -744,23 +776,74 @@ async fn smoke_cancel_marks_run_cancelled() {
     assert_eq!(envelope["sequence"], 1);
     assert!(envelope["stream_id"].as_str().is_some());
     let stale = uuid::Uuid::new_v4().to_string();
-    assert_eq!(client.pause_execution(proto::PauseRequest { workspace_path: ws_path.clone(), run_id: stale.clone() })
-        .await.unwrap_err().code(), tonic::Code::FailedPrecondition);
-    assert_eq!(client.resume_execution(proto::ResumeRequest { workspace_path: ws_path.clone(), run_id: stale.clone() })
-        .await.unwrap_err().code(), tonic::Code::FailedPrecondition);
-    assert_eq!(client.cancel_execution(CancelRequest { workspace_path: ws_path.clone(), run_id: stale })
-        .await.unwrap_err().code(), tonic::Code::FailedPrecondition);
-    client.pause_execution(proto::PauseRequest { workspace_path: ws_path.clone(), run_id: run_id.clone() }).await.unwrap();
-    let listed = client.list_executions(ListExecutionsRequest { workspace_path: ws_path.clone() }).await.unwrap().into_inner();
+    assert_eq!(
+        client
+            .pause_execution(proto::PauseRequest {
+                workspace_path: ws_path.clone(),
+                run_id: stale.clone(),
+                receipt_json: serde_json::json!({"id":uuid::Uuid::new_v4(),"revision":0}).to_string(),
+            })
+            .await
+            .unwrap_err()
+            .code(),
+        tonic::Code::FailedPrecondition
+    );
+    assert_eq!(
+        client
+            .resume_execution(proto::ResumeRequest {
+                workspace_path: ws_path.clone(),
+                run_id: stale.clone(),
+                receipt_json: serde_json::json!({"id":uuid::Uuid::new_v4(),"revision":1}).to_string(),
+            })
+            .await
+            .unwrap_err()
+            .code(),
+        tonic::Code::FailedPrecondition
+    );
+    assert_eq!(
+        client
+            .cancel_execution(CancelRequest {
+                workspace_path: ws_path.clone(),
+                run_id: stale,
+                ..Default::default()
+            })
+            .await
+            .unwrap_err()
+            .code(),
+        tonic::Code::FailedPrecondition
+    );
+    client
+        .pause_execution(proto::PauseRequest {
+            workspace_path: ws_path.clone(),
+            run_id: run_id.clone(),
+            receipt_json: serde_json::json!({"id":uuid::Uuid::new_v4(),"revision":0}).to_string(),
+        })
+        .await
+        .unwrap();
+    let listed = client
+        .list_executions(ListExecutionsRequest {
+            workspace_path: ws_path.clone(),
+        })
+        .await
+        .unwrap()
+        .into_inner();
     let facts: serde_json::Value = serde_json::from_str(&listed.executions[0].data_json).unwrap();
     assert_eq!(facts["runtime"]["active"], true);
     assert_eq!(facts["runtime"]["pause_requested"], true);
     assert_eq!(facts["runtime"]["cancel_requested"], false);
-    client.resume_execution(proto::ResumeRequest { workspace_path: ws_path.clone(), run_id: run_id.clone() }).await.unwrap();
+    client
+        .resume_execution(proto::ResumeRequest {
+            workspace_path: ws_path.clone(),
+            run_id: run_id.clone(),
+            receipt_json: serde_json::json!({"id":uuid::Uuid::new_v4(),"revision":1}).to_string(),
+        })
+        .await
+        .unwrap();
     client
         .cancel_execution(CancelRequest {
             run_id,
             workspace_path: ws_path.clone(),
+            ..Default::default()
         })
         .await
         .unwrap();
@@ -841,7 +924,9 @@ async fn smoke_audit_log() {
         .unwrap();
     let blueprint = build_blueprint();
     client
-        .save_blueprint(SaveBlueprintRequest { file_path: format!("blueprints/{}.blueprint", uuid::Uuid::new_v4()), file_json: String::new(),
+        .save_blueprint(SaveBlueprintRequest {
+            file_path: format!("blueprints/{}.blueprint", uuid::Uuid::new_v4()),
+            file_json: String::new(),
             workspace_path: ws_path.clone(),
             blueprint: Some(blueprint.clone()),
         })
@@ -852,6 +937,7 @@ async fn smoke_audit_log() {
         .execute_blueprint(ExecuteBlueprintRequest {
             workspace_path: ws_path.clone(),
             blueprint_id: blueprint.id.clone(),
+            workflow_confirmation: String::new(),
             blueprint_json: String::new(),
         })
         .await
@@ -1171,7 +1257,9 @@ async fn prepare(
         .await
         .unwrap();
     client
-        .save_blueprint(SaveBlueprintRequest { file_path: format!("blueprints/{}.blueprint", uuid::Uuid::new_v4()), file_json: String::new(),
+        .save_blueprint(SaveBlueprintRequest {
+            file_path: format!("blueprints/{}.blueprint", uuid::Uuid::new_v4()),
+            file_json: String::new(),
             workspace_path: ws_path.to_string(),
             blueprint: Some(bp.clone()),
         })
@@ -1199,6 +1287,7 @@ async fn smoke_sandbox_approval_allow_once() {
         .execute_blueprint(ExecuteBlueprintRequest {
             workspace_path: ws_path.clone(),
             blueprint_id: id,
+            workflow_confirmation: String::new(),
             blueprint_json: String::new(),
         })
         .await
@@ -1220,6 +1309,7 @@ async fn smoke_sandbox_approval_allow_once() {
             workspace_path: ws_path.clone(),
             request_id,
             decision: "AllowOnce".to_string(),
+            ..Default::default()
         })
         .await
         .unwrap();
@@ -1272,6 +1362,7 @@ async fn smoke_sandbox_approval_deny_once_fails_run() {
         .execute_blueprint(ExecuteBlueprintRequest {
             workspace_path: ws_path.clone(),
             blueprint_id: id,
+            workflow_confirmation: String::new(),
             blueprint_json: String::new(),
         })
         .await
@@ -1291,6 +1382,7 @@ async fn smoke_sandbox_approval_deny_once_fails_run() {
             workspace_path: ws_path.clone(),
             request_id: request_id.expect("approval request arrives"),
             decision: "DenyOnce".to_string(),
+            ..Default::default()
         })
         .await
         .unwrap();
@@ -1385,7 +1477,8 @@ async fn smoke_abstract_node_expands_and_runs() {
         .unwrap();
 
     // The registry must expose the Abstract kind.
-    let kinds = client.list_node_kinds(proto::RegistryRequest::default()).await.unwrap().into_inner();
+    let kinds =
+        client.list_node_kinds(proto::RegistryRequest::default()).await.unwrap().into_inner();
     assert!(kinds.kinds.iter().any(|k| k == "Abstract"));
 
     // Outer blueprint: Start -> Abstract(mock-planned sub-blueprint).
@@ -1444,7 +1537,9 @@ async fn smoke_abstract_node_expands_and_runs() {
     };
 
     client
-        .save_blueprint(SaveBlueprintRequest { file_path: format!("blueprints/{}.blueprint", uuid::Uuid::new_v4()), file_json: String::new(),
+        .save_blueprint(SaveBlueprintRequest {
+            file_path: format!("blueprints/{}.blueprint", uuid::Uuid::new_v4()),
+            file_json: String::new(),
             workspace_path: ws_path.clone(),
             blueprint: Some(blueprint.clone()),
         })
@@ -1455,6 +1550,7 @@ async fn smoke_abstract_node_expands_and_runs() {
         .execute_blueprint(ExecuteBlueprintRequest {
             workspace_path: ws_path.clone(),
             blueprint_id: blueprint.id.clone(),
+            workflow_confirmation: String::new(),
             blueprint_json: String::new(),
         })
         .await
@@ -1479,57 +1575,157 @@ async fn smoke_abstract_node_expands_and_runs() {
 
 #[tokio::test]
 async fn addon_rpc_discovery_and_management_keep_two_workspace_owners_separate() {
-    let (mut client,a)=start_server(Default::default()).await;
-    let b=a.join("second");std::fs::create_dir(&b).unwrap();
-    let ap=a.to_string_lossy().into_owned();let bp=b.to_string_lossy().into_owned();
-    for path in [&ap,&bp] {client.open_workspace(OpenWorkspaceRequest{path:path.clone()}).await.unwrap();}
-    let source=a.join("pkg");build_addon_package(&source,"com.test.scoped","Shout","run");
-    for workspace in [&ap,&bp] {
-        let info=client.install_addon(proto::InstallAddonRequest {package_path:source.to_string_lossy().into_owned(),workspace_path:workspace.clone(),granted_permissions:vec!["tools".into()]}).await.unwrap().into_inner();
-        assert_eq!(info.status,"Loaded");assert!(!info.scope_root.is_empty());assert!(!info.fingerprint.is_empty());
+    let (mut client, a) = start_server(Default::default()).await;
+    let b = a.join("second");
+    std::fs::create_dir(&b).unwrap();
+    let ap = a.to_string_lossy().into_owned();
+    let bp = b.to_string_lossy().into_owned();
+    for path in [&ap, &bp] {
+        client
+            .open_workspace(OpenWorkspaceRequest {
+                path: path.clone(),
+            })
+            .await
+            .unwrap();
     }
-    assert!(!client.list_tools(proto::RegistryRequest::default()).await.unwrap().into_inner().tools.iter().any(|t|t.name=="ComTestScopedShout"));
-    client.set_addon_enabled(proto::SetAddonEnabledRequest {id:"com.test.scoped".into(),workspace_path:ap.clone(),enabled:false}).await.unwrap();
-    for (workspace,present) in [(&ap,false),(&bp,true)] {
-        let tools=client.list_tools(proto::RegistryRequest {workspace_path:workspace.clone()}).await.unwrap().into_inner();
-        assert_eq!(tools.tools.iter().any(|t|t.name=="ComTestScopedShout"),present);
-        let infos=client.list_addons(proto::ListAddonsRequest {workspace_path:workspace.clone()}).await.unwrap().into_inner();
-        assert_eq!(infos.addons.len(),1);assert_eq!(infos.addons[0].enabled,present);
+    let source = a.join("pkg");
+    build_addon_package(&source, "com.test.scoped", "Shout", "run");
+    for workspace in [&ap, &bp] {
+        let info = client
+            .install_addon(proto::InstallAddonRequest {
+                package_path: source.to_string_lossy().into_owned(),
+                workspace_path: workspace.clone(),
+                granted_permissions: vec!["tools".into()],
+            })
+            .await
+            .unwrap()
+            .into_inner();
+        assert_eq!(info.status, "Loaded");
+        assert!(!info.scope_root.is_empty());
+        assert!(!info.fingerprint.is_empty());
     }
-    client.uninstall_addon(proto::UninstallAddonRequest{id:"com.test.scoped".into(),workspace_path:ap}).await.unwrap();
-    assert!(client.list_tools(proto::RegistryRequest {workspace_path:bp}).await.unwrap().into_inner().tools.iter().any(|t|t.name=="ComTestScopedShout"));
+    assert!(
+        !client
+            .list_tools(proto::RegistryRequest::default())
+            .await
+            .unwrap()
+            .into_inner()
+            .tools
+            .iter()
+            .any(|t| t.name == "ComTestScopedShout")
+    );
+    client
+        .set_addon_enabled(proto::SetAddonEnabledRequest {
+            id: "com.test.scoped".into(),
+            workspace_path: ap.clone(),
+            enabled: false,
+        })
+        .await
+        .unwrap();
+    for (workspace, present) in [(&ap, false), (&bp, true)] {
+        let tools = client
+            .list_tools(proto::RegistryRequest {
+                workspace_path: workspace.clone(),
+            })
+            .await
+            .unwrap()
+            .into_inner();
+        assert_eq!(tools.tools.iter().any(|t| t.name == "ComTestScopedShout"), present);
+        let infos = client
+            .list_addons(proto::ListAddonsRequest {
+                workspace_path: workspace.clone(),
+            })
+            .await
+            .unwrap()
+            .into_inner();
+        assert_eq!(infos.addons.len(), 1);
+        assert_eq!(infos.addons[0].enabled, present);
+    }
+    client
+        .uninstall_addon(proto::UninstallAddonRequest {
+            id: "com.test.scoped".into(),
+            workspace_path: ap,
+        })
+        .await
+        .unwrap();
+    assert!(
+        client
+            .list_tools(proto::RegistryRequest {
+                workspace_path: bp
+            })
+            .await
+            .unwrap()
+            .into_inner()
+            .tools
+            .iter()
+            .any(|t| t.name == "ComTestScopedShout")
+    );
 }
 
 #[tokio::test]
 async fn addon_cli_install_requires_explicit_grants_instead_of_manifest_authority() {
-    use metteur_cli::commands::{parse,dispatch,SessionState};
-    let (mut client,root)=start_server(Default::default()).await;
-    let source=root.join("addon-cli");build_addon_package(&source,"com.test.cli","Shout","run");
-    let mut state=SessionState::default();
-    let command=format!("install {} global",source.display());
-    let denied=dispatch(&mut client,&mut state,parse(&command).unwrap()).await;
-    assert!(denied.is_err(),"CLI install implicitly granted manifest permissions");
-    assert!(!client.list_tools(proto::RegistryRequest::default()).await.unwrap().into_inner().tools.iter().any(|t|t.name=="ComTestCliShout"));
-    dispatch(&mut client,&mut state,parse(&format!("{command} --grant tools")).unwrap()).await.unwrap();
-    let info=client.list_addons(proto::ListAddonsRequest::default()).await.unwrap().into_inner();
-    assert_eq!(info.addons[0].granted_permissions,vec!["tools"]);
-    let manifest=std::fs::read_to_string(source.join("manifest.toml")).unwrap().replace("required = [\"tools\"]","required = [\"tools\", \"fs:read\"]");
-    std::fs::write(source.join("manifest.toml"),manifest).unwrap();
-    assert!(dispatch(&mut client,&mut state,parse(&format!("{command} --grant tools")).unwrap()).await.is_err());
-    dispatch(&mut client,&mut state,parse(&format!("{command} --grant tools --grant fs:read")).unwrap()).await.unwrap();
+    use metteur_cli::commands::{SessionState, dispatch, parse};
+    let (mut client, root) = start_server(Default::default()).await;
+    let source = root.join("addon-cli");
+    build_addon_package(&source, "com.test.cli", "Shout", "run");
+    let mut state = SessionState::default();
+    let command = format!("install {} global", source.display());
+    let denied = dispatch(&mut client, &mut state, parse(&command).unwrap()).await;
+    assert!(denied.is_err(), "CLI install implicitly granted manifest permissions");
+    assert!(
+        !client
+            .list_tools(proto::RegistryRequest::default())
+            .await
+            .unwrap()
+            .into_inner()
+            .tools
+            .iter()
+            .any(|t| t.name == "ComTestCliShout")
+    );
+    dispatch(&mut client, &mut state, parse(&format!("{command} --grant tools")).unwrap())
+        .await
+        .unwrap();
+    let info = client.list_addons(proto::ListAddonsRequest::default()).await.unwrap().into_inner();
+    assert_eq!(info.addons[0].granted_permissions, vec!["tools"]);
+    let manifest = std::fs::read_to_string(source.join("manifest.toml"))
+        .unwrap()
+        .replace("required = [\"tools\"]", "required = [\"tools\", \"fs:read\"]");
+    std::fs::write(source.join("manifest.toml"), manifest).unwrap();
+    assert!(
+        dispatch(&mut client, &mut state, parse(&format!("{command} --grant tools")).unwrap())
+            .await
+            .is_err()
+    );
+    dispatch(
+        &mut client,
+        &mut state,
+        parse(&format!("{command} --grant tools --grant fs:read")).unwrap(),
+    )
+    .await
+    .unwrap();
 }
 
 /// Builds a minimal addon package (manifest + WAT plugin) in `dir`.
 #[cfg(unix)]
 #[tokio::test]
 async fn addon_mcp_cli_scoped_install_discovery_execution_and_cleanup() {
-    use metteur_cli::commands::{parse,dispatch,SessionState,Outcome};
-    let (mut client,root)=start_server(Default::default()).await;
-    let ws=root.to_string_lossy().into_owned();
-    client.open_workspace(OpenWorkspaceRequest {path:ws.clone()}).await.unwrap();
-    let source=root.join("mcp-cli-source");std::fs::create_dir(&source).unwrap();
-    std::fs::write(source.join("server.py"),include_str!("../src/addon/test_mcp_server.py")).unwrap();
-    std::fs::write(source.join("manifest.toml"),format!(r#"id="com.test.cli"
+    use metteur_cli::commands::{Outcome, SessionState, dispatch, parse};
+    let (mut client, root) = start_server(Default::default()).await;
+    let ws = root.to_string_lossy().into_owned();
+    client
+        .open_workspace(OpenWorkspaceRequest {
+            path: ws.clone(),
+        })
+        .await
+        .unwrap();
+    let source = root.join("mcp-cli-source");
+    std::fs::create_dir(&source).unwrap();
+    std::fs::write(source.join("server.py"), include_str!("../src/addon/test_mcp_server.py"))
+        .unwrap();
+    std::fs::write(
+        source.join("manifest.toml"),
+        format!(
+            r#"id="com.test.cli"
 version="1.0.0"
 name="MCP CLI"
 [permissions]
@@ -1539,42 +1735,173 @@ name="Local"
 [mcp.server]
 transport="stdio"
 command=["/usr/bin/python3","${{package}}/server.py","cli","normal",{}]
-"#,serde_json::to_string(&root.join("mcp.pid").to_string_lossy()).unwrap())).unwrap();
-    let mut state=SessionState {current_ws:Some(ws.clone()),..Default::default()};
-    let install=format!("install {} ws",source.display());
-    assert!(dispatch(&mut client,&mut state,parse(&install).unwrap()).await.is_err());
-    dispatch(&mut client,&mut state,parse(&format!("{install} --grant process")).unwrap()).await.unwrap();
-    let Outcome::Printed(status)=dispatch(&mut client,&mut state,parse("mcp").unwrap()).await.unwrap() else {panic!("MCP output missing")};
-    assert!(status.contains("ComTestCliLocal  Connected"));assert!(status.contains("addon=com.test.cli"));assert!(status.contains(&ws));
-    assert!(client.list_tools(proto::RegistryRequest::default()).await.unwrap().into_inner().tools.iter().all(|t|t.name!="ComTestCliLocalReadValue"));
-    let start=uuid::Uuid::new_v4().to_string();let node=uuid::Uuid::new_v4().to_string();let out=uuid::Uuid::new_v4().to_string();let input=uuid::Uuid::new_v4().to_string();
-    let blueprint=proto::Blueprint {id:uuid::Uuid::new_v4().to_string(),name:"MCP invocation".into(),entry_node_id:start.clone(),nodes:vec![
-        proto::Node {id:start.clone(),node_type:"Event".into(),kind:"Start".into(),pins:vec![proto::Pin {id:out.clone(),name:"Exec".into(),pin_type:"ExecOutput".into(),data_type:"Void".into(),..Default::default()}],..Default::default()},
-        proto::Node {id:node.clone(),node_type:"Function".into(),kind:"Tool".into(),data_json:r#"{"tool_name":"ComTestCliLocalReadValue"}"#.into(),pins:vec![proto::Pin {id:input.clone(),name:"Exec".into(),pin_type:"ExecInput".into(),data_type:"Void".into(),..Default::default()},proto::Pin {id:uuid::Uuid::new_v4().to_string(),name:"Result".into(),pin_type:"DataOutput".into(),data_type:"String".into(),..Default::default()}],..Default::default()},
-    ],edges:vec![proto::Edge {id:uuid::Uuid::new_v4().to_string(),source_node:start,source_pin:out,target_node:node,target_pin:input}]};
-    client.save_blueprint(SaveBlueprintRequest {workspace_path:ws.clone(),blueprint:Some(blueprint.clone()),file_path:"blueprints/mcp.blueprint".into(),file_json:String::new()}).await.unwrap();
-    let mut stream=client.execute_blueprint(ExecuteBlueprintRequest {workspace_path:ws.clone(),blueprint_id:blueprint.id,blueprint_json:String::new()}).await.unwrap().into_inner();
-    while let Some(event)=stream.message().await.unwrap() {assert_ne!(event.kind,"error","{}",event.message);}
-    let runs=client.list_executions(ListExecutionsRequest {workspace_path:ws.clone()}).await.unwrap().into_inner();assert_eq!(runs.executions[0].status,"Completed");assert!(runs.executions[0].data_json.contains("cli:absent:False"));
-    dispatch(&mut client,&mut state,parse("addon com.test.cli off ws").unwrap()).await.unwrap();
-    assert!(!client.list_tools(proto::RegistryRequest {workspace_path:ws.clone()}).await.unwrap().into_inner().tools.iter().any(|t|t.name=="ComTestCliLocalReadValue"));
-    dispatch(&mut client,&mut state,parse("addon com.test.cli on ws").unwrap()).await.unwrap();
-    dispatch(&mut client,&mut state,parse("uninstall com.test.cli ws").unwrap()).await.unwrap();
-    assert!(client.list_mcp_servers(proto::RegistryRequest {workspace_path:ws}).await.unwrap().into_inner().servers.is_empty());
+"#,
+            serde_json::to_string(&root.join("mcp.pid").to_string_lossy()).unwrap()
+        ),
+    )
+    .unwrap();
+    let mut state = SessionState {
+        current_ws: Some(ws.clone()),
+        ..Default::default()
+    };
+    let install = format!("install {} ws", source.display());
+    assert!(dispatch(&mut client, &mut state, parse(&install).unwrap()).await.is_err());
+    dispatch(&mut client, &mut state, parse(&format!("{install} --grant process")).unwrap())
+        .await
+        .unwrap();
+    let Outcome::Printed(status) =
+        dispatch(&mut client, &mut state, parse("mcp").unwrap()).await.unwrap()
+    else {
+        panic!("MCP output missing")
+    };
+    assert!(status.contains("ComTestCliLocal  Connected"));
+    assert!(status.contains("addon=com.test.cli"));
+    assert!(status.contains(&ws));
+    assert!(
+        client
+            .list_tools(proto::RegistryRequest::default())
+            .await
+            .unwrap()
+            .into_inner()
+            .tools
+            .iter()
+            .all(|t| t.name != "ComTestCliLocalReadValue")
+    );
+    let start = uuid::Uuid::new_v4().to_string();
+    let node = uuid::Uuid::new_v4().to_string();
+    let out = uuid::Uuid::new_v4().to_string();
+    let input = uuid::Uuid::new_v4().to_string();
+    let blueprint = proto::Blueprint {
+        id: uuid::Uuid::new_v4().to_string(),
+        name: "MCP invocation".into(),
+        entry_node_id: start.clone(),
+        nodes: vec![
+            proto::Node {
+                id: start.clone(),
+                node_type: "Event".into(),
+                kind: "Start".into(),
+                pins: vec![proto::Pin {
+                    id: out.clone(),
+                    name: "Exec".into(),
+                    pin_type: "ExecOutput".into(),
+                    data_type: "Void".into(),
+                    ..Default::default()
+                }],
+                ..Default::default()
+            },
+            proto::Node {
+                id: node.clone(),
+                node_type: "Function".into(),
+                kind: "Tool".into(),
+                data_json: r#"{"tool_name":"ComTestCliLocalReadValue"}"#.into(),
+                pins: vec![
+                    proto::Pin {
+                        id: input.clone(),
+                        name: "Exec".into(),
+                        pin_type: "ExecInput".into(),
+                        data_type: "Void".into(),
+                        ..Default::default()
+                    },
+                    proto::Pin {
+                        id: uuid::Uuid::new_v4().to_string(),
+                        name: "Result".into(),
+                        pin_type: "DataOutput".into(),
+                        data_type: "String".into(),
+                        ..Default::default()
+                    },
+                ],
+                ..Default::default()
+            },
+        ],
+        edges: vec![proto::Edge {
+            id: uuid::Uuid::new_v4().to_string(),
+            source_node: start,
+            source_pin: out,
+            target_node: node,
+            target_pin: input,
+        }],
+    };
+    client
+        .save_blueprint(SaveBlueprintRequest {
+            workspace_path: ws.clone(),
+            blueprint: Some(blueprint.clone()),
+            file_path: "blueprints/mcp.blueprint".into(),
+            file_json: String::new(),
+        })
+        .await
+        .unwrap();
+    let mut stream = client
+        .execute_blueprint(ExecuteBlueprintRequest {
+            workspace_path: ws.clone(),
+            blueprint_id: blueprint.id,
+            workflow_confirmation: String::new(),
+            blueprint_json: String::new(),
+        })
+        .await
+        .unwrap()
+        .into_inner();
+    while let Some(event) = stream.message().await.unwrap() {
+        assert_ne!(event.kind, "error", "{}", event.message);
+    }
+    let runs = client
+        .list_executions(ListExecutionsRequest {
+            workspace_path: ws.clone(),
+        })
+        .await
+        .unwrap()
+        .into_inner();
+    assert_eq!(runs.executions[0].status, "Completed");
+    assert!(runs.executions[0].data_json.contains("cli:absent:False"));
+    dispatch(&mut client, &mut state, parse("addon com.test.cli off ws").unwrap()).await.unwrap();
+    assert!(
+        !client
+            .list_tools(proto::RegistryRequest {
+                workspace_path: ws.clone()
+            })
+            .await
+            .unwrap()
+            .into_inner()
+            .tools
+            .iter()
+            .any(|t| t.name == "ComTestCliLocalReadValue")
+    );
+    dispatch(&mut client, &mut state, parse("addon com.test.cli on ws").unwrap()).await.unwrap();
+    dispatch(&mut client, &mut state, parse("uninstall com.test.cli ws").unwrap()).await.unwrap();
+    assert!(
+        client
+            .list_mcp_servers(proto::RegistryRequest {
+                workspace_path: ws
+            })
+            .await
+            .unwrap()
+            .into_inner()
+            .servers
+            .is_empty()
+    );
 }
 
 /// Builds a minimal addon package (manifest + WAT plugin) in `dir`.
 #[cfg(unix)]
 #[tokio::test]
 async fn addon_lsp_cli_install_saved_lsp_check_and_scoped_close() {
-    use metteur_cli::commands::{parse,dispatch,SessionState};
-    let (mut client,root)=start_server(Default::default()).await;
-    let ws=root.to_string_lossy().into_owned();
-    client.open_workspace(OpenWorkspaceRequest {path:ws.clone()}).await.unwrap();
-    let source=root.join("lsp-cli-source"); std::fs::create_dir(&source).unwrap();
-    std::fs::write(source.join("server.py"),include_str!("../src/addon/test_lsp_server.py")).unwrap();
-    std::fs::write(root.join("file.r09"),"valid").unwrap();
-    std::fs::write(source.join("manifest.toml"),format!(r#"id="com.test.lspcli"
+    use metteur_cli::commands::{SessionState, dispatch, parse};
+    let (mut client, root) = start_server(Default::default()).await;
+    let ws = root.to_string_lossy().into_owned();
+    client
+        .open_workspace(OpenWorkspaceRequest {
+            path: ws.clone(),
+        })
+        .await
+        .unwrap();
+    let source = root.join("lsp-cli-source");
+    std::fs::create_dir(&source).unwrap();
+    std::fs::write(source.join("server.py"), include_str!("../src/addon/test_lsp_server.py"))
+        .unwrap();
+    std::fs::write(root.join("file.r09"), "valid").unwrap();
+    std::fs::write(
+        source.join("manifest.toml"),
+        format!(
+            r#"id="com.test.lspcli"
 version="1.0.0"
 name="LSP CLI"
 [permissions]
@@ -1585,30 +1912,103 @@ name="Local"
 id="fixture"
 extensions=["r09"]
 command=["/usr/bin/python3","${{package}}/server.py","cli","normal",{}]
-"#,serde_json::to_string(&root.join("lsp.pid").to_string_lossy()).unwrap())).unwrap();
-    let mut state=SessionState {current_ws:Some(ws.clone()),..Default::default()};
-    let install=format!("install {} ws",source.display());
-    assert!(dispatch(&mut client,&mut state,parse(&install).unwrap()).await.is_err());
-    dispatch(&mut client,&mut state,parse(&format!("{install} --grant process")).unwrap()).await.unwrap();
-    let status=client.list_addons(proto::ListAddonsRequest {workspace_path:ws.clone()}).await.unwrap().into_inner();
-    assert_eq!(status.addons[0].status,"Loaded");
+"#,
+            serde_json::to_string(&root.join("lsp.pid").to_string_lossy()).unwrap()
+        ),
+    )
+    .unwrap();
+    let mut state = SessionState {
+        current_ws: Some(ws.clone()),
+        ..Default::default()
+    };
+    let install = format!("install {} ws", source.display());
+    assert!(dispatch(&mut client, &mut state, parse(&install).unwrap()).await.is_err());
+    dispatch(&mut client, &mut state, parse(&format!("{install} --grant process")).unwrap())
+        .await
+        .unwrap();
+    let status = client
+        .list_addons(proto::ListAddonsRequest {
+            workspace_path: ws.clone(),
+        })
+        .await
+        .unwrap()
+        .into_inner();
+    assert_eq!(status.addons[0].status, "Loaded");
     let blueprint=client.compile_dsl(CompileDslRequest { workspace_path: String::new(),source:"blueprint \"Addon LSP\"\nentry start: Start\ncheck: LspCheck(Path = \"file.r09\")\ne: End\nstart -> check\ncheck -> e\n".into()}).await.unwrap().into_inner();
-    client.save_blueprint(SaveBlueprintRequest {workspace_path:ws.clone(),blueprint:Some(blueprint.clone()),file_path:"blueprints/lsp.blueprint".into(),file_json:String::new()}).await.unwrap();
-    let mut stream=client.execute_blueprint(ExecuteBlueprintRequest {workspace_path:ws.clone(),blueprint_id:blueprint.id,blueprint_json:String::new()}).await.unwrap().into_inner();
-    while let Some(event)=stream.message().await.unwrap() {assert_ne!(event.kind,"error","{}",event.message);}
-    let runs=client.list_executions(ListExecutionsRequest {workspace_path:ws.clone()}).await.unwrap().into_inner();
-    assert_eq!(runs.executions[0].status,"Completed");
+    client
+        .save_blueprint(SaveBlueprintRequest {
+            workspace_path: ws.clone(),
+            blueprint: Some(blueprint.clone()),
+            file_path: "blueprints/lsp.blueprint".into(),
+            file_json: String::new(),
+        })
+        .await
+        .unwrap();
+    let mut stream = client
+        .execute_blueprint(ExecuteBlueprintRequest {
+            workspace_path: ws.clone(),
+            blueprint_id: blueprint.id,
+            workflow_confirmation: String::new(),
+            blueprint_json: String::new(),
+        })
+        .await
+        .unwrap()
+        .into_inner();
+    while let Some(event) = stream.message().await.unwrap() {
+        assert_ne!(event.kind, "error", "{}", event.message);
+    }
+    let runs = client
+        .list_executions(ListExecutionsRequest {
+            workspace_path: ws.clone(),
+        })
+        .await
+        .unwrap()
+        .into_inner();
+    assert_eq!(runs.executions[0].status, "Completed");
     assert!(runs.executions[0].data_json.contains("no diagnostics"));
     assert!(!runs.executions[0].data_json.contains("skipped"));
-    let previous_pids=std::fs::read_to_string(root.join("lsp.pid")).unwrap();
-    client.set_config(SetConfigRequest {workspace_path:ws.clone(),config_json:r#"{"config_version":2,"lsp":{"enabled":false}}"#.into()}).await.unwrap();
-    assert!(!previous_pids.split_whitespace().any(|pid|std::fs::read_to_string(format!("/proc/{pid}/stat")).is_ok_and(|s|!s.split(')').nth(1).unwrap_or_default().trim_start().starts_with('Z'))));
-    client.set_config(SetConfigRequest {workspace_path:ws.clone(),config_json:r#"{"config_version":2,"lsp":{"enabled":true}}"#.into()}).await.unwrap();
-    assert_ne!(std::fs::read_to_string(root.join("lsp.pid")).unwrap(),previous_pids);
-    client.close_workspace(CloseWorkspaceRequest {path:ws}).await.unwrap();
-    let pids=std::fs::read_to_string(root.join("lsp.pid")).unwrap();
+    let previous_pids = std::fs::read_to_string(root.join("lsp.pid")).unwrap();
+    client
+        .set_config(SetConfigRequest {
+            workspace_path: ws.clone(),
+            config_json: r#"{"config_version":2,"lsp":{"enabled":false}}"#.into(),
+        })
+        .await
+        .unwrap();
+    assert!(
+        !previous_pids.split_whitespace().any(|pid| std::fs::read_to_string(format!(
+            "/proc/{pid}/stat"
+        ))
+        .is_ok_and(|s| !s
+            .split(')')
+            .nth(1)
+            .unwrap_or_default()
+            .trim_start()
+            .starts_with('Z')))
+    );
+    client
+        .set_config(SetConfigRequest {
+            workspace_path: ws.clone(),
+            config_json: r#"{"config_version":2,"lsp":{"enabled":true}}"#.into(),
+        })
+        .await
+        .unwrap();
+    assert_ne!(std::fs::read_to_string(root.join("lsp.pid")).unwrap(), previous_pids);
+    client
+        .close_workspace(CloseWorkspaceRequest {
+            path: ws,
+        })
+        .await
+        .unwrap();
+    let pids = std::fs::read_to_string(root.join("lsp.pid")).unwrap();
     for _ in 0..100 {
-        if !pids.split_whitespace().any(|pid|std::fs::read_to_string(format!("/proc/{pid}/stat")).is_ok_and(|s|!s.split(')').nth(1).unwrap_or_default().trim_start().starts_with('Z'))) {return;}
+        if !pids.split_whitespace().any(|pid| {
+            std::fs::read_to_string(format!("/proc/{pid}/stat")).is_ok_and(|s| {
+                !s.split(')').nth(1).unwrap_or_default().trim_start().starts_with('Z')
+            })
+        }) {
+            return;
+        }
         tokio::time::sleep(Duration::from_millis(20)).await;
     }
     panic!("workspace close left an owned LSP process alive");
@@ -1641,55 +2041,138 @@ type = \"object\"
     )
     .unwrap();
     let output = br#""MAKE ME LOUD""#;
-    let stores=output.iter().enumerate().map(|(i,b)|format!("local.get $ptr i64.const {i} i64.add i32.const {b} call $store")).collect::<Vec<_>>().join("\n");
-    let wat = format!(r#"(module
+    let stores = output
+        .iter()
+        .enumerate()
+        .map(|(i, b)| format!("local.get $ptr i64.const {i} i64.add i32.const {b} call $store"))
+        .collect::<Vec<_>>()
+        .join("\n");
+    let wat = format!(
+        r#"(module
         (import "extism:host/env" "alloc" (func $alloc (param i64) (result i64)))
         (import "extism:host/env" "store_u8" (func $store (param i64 i32)))
         (import "extism:host/env" "output_set" (func $output (param i64 i64)))
         (func (export "{function}") (result i32) (local $ptr i64)
             i64.const {} call $alloc local.set $ptr {stores}
-            local.get $ptr i64.const {} call $output i32.const 0))"#,output.len(),output.len());
+            local.get $ptr i64.const {} call $output i32.const 0))"#,
+        output.len(),
+        output.len()
+    );
     let wasm = wat::parse_str(&wat).unwrap();
     std::fs::write(dir.join("main.wasm"), wasm).unwrap();
 }
 
 #[tokio::test]
 async fn addon_hooks_real_workspace_and_run_events_reach_rpc_and_cli() {
-    use metteur_cli::commands::{parse,dispatch,SessionState,Outcome};
-    let (mut client,root)=start_server(Default::default()).await;
-    let source=root.join("hook-source");build_addon_package(&source,"com.test.hookscli","Unused","observe");
+    use metteur_cli::commands::{Outcome, SessionState, dispatch, parse};
+    let (mut client, root) = start_server(Default::default()).await;
+    let source = root.join("hook-source");
+    build_addon_package(&source, "com.test.hookscli", "Unused", "observe");
     let mut manifest="id=\"com.test.hookscli\"\nversion=\"1.0.0\"\nname=\"Hook CLI\"\n[addon]\nentry=\"main.wasm\"\n".to_owned();
-    for (name,event) in [("Open","workspace.open"),("Close","workspace.close"),("Node","node.finished"),("Terminal","run.terminal")] {
-        manifest.push_str(&format!("[[hooks]]\nname=\"{name}\"\nevent=\"{event}\"\nfunction=\"observe\"\n"));
+    for (name, event) in [
+        ("Open", "workspace.open"),
+        ("Close", "workspace.close"),
+        ("Node", "node.finished"),
+        ("Terminal", "run.terminal"),
+    ] {
+        manifest.push_str(&format!(
+            "[[hooks]]\nname=\"{name}\"\nevent=\"{event}\"\nfunction=\"observe\"\n"
+        ));
     }
-    std::fs::write(source.join("manifest.toml"),manifest).unwrap();
-    let mut state=SessionState::default();
-    dispatch(&mut client,&mut state,parse(&format!("install {} global",source.display())).unwrap()).await.unwrap();
-    let ws=root.to_string_lossy().into_owned();
-    client.open_workspace(OpenWorkspaceRequest{path:ws.clone()}).await.unwrap();
-    client.open_workspace(OpenWorkspaceRequest{path:ws.clone()}).await.unwrap();
-    let blueprint=client.compile_dsl(CompileDslRequest{workspace_path: String::new(),source:"blueprint \"Hook delivery\"\nentry start: Start\ne: End\nstart -> e\n".into()}).await.unwrap().into_inner();
-    client.save_blueprint(SaveBlueprintRequest{workspace_path:ws.clone(),blueprint:Some(blueprint.clone()),file_path:"blueprints/hooks.blueprint".into(),file_json:String::new()}).await.unwrap();
-    let mut stream=client.execute_blueprint(ExecuteBlueprintRequest{workspace_path:ws.clone(),blueprint_id:blueprint.id,blueprint_json:String::new()}).await.unwrap().into_inner();
-    while let Some(event)=stream.message().await.unwrap(){assert_ne!(event.kind,"error","{}",event.message);}
-    let mut observed=false;
+    std::fs::write(source.join("manifest.toml"), manifest).unwrap();
+    let mut state = SessionState::default();
+    dispatch(
+        &mut client,
+        &mut state,
+        parse(&format!("install {} global", source.display())).unwrap(),
+    )
+    .await
+    .unwrap();
+    let ws = root.to_string_lossy().into_owned();
+    client
+        .open_workspace(OpenWorkspaceRequest {
+            path: ws.clone(),
+        })
+        .await
+        .unwrap();
+    client
+        .open_workspace(OpenWorkspaceRequest {
+            path: ws.clone(),
+        })
+        .await
+        .unwrap();
+    let blueprint = client
+        .compile_dsl(CompileDslRequest {
+            workspace_path: String::new(),
+            source: "blueprint \"Hook delivery\"\nentry start: Start\ne: End\nstart -> e\n".into(),
+        })
+        .await
+        .unwrap()
+        .into_inner();
+    client
+        .save_blueprint(SaveBlueprintRequest {
+            workspace_path: ws.clone(),
+            blueprint: Some(blueprint.clone()),
+            file_path: "blueprints/hooks.blueprint".into(),
+            file_json: String::new(),
+        })
+        .await
+        .unwrap();
+    let mut stream = client
+        .execute_blueprint(ExecuteBlueprintRequest {
+            workspace_path: ws.clone(),
+            blueprint_id: blueprint.id,
+            workflow_confirmation: String::new(),
+            blueprint_json: String::new(),
+        })
+        .await
+        .unwrap()
+        .into_inner();
+    while let Some(event) = stream.message().await.unwrap() {
+        assert_ne!(event.kind, "error", "{}", event.message);
+    }
+    let mut observed = false;
     for _ in 0..200 {
-        let addons=client.list_addons(proto::ListAddonsRequest{workspace_path:ws.clone()}).await.unwrap().into_inner();
-        let hooks=&addons.addons[0].hooks;
-        if hooks.iter().any(|h|h.name=="Terminal" && h.completed==1) {
-            assert_eq!(hooks.iter().find(|h|h.name=="Open").unwrap().completed,1,"idempotent workspace open cannot duplicate callbacks");
-            assert_eq!(hooks.iter().find(|h|h.name=="Node").unwrap().completed,2);
-            assert!(hooks.iter().all(|h|h.failed==0));observed=true;break;
+        let addons = client
+            .list_addons(proto::ListAddonsRequest {
+                workspace_path: ws.clone(),
+            })
+            .await
+            .unwrap()
+            .into_inner();
+        let hooks = &addons.addons[0].hooks;
+        if hooks.iter().any(|h| h.name == "Terminal" && h.completed == 1) {
+            assert_eq!(
+                hooks.iter().find(|h| h.name == "Open").unwrap().completed,
+                1,
+                "idempotent workspace open cannot duplicate callbacks"
+            );
+            assert_eq!(hooks.iter().find(|h| h.name == "Node").unwrap().completed, 2);
+            assert!(hooks.iter().all(|h| h.failed == 0));
+            observed = true;
+            break;
         }
         tokio::time::sleep(Duration::from_millis(20)).await;
     }
     assert!(observed);
-    let Outcome::Printed(text)=dispatch(&mut client,&mut state,parse("addons").unwrap()).await.unwrap() else{panic!("addon status output missing")};
+    let Outcome::Printed(text) =
+        dispatch(&mut client, &mut state, parse("addons").unwrap()).await.unwrap()
+    else {
+        panic!("addon status output missing")
+    };
     assert!(text.contains("hook Terminal run.terminal: Succeeded completed=1"));
-    client.close_workspace(CloseWorkspaceRequest{path:ws}).await.unwrap();
+    client
+        .close_workspace(CloseWorkspaceRequest {
+            path: ws,
+        })
+        .await
+        .unwrap();
     for _ in 0..200 {
-        let addons=client.list_addons(proto::ListAddonsRequest::default()).await.unwrap().into_inner();
-        if addons.addons[0].hooks.iter().any(|h|h.name=="Close" && h.completed==1){return;}
+        let addons =
+            client.list_addons(proto::ListAddonsRequest::default()).await.unwrap().into_inner();
+        if addons.addons[0].hooks.iter().any(|h| h.name == "Close" && h.completed == 1) {
+            return;
+        }
         tokio::time::sleep(Duration::from_millis(20)).await;
     }
     panic!("committed workspace close was not observed");
@@ -1828,7 +2311,9 @@ async fn smoke_addon_install_call_uninstall() {
         entry_node_id: start.to_string(),
     };
     client
-        .save_blueprint(SaveBlueprintRequest { file_path: format!("blueprints/{}.blueprint", uuid::Uuid::new_v4()), file_json: String::new(),
+        .save_blueprint(SaveBlueprintRequest {
+            file_path: format!("blueprints/{}.blueprint", uuid::Uuid::new_v4()),
+            file_json: String::new(),
             workspace_path: ws_path.clone(),
             blueprint: Some(blueprint.clone()),
         })
@@ -1838,16 +2323,24 @@ async fn smoke_addon_install_call_uninstall() {
         .execute_blueprint(ExecuteBlueprintRequest {
             workspace_path: ws_path.clone(),
             blueprint_id: blueprint.id.clone(),
+            workflow_confirmation: String::new(),
             blueprint_json: String::new(),
         })
         .await
         .unwrap()
         .into_inner();
-    while let Some(event)=stream.message().await.unwrap() { assert_ne!(event.kind,"error","{}",event.message); }
-    let runs=client.list_executions(ListExecutionsRequest {workspace_path:ws_path.clone()}).await.unwrap().into_inner();
-    assert_eq!(runs.executions[0].status,"Completed","{}",runs.executions[0].data_json);
+    while let Some(event) = stream.message().await.unwrap() {
+        assert_ne!(event.kind, "error", "{}", event.message);
+    }
+    let runs = client
+        .list_executions(ListExecutionsRequest {
+            workspace_path: ws_path.clone(),
+        })
+        .await
+        .unwrap()
+        .into_inner();
+    assert_eq!(runs.executions[0].status, "Completed", "{}", runs.executions[0].data_json);
     assert!(runs.executions[0].data_json.contains("MAKE ME LOUD"));
-
 
     // Uninstall removes the tool from the registry.
     client
@@ -1878,6 +2371,7 @@ async fn smoke_file_roundtrip_and_containment() {
             workspace_path: ws_path.clone(),
             path: "src/app.ts".to_string(),
             content: "export const x = 1;\n".to_string(),
+            ..Default::default()
         })
         .await
         .unwrap();
@@ -1894,6 +2388,7 @@ async fn smoke_file_roundtrip_and_containment() {
         .read_file(ReadFileRequest {
             workspace_path: ws_path.clone(),
             path: "src/app.ts".to_string(),
+            ..Default::default()
         })
         .await
         .unwrap()
@@ -1959,6 +2454,7 @@ async fn smoke_file_roundtrip_and_containment() {
             workspace_path: ws_path.clone(),
             path: "../evil.txt".to_string(),
             content: "x".to_string(),
+            ..Default::default()
         })
         .await
         .unwrap_err();
@@ -1968,6 +2464,7 @@ async fn smoke_file_roundtrip_and_containment() {
             workspace_path: ws_path,
             path: ".metteur/db".to_string(),
             content: "x".to_string(),
+            ..Default::default()
         })
         .await
         .unwrap_err();
@@ -2055,12 +2552,8 @@ async fn smoke_chat_single_slot_per_workspace() {
     assert_eq!(err.code(), tonic::Code::FailedPrecondition);
 
     // Drain the first chat so the slot is released.
-    client
-        .abort_chat(AbortChatRequest {
-            workspace_path: ws_path,
-        })
-        .await
-        .unwrap();
+    let abort = bound_chat_abort(&mut client, &ws_path).await;
+    client.abort_chat(abort).await.unwrap();
     tokio::time::sleep(Duration::from_millis(100)).await;
 }
 
@@ -2088,12 +2581,8 @@ async fn smoke_chat_abort_interrupts_and_releases_slot() {
         .into_inner();
 
     tokio::time::sleep(Duration::from_millis(100)).await;
-    client
-        .abort_chat(AbortChatRequest {
-            workspace_path: ws_path.clone(),
-        })
-        .await
-        .unwrap();
+    let abort = bound_chat_abort(&mut client, &ws_path).await;
+    client.abort_chat(abort).await.unwrap();
 
     // The stream ends (with an error or cleanly); the slot is then released.
     loop {
@@ -2276,7 +2765,8 @@ async fn smoke_extended_pure_nodes_run_via_dsl() {
         .unwrap();
 
     let compiled = client
-        .compile_dsl(CompileDslRequest { workspace_path: String::new(),
+        .compile_dsl(CompileDslRequest {
+            workspace_path: String::new(),
             source: "\
 blueprint \"ExtendedNodes\"
 entry start: Start(A = 8, B = 3)
@@ -2294,7 +2784,9 @@ res -> check
         .into_inner();
     assert_eq!(compiled.nodes.len(), 4);
     client
-        .save_blueprint(SaveBlueprintRequest { file_path: format!("blueprints/{}.blueprint", uuid::Uuid::new_v4()), file_json: String::new(),
+        .save_blueprint(SaveBlueprintRequest {
+            file_path: format!("blueprints/{}.blueprint", uuid::Uuid::new_v4()),
+            file_json: String::new(),
             workspace_path: ws_path.clone(),
             blueprint: Some(compiled.clone()),
         })
@@ -2306,6 +2798,7 @@ res -> check
         .execute_blueprint(ExecuteBlueprintRequest {
             workspace_path: ws_path.clone(),
             blueprint_id: compiled.id.clone(),
+            workflow_confirmation: String::new(),
             blueprint_json: String::new(),
         })
         .await
@@ -2443,9 +2936,14 @@ async fn smoke_function_library_save_execute() {
     // Save a workspace-scoped function.
     let body = smoke_add_function();
     let saved = client
-        .save_function(SaveFunctionRequest { import_from:String::new(),file_path:String::new(),expected_addon_binding_json:String::new(),
+        .save_function(SaveFunctionRequest {
+            import_from: String::new(),
+            file_path: String::new(),
+            expected_addon_binding_json: String::new(),
             workspace_path: ws_path.clone(),
-            info: Some(FunctionInfo { addon_binding_json:String::new(),file_path:String::new(),
+            info: Some(FunctionInfo {
+                addon_binding_json: String::new(),
+                file_path: String::new(),
                 id: uuid::Uuid::new_v4().to_string(),
                 name: "SmokeAdd".to_string(),
                 description: "adds numbers".to_string(),
@@ -2569,7 +3067,9 @@ async fn smoke_function_library_save_execute() {
         entry_node_id: start.to_string(),
     };
     client
-        .save_blueprint(SaveBlueprintRequest { file_path: format!("blueprints/{}.blueprint", uuid::Uuid::new_v4()), file_json: String::new(),
+        .save_blueprint(SaveBlueprintRequest {
+            file_path: format!("blueprints/{}.blueprint", uuid::Uuid::new_v4()),
+            file_json: String::new(),
             workspace_path: ws_path.clone(),
             blueprint: Some(root.clone()),
         })
@@ -2581,6 +3081,7 @@ async fn smoke_function_library_save_execute() {
         .execute_blueprint(ExecuteBlueprintRequest {
             workspace_path: ws_path.clone(),
             blueprint_id: root.id.clone(),
+            workflow_confirmation: String::new(),
             blueprint_json: String::new(),
         })
         .await
@@ -2632,7 +3133,8 @@ async fn smoke_save_blueprint_roundtrip_decompile() {
         .unwrap();
 
     let compiled = client
-        .compile_dsl(CompileDslRequest { workspace_path: String::new(),
+        .compile_dsl(CompileDslRequest {
+            workspace_path: String::new(),
             source: "\
 blueprint \"Roundtrip\"
 entry start: Start
@@ -2651,7 +3153,9 @@ mod -> e
 
     // Persist, then decompile from the DB to mirror the webcore export path.
     client
-        .save_blueprint(SaveBlueprintRequest { file_path: format!("blueprints/{}.blueprint", uuid::Uuid::new_v4()), file_json: String::new(),
+        .save_blueprint(SaveBlueprintRequest {
+            file_path: format!("blueprints/{}.blueprint", uuid::Uuid::new_v4()),
+            file_json: String::new(),
             workspace_path: ws_path.clone(),
             blueprint: Some(compiled.clone()),
         })
@@ -2686,20 +3190,47 @@ mod -> e
 async fn rejected_blueprint_mirror_preserves_the_previous_graph() {
     let (mut client, workspace) = start_server(metteur_shared::config::Config::default()).await;
     let ws_path = workspace.to_string_lossy().to_string();
-    client.open_workspace(OpenWorkspaceRequest { path: ws_path.clone() }).await.unwrap();
-    let compiled = client.compile_dsl(CompileDslRequest { workspace_path: String::new(),
-        source: "blueprint \"Saved\"\nentry start: Start\ne: End\nstart -> e\n".into(),
-    }).await.unwrap().into_inner();
-    client.save_blueprint(SaveBlueprintRequest { file_path: format!("blueprints/{}.blueprint", uuid::Uuid::new_v4()), file_json: String::new(),
-        workspace_path: ws_path.clone(), blueprint: Some(compiled.clone()),
-    }).await.unwrap();
-    let load = proto::LoadBlueprintRequest { workspace_path: ws_path.clone(), blueprint_id: compiled.id.clone() };
+    client
+        .open_workspace(OpenWorkspaceRequest {
+            path: ws_path.clone(),
+        })
+        .await
+        .unwrap();
+    let compiled = client
+        .compile_dsl(CompileDslRequest {
+            workspace_path: String::new(),
+            source: "blueprint \"Saved\"\nentry start: Start\ne: End\nstart -> e\n".into(),
+        })
+        .await
+        .unwrap()
+        .into_inner();
+    client
+        .save_blueprint(SaveBlueprintRequest {
+            file_path: format!("blueprints/{}.blueprint", uuid::Uuid::new_v4()),
+            file_json: String::new(),
+            workspace_path: ws_path.clone(),
+            blueprint: Some(compiled.clone()),
+        })
+        .await
+        .unwrap();
+    let load = proto::LoadBlueprintRequest {
+        workspace_path: ws_path.clone(),
+        blueprint_id: compiled.id.clone(),
+    };
     let before = client.load_blueprint(load.clone()).await.unwrap().into_inner();
     let mut invalid = compiled;
     invalid.entry_node_id = uuid::Uuid::new_v4().to_string();
-    assert!(client.save_blueprint(SaveBlueprintRequest { file_path: format!("blueprints/{}.blueprint", uuid::Uuid::new_v4()), file_json: String::new(),
-        workspace_path: ws_path, blueprint: Some(invalid),
-    }).await.is_err());
+    assert!(
+        client
+            .save_blueprint(SaveBlueprintRequest {
+                file_path: format!("blueprints/{}.blueprint", uuid::Uuid::new_v4()),
+                file_json: String::new(),
+                workspace_path: ws_path,
+                blueprint: Some(invalid),
+            })
+            .await
+            .is_err()
+    );
     let after = client.load_blueprint(load).await.unwrap().into_inner();
     assert_eq!(before, after);
 }
@@ -2719,7 +3250,8 @@ async fn smoke_full_pipeline() {
 
     // Compile a DSL source straight into a blueprint and save it.
     let compiled = client
-        .compile_dsl(CompileDslRequest { workspace_path: String::new(),
+        .compile_dsl(CompileDslRequest {
+            workspace_path: String::new(),
             source: "\
 blueprint \"FullFlow\"
 entry start: Start(A = 4, B = 3)
@@ -2735,7 +3267,9 @@ sum -> check
         .into_inner();
     assert_eq!(compiled.nodes.len(), 3);
     client
-        .save_blueprint(SaveBlueprintRequest { file_path: format!("blueprints/{}.blueprint", uuid::Uuid::new_v4()), file_json: String::new(),
+        .save_blueprint(SaveBlueprintRequest {
+            file_path: format!("blueprints/{}.blueprint", uuid::Uuid::new_v4()),
+            file_json: String::new(),
             workspace_path: ws_path.clone(),
             blueprint: Some(compiled.clone()),
         })
@@ -2747,6 +3281,7 @@ sum -> check
         .execute_blueprint(ExecuteBlueprintRequest {
             workspace_path: ws_path.clone(),
             blueprint_id: compiled.id.clone(),
+            workflow_confirmation: String::new(),
             blueprint_json: String::new(),
         })
         .await
@@ -2775,6 +3310,7 @@ sum -> check
             workspace_path: ws_path.clone(),
             path: "notes.txt".to_string(),
             content: "v1".to_string(),
+            ..Default::default()
         })
         .await
         .unwrap();
@@ -2791,6 +3327,7 @@ sum -> check
             workspace_path: ws_path.clone(),
             path: "notes.txt".to_string(),
             content: "v2".to_string(),
+            ..Default::default()
         })
         .await
         .unwrap();
@@ -2798,6 +3335,7 @@ sum -> check
         .read_file(ReadFileRequest {
             workspace_path: ws_path.clone(),
             path: "notes.txt".to_string(),
+            ..Default::default()
         })
         .await
         .unwrap()
@@ -2815,6 +3353,7 @@ sum -> check
         .read_file(ReadFileRequest {
             workspace_path: ws_path.clone(),
             path: "notes.txt".to_string(),
+            ..Default::default()
         })
         .await
         .unwrap()
@@ -2980,15 +3519,33 @@ async fn smoke_chat_uses_configured_model() {
     assert_eq!(final_text, "stub reply");
     assert!(saw_done, "the turn must terminate with a done event");
 
-    let audit = client.list_audit_log(ListAuditLogRequest { workspace_path: ws_path.clone() }).await.unwrap().into_inner();
+    let audit = client
+        .list_audit_log(ListAuditLogRequest {
+            workspace_path: ws_path.clone(),
+        })
+        .await
+        .unwrap()
+        .into_inner();
     let usage = audit.entries.iter().find(|e| e.operation == "llm.usage").unwrap();
     let detail: serde_json::Value = serde_json::from_str(&usage.detail_json).unwrap();
     assert_eq!(detail["accounting_version"], 1);
-    let summary = client.get_execution_usage(proto::GetExecutionUsageRequest {
-        workspace_path: ws_path.clone(), run_id: detail["run_id"].as_str().unwrap().into(),
-    }).await.unwrap().into_inner();
+    let summary = client
+        .get_execution_usage(proto::GetExecutionUsageRequest {
+            workspace_path: ws_path.clone(),
+            run_id: detail["run_id"].as_str().unwrap().into(),
+        })
+        .await
+        .unwrap()
+        .into_inner();
     assert_eq!(summary.models.len(), 1);
-    assert_eq!((summary.models[0].input_tokens, summary.models[0].output_tokens, summary.models[0].reasoning_tokens), (100, 10, 5));
+    assert_eq!(
+        (
+            summary.models[0].input_tokens,
+            summary.models[0].output_tokens,
+            summary.models[0].reasoning_tokens
+        ),
+        (100, 10, 5)
+    );
 
     client
         .close_workspace(CloseWorkspaceRequest {
@@ -3185,7 +3742,9 @@ async fn smoke_search_and_edit_pipeline() {
             content: "first line
 todo: finish this
 last line
-".to_string(),
+"
+            .to_string(),
+            ..Default::default()
         })
         .await
         .unwrap();
@@ -3204,7 +3763,8 @@ edit -> check
 check -> stop
 "#;
     let compiled = client
-        .compile_dsl(CompileDslRequest { workspace_path: String::new(),
+        .compile_dsl(CompileDslRequest {
+            workspace_path: String::new(),
             source: source.to_string(),
         })
         .await
@@ -3214,7 +3774,9 @@ check -> stop
     assert_eq!(compiled.nodes.len(), 6, "unexpected node count");
 
     client
-        .save_blueprint(SaveBlueprintRequest { file_path: format!("blueprints/{}.blueprint", uuid::Uuid::new_v4()), file_json: String::new(),
+        .save_blueprint(SaveBlueprintRequest {
+            file_path: format!("blueprints/{}.blueprint", uuid::Uuid::new_v4()),
+            file_json: String::new(),
             workspace_path: ws_path.clone(),
             blueprint: Some(compiled.clone()),
         })
@@ -3225,6 +3787,7 @@ check -> stop
         .execute_blueprint(ExecuteBlueprintRequest {
             workspace_path: ws_path.clone(),
             blueprint_id: compiled.id.clone(),
+            workflow_confirmation: String::new(),
             blueprint_json: String::new(),
         })
         .await
@@ -3276,7 +3839,9 @@ async fn smoke_draft_blueprint_runs_end_to_end() {
             path: "draft.txt".to_string(),
             content: "alpha
 beta
-".to_string(),
+"
+            .to_string(),
+            ..Default::default()
         })
         .await
         .unwrap();
@@ -3297,11 +3862,20 @@ beta
     let blueprint = metteur_shared::dsl::compile_draft(draft).expect("the draft must compile");
 
     // Save establishes file authority; inline JSON asserts what the caller expects to run.
-    client.write_file(WriteFileRequest { workspace_path: ws_path.clone(), path: format!("blueprints/{}.blueprint", blueprint.id), content: serde_json::to_string(&blueprint).unwrap() }).await.unwrap();
+    client
+        .write_file(WriteFileRequest {
+            workspace_path: ws_path.clone(),
+            path: format!("blueprints/{}.blueprint", blueprint.id),
+            content: serde_json::to_string(&blueprint).unwrap(),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
     let mut stream = client
         .execute_blueprint(ExecuteBlueprintRequest {
             workspace_path: ws_path.clone(),
             blueprint_id: blueprint.id.to_string(),
+            workflow_confirmation: String::new(),
             blueprint_json: serde_json::to_string(&blueprint).unwrap(),
         })
         .await
@@ -3354,16 +3928,25 @@ start -> run
 run -> wait
 wait -> stop
 "#;
-    let blueprint = metteur_shared::dsl::compile(source)
-        .expect("the job tools must compile from the DSL");
+    let blueprint =
+        metteur_shared::dsl::compile(source).expect("the job tools must compile from the DSL");
     // Start, StartCommand, WaitJob, End.
     assert_eq!(blueprint.nodes.len(), 4, "unexpected node count");
 
-    client.write_file(WriteFileRequest { workspace_path: ws_path.clone(), path: format!("blueprints/{}.blueprint", blueprint.id), content: serde_json::to_string(&blueprint).unwrap() }).await.unwrap();
+    client
+        .write_file(WriteFileRequest {
+            workspace_path: ws_path.clone(),
+            path: format!("blueprints/{}.blueprint", blueprint.id),
+            content: serde_json::to_string(&blueprint).unwrap(),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
     let mut stream = client
         .execute_blueprint(ExecuteBlueprintRequest {
             workspace_path: ws_path.clone(),
             blueprint_id: blueprint.id.to_string(),
+            workflow_confirmation: String::new(),
             blueprint_json: serde_json::to_string(&blueprint).unwrap(),
         })
         .await
@@ -3396,10 +3979,7 @@ wait -> stop
         .find(|parsed| parsed.get("exit_code").is_some())
         .unwrap_or_else(|| panic!("no job result reached the pipeline: {events:#?}"));
     assert_eq!(waited["exit_code"], 0, "{waited}");
-    assert!(
-        waited["output"].as_str().unwrap_or_default().contains("job-ran"),
-        "{waited}"
-    );
+    assert!(waited["output"].as_str().unwrap_or_default().contains("job-ran"), "{waited}");
 
     client
         .close_workspace(CloseWorkspaceRequest {
@@ -3422,11 +4002,20 @@ wait -> stop
 "#;
     let blueprint =
         metteur_shared::dsl::compile(source).expect("the job tools must compile from the DSL");
-    client.write_file(WriteFileRequest { workspace_path: ws_path.to_string(), path: format!("blueprints/{}.blueprint", blueprint.id), content: serde_json::to_string(&blueprint).unwrap() }).await.unwrap();
+    client
+        .write_file(WriteFileRequest {
+            workspace_path: ws_path.to_string(),
+            path: format!("blueprints/{}.blueprint", blueprint.id),
+            content: serde_json::to_string(&blueprint).unwrap(),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
     let mut stream = client
         .execute_blueprint(ExecuteBlueprintRequest {
             workspace_path: ws_path.to_string(),
             blueprint_id: blueprint.id.to_string(),
+            workflow_confirmation: String::new(),
             blueprint_json: serde_json::to_string(&blueprint).unwrap(),
         })
         .await
@@ -3577,7 +4166,11 @@ async fn smoke_kill_job_terminates_a_running_command() {
         .unwrap();
 
     // A run that starts a long command and stays alive long enough to kill it.
-    let command = if cfg!(windows) { "ping -n 30 127.0.0.1 > nul" } else { "sleep 30" };
+    let command = if cfg!(windows) {
+        "ping -n 30 127.0.0.1 > nul"
+    } else {
+        "sleep 30"
+    };
     let source = format!(
         r#"blueprint "KillMe"
 entry start: Start
@@ -3594,11 +4187,20 @@ pause -> stop
     let mut run_client = client.clone();
     let run_ws_path = ws_path.clone();
     let run = tokio::spawn(async move {
-        run_client.write_file(WriteFileRequest { workspace_path: run_ws_path.clone(), path: format!("blueprints/{}.blueprint", blueprint.id), content: serde_json::to_string(&blueprint).unwrap() }).await.unwrap();
+        run_client
+            .write_file(WriteFileRequest {
+                workspace_path: run_ws_path.clone(),
+                path: format!("blueprints/{}.blueprint", blueprint.id),
+                content: serde_json::to_string(&blueprint).unwrap(),
+                ..Default::default()
+            })
+            .await
+            .unwrap();
         let mut stream = run_client
             .execute_blueprint(ExecuteBlueprintRequest {
                 workspace_path: run_ws_path.clone(),
                 blueprint_id: blueprint.id.to_string(),
+                workflow_confirmation: String::new(),
                 blueprint_json: serde_json::to_string(&blueprint).unwrap(),
             })
             .await
@@ -3712,8 +4314,12 @@ async fn smoke_get_file_at_snapshot_returns_the_recorded_content() {
     assert!(!none.found);
     assert!(none.snapshot_id.is_empty());
 
-    std::fs::write(workspace.join("notes.txt"), "first version
-").unwrap();
+    std::fs::write(
+        workspace.join("notes.txt"),
+        "first version
+",
+    )
+    .unwrap();
     let snapshot = client
         .create_snapshot(CreateSnapshotRequest {
             workspace_path: ws_path.clone(),
@@ -3723,8 +4329,12 @@ async fn smoke_get_file_at_snapshot_returns_the_recorded_content() {
         .await
         .unwrap()
         .into_inner();
-    std::fs::write(workspace.join("notes.txt"), "second version
-").unwrap();
+    std::fs::write(
+        workspace.join("notes.txt"),
+        "second version
+",
+    )
+    .unwrap();
 
     let recorded = client
         .get_file_at_snapshot(GetFileAtSnapshotRequest {
@@ -3736,8 +4346,11 @@ async fn smoke_get_file_at_snapshot_returns_the_recorded_content() {
         .unwrap()
         .into_inner();
     assert!(recorded.found);
-    assert_eq!(recorded.content, "first version
-");
+    assert_eq!(
+        recorded.content,
+        "first version
+"
+    );
     assert_eq!(recorded.snapshot_id, snapshot.id);
 
     // An explicit snapshot id is honoured, and an untracked file reports
@@ -3781,7 +4394,12 @@ async fn smoke_get_file_at_snapshot_returns_the_recorded_content() {
 async fn smoke_chat_first_turn_is_stored_once() {
     let (mut client, workspace) = start_server(metteur_shared::config::Config::default()).await;
     let ws_path = workspace.to_string_lossy().to_string();
-    client.open_workspace(OpenWorkspaceRequest { path: ws_path.clone() }).await.unwrap();
+    client
+        .open_workspace(OpenWorkspaceRequest {
+            path: ws_path.clone(),
+        })
+        .await
+        .unwrap();
 
     let options = r#"{"provider":"mock","mock_text":"ok","mock_delay_ms":1}"#.to_string();
     let first = client
@@ -3813,14 +4431,13 @@ async fn smoke_chat_first_turn_is_stored_once() {
         .await
         .unwrap()
         .into_inner();
-    let openings = snapshot
-        .history_json
-        .matches("only once")
-        .count();
+    let openings = snapshot.history_json.matches("only once").count();
     assert_eq!(openings, 1, "the opening turn must be stored once: {}", snapshot.history_json);
 
     let sessions = client
-        .list_chat_sessions(ListChatSessionsRequest { workspace_path: ws_path })
+        .list_chat_sessions(ListChatSessionsRequest {
+            workspace_path: ws_path,
+        })
         .await
         .unwrap()
         .into_inner();
@@ -3838,7 +4455,12 @@ async fn smoke_chat_first_turn_is_stored_once() {
 async fn smoke_chat_transcript_keeps_tool_calls() {
     let (mut client, workspace) = start_server(metteur_shared::config::Config::default()).await;
     let ws_path = workspace.to_string_lossy().to_string();
-    client.open_workspace(OpenWorkspaceRequest { path: ws_path.clone() }).await.unwrap();
+    client
+        .open_workspace(OpenWorkspaceRequest {
+            path: ws_path.clone(),
+        })
+        .await
+        .unwrap();
 
     let options = r#"{
         "provider": "mock",
@@ -3876,7 +4498,8 @@ async fn smoke_chat_transcript_keeps_tool_calls() {
         .await
         .unwrap()
         .into_inner();
-    let transcript: Vec<serde_json::Value> = serde_json::from_str(&snapshot.transcript_json).unwrap();
+    let transcript: Vec<serde_json::Value> =
+        serde_json::from_str(&snapshot.transcript_json).unwrap();
     let tool = transcript
         .iter()
         .find(|entry| entry["role"] == "tool")
@@ -3984,7 +4607,9 @@ async fn smoke_rejects_narrowing_float_into_int_edge() {
 
     // Saving is where an author expects to hear about it, with the pin named.
     let err = client
-        .save_blueprint(SaveBlueprintRequest { file_path: format!("blueprints/{}.blueprint", uuid::Uuid::new_v4()), file_json: String::new(),
+        .save_blueprint(SaveBlueprintRequest {
+            file_path: format!("blueprints/{}.blueprint", uuid::Uuid::new_v4()),
+            file_json: String::new(),
             workspace_path: ws_path.clone(),
             blueprint: Some(blueprint.clone()),
         })
@@ -4028,6 +4653,7 @@ async fn smoke_rejects_narrowing_float_into_int_edge() {
         .execute_blueprint(ExecuteBlueprintRequest {
             workspace_path: ws_path,
             blueprint_id: blueprint.id,
+            workflow_confirmation: String::new(),
             blueprint_json: inline,
         })
         .await
@@ -4100,7 +4726,9 @@ async fn smoke_rejects_exec_output_wired_to_data_input() {
     };
 
     let err = client
-        .save_blueprint(SaveBlueprintRequest { file_path: format!("blueprints/{}.blueprint", uuid::Uuid::new_v4()), file_json: String::new(),
+        .save_blueprint(SaveBlueprintRequest {
+            file_path: format!("blueprints/{}.blueprint", uuid::Uuid::new_v4()),
+            file_json: String::new(),
             workspace_path: ws_path,
             blueprint: Some(blueprint),
         })
@@ -4118,7 +4746,8 @@ async fn smoke_rejects_exec_output_wired_to_data_input() {
 #[tokio::test]
 async fn node_catalog_rpc_matches_registry_and_web_fixture() {
     let (mut client, _workspace) = start_server(metteur_shared::config::Config::default()).await;
-    let list = client.list_node_kinds(proto::RegistryRequest::default()).await.unwrap().into_inner();
+    let list =
+        client.list_node_kinds(proto::RegistryRequest::default()).await.unwrap().into_inner();
     let registry = metteur_daemon::registry::Registry::with_builtins();
     let catalog = registry.node_signatures();
     assert_eq!(list.signature_version, 1);
@@ -4132,7 +4761,8 @@ async fn node_catalog_rpc_matches_registry_and_web_fixture() {
         assert_eq!(info.description, signature.description);
         assert_eq!(info.pins.len(), signature.pins.len());
         let compiled = client
-            .compile_dsl(proto::CompileDslRequest { workspace_path: String::new(),
+            .compile_dsl(proto::CompileDslRequest {
+                workspace_path: String::new(),
                 source: format!("entry n: {}", info.kind),
             })
             .await
@@ -4182,46 +4812,132 @@ async fn node_catalog_rpc_matches_registry_and_web_fixture() {
 async fn config_presence_survives_rpc_file_and_reset() {
     let (mut client, workspace) = start_server(metteur_shared::config::Config::default()).await;
     let path = workspace.to_string_lossy().to_string();
-    client.open_workspace(OpenWorkspaceRequest { path: path.clone() }).await.unwrap();
+    client
+        .open_workspace(OpenWorkspaceRequest {
+            path: path.clone(),
+        })
+        .await
+        .unwrap();
     client.set_config(SetConfigRequest { workspace_path: String::new(), config_json: serde_json::json!({"config_version":2,"sandbox":{"enabled":true,"mode":"ask"},"llm":{"thinking_budget_tokens":4096,"default_model":"global"}}).to_string() }).await.unwrap();
     let raw = serde_json::json!({"config_version":2,"sandbox":{"enabled":false},"llm":{"thinking_budget_tokens":0}});
-    client.set_config(SetConfigRequest { workspace_path:path.clone(), config_json:raw.to_string() }).await.unwrap();
-    let read = client.get_config(GetConfigRequest { workspace_path:path.clone() }).await.unwrap().into_inner();
+    client
+        .set_config(SetConfigRequest {
+            workspace_path: path.clone(),
+            config_json: raw.to_string(),
+        })
+        .await
+        .unwrap();
+    let read = client
+        .get_config(GetConfigRequest {
+            workspace_path: path.clone(),
+        })
+        .await
+        .unwrap()
+        .into_inner();
     assert_eq!(serde_json::from_str::<serde_json::Value>(&read.config_json).unwrap(), raw);
-    let effective: metteur_shared::config::Config = serde_json::from_str(&read.effective_json).unwrap();
+    let effective: metteur_shared::config::Config =
+        serde_json::from_str(&read.effective_json).unwrap();
     assert!(!effective.sandbox.enabled);
     assert_eq!(effective.sandbox.mode, "ask");
     assert_eq!(effective.llm.thinking_budget_tokens, 0);
     assert_eq!(effective.llm.default_model.as_deref(), Some("global"));
     let disk = std::fs::read_to_string(workspace.join(".metteur/config.toml")).unwrap();
     assert!(!disk.contains("default_model"));
-    client.close_workspace(CloseWorkspaceRequest { path:path.clone() }).await.unwrap();
-    client.open_workspace(OpenWorkspaceRequest { path:path.clone() }).await.unwrap();
-    let loaded = client.get_config(GetConfigRequest { workspace_path:path.clone() }).await.unwrap().into_inner();
+    client
+        .close_workspace(CloseWorkspaceRequest {
+            path: path.clone(),
+        })
+        .await
+        .unwrap();
+    client
+        .open_workspace(OpenWorkspaceRequest {
+            path: path.clone(),
+        })
+        .await
+        .unwrap();
+    let loaded = client
+        .get_config(GetConfigRequest {
+            workspace_path: path.clone(),
+        })
+        .await
+        .unwrap()
+        .into_inner();
     assert_eq!(loaded.config_json, read.config_json);
-    client.set_config(SetConfigRequest { workspace_path:path.clone(), config_json:"{\"config_version\":2}".into() }).await.unwrap();
-    let reset = client.get_config(GetConfigRequest { workspace_path:path.clone() }).await.unwrap().into_inner();
-    let effective: metteur_shared::config::Config = serde_json::from_str(&reset.effective_json).unwrap();
+    client
+        .set_config(SetConfigRequest {
+            workspace_path: path.clone(),
+            config_json: "{\"config_version\":2}".into(),
+        })
+        .await
+        .unwrap();
+    let reset = client
+        .get_config(GetConfigRequest {
+            workspace_path: path.clone(),
+        })
+        .await
+        .unwrap()
+        .into_inner();
+    let effective: metteur_shared::config::Config =
+        serde_json::from_str(&reset.effective_json).unwrap();
     assert!(effective.sandbox.enabled);
     assert_eq!(effective.llm.thinking_budget_tokens, 4096);
     // Unmarked writes retain legacy default-as-inherit, and reads don't rewrite.
-    client.set_config(SetConfigRequest { workspace_path:path.clone(), config_json:"[invalid]".into() }).await.unwrap_err();
-    client.set_config(SetConfigRequest { workspace_path:path.clone(), config_json:serde_json::to_string(&metteur_shared::config::Config::default()).unwrap() }).await.unwrap();
+    client
+        .set_config(SetConfigRequest {
+            workspace_path: path.clone(),
+            config_json: "[invalid]".into(),
+        })
+        .await
+        .unwrap_err();
+    client
+        .set_config(SetConfigRequest {
+            workspace_path: path.clone(),
+            config_json: serde_json::to_string(&metteur_shared::config::Config::default()).unwrap(),
+        })
+        .await
+        .unwrap();
     let before = std::fs::read(workspace.join(".metteur/config.toml")).unwrap();
-    let legacy = client.get_config(GetConfigRequest { workspace_path:path.clone() }).await.unwrap().into_inner();
+    let legacy = client
+        .get_config(GetConfigRequest {
+            workspace_path: path.clone(),
+        })
+        .await
+        .unwrap()
+        .into_inner();
     assert!(legacy.legacy_format);
-    let proposed: metteur_shared::config::ConfigLayer = serde_json::from_str(&legacy.overrides_json).unwrap();
-    let global: metteur_shared::config::Config = serde_json::from_str(&client.get_config(GetConfigRequest { workspace_path:String::new() }).await.unwrap().into_inner().effective_json).unwrap();
-    assert_eq!(proposed.merge(&global).unwrap(), serde_json::from_str::<metteur_shared::config::Config>(&legacy.effective_json).unwrap());
+    let proposed: metteur_shared::config::ConfigLayer =
+        serde_json::from_str(&legacy.overrides_json).unwrap();
+    let global: metteur_shared::config::Config = serde_json::from_str(
+        &client
+            .get_config(GetConfigRequest {
+                workspace_path: String::new(),
+            })
+            .await
+            .unwrap()
+            .into_inner()
+            .effective_json,
+    )
+    .unwrap();
+    assert_eq!(
+        proposed.merge(&global).unwrap(),
+        serde_json::from_str::<metteur_shared::config::Config>(&legacy.effective_json).unwrap()
+    );
     assert_eq!(before, std::fs::read(workspace.join(".metteur/config.toml")).unwrap());
-    client.close_workspace(CloseWorkspaceRequest { path }).await.unwrap();
+    client
+        .close_workspace(CloseWorkspaceRequest {
+            path,
+        })
+        .await
+        .unwrap();
 }
 
-#[path = "smoke/blueprint_entrypoints.rs"]
-mod blueprint_entrypoints;
-#[path = "smoke/addon_nodes.rs"]
-mod addon_nodes;
 #[path = "smoke/addon_functions.rs"]
 mod addon_functions;
+#[path = "smoke/addon_nodes.rs"]
+mod addon_nodes;
+#[path = "smoke/blueprint_entrypoints.rs"]
+mod blueprint_entrypoints;
 #[path = "smoke/r_batch.rs"]
 mod r_batch;
+#[path = "smoke/workspace_reliability.rs"]
+mod workspace_reliability;

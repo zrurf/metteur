@@ -105,7 +105,7 @@ test('a narrow short chat pane keeps the welcome heading and send control reacha
   await openChat(page)
   const log = page.getByRole('log', { name: 'Conversation' })
   await expect.poll(() => log.evaluate((el) => el.scrollTop)).toBe(0)
-  await expect(page.getByRole('heading', { name: 'What should we work on?' })).toBeInViewport()
+  await expect(page.getByRole('heading', { name: 'What Should We Work On?' })).toBeInViewport()
   await expect(page.getByRole('button', { name: 'Send', exact: true })).toBeInViewport()
   const overflow = await page.locator('.chat-surface').evaluate((el) => el.scrollWidth - el.clientWidth)
   expect(overflow).toBeLessThanOrEqual(1)

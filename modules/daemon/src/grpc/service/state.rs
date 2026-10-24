@@ -27,7 +27,7 @@ use super::super::proto::{AddonInfo, ExecutionEvent};
 /// The control state of a running execution.
 #[derive(Clone)]
 pub(crate) struct RunningExecution {
-    pub(crate) approval_details: Arc<parking_lot::Mutex<HashMap<String,String>>>,
+    pub(crate) approval_details: Arc<parking_lot::Mutex<HashMap<String, String>>>,
     pub(crate) blueprint_id: Uuid,
     pub(crate) continuation_task: Option<Uuid>,
     pub(crate) run_id: Uuid,
@@ -44,7 +44,10 @@ pub(crate) struct RunningExecution {
 /// The control state of a running chat session.
 #[derive(Clone)]
 pub(crate) struct ChatRun {
-    pub(crate) approval_details: Arc<parking_lot::Mutex<HashMap<String,String>>>,
+    pub(crate) continuation_task: Option<Uuid>,
+    pub(crate) transcript: Arc<parking_lot::Mutex<crate::chat::transcript::Transcript>>,
+    pub(crate) turn_id: Uuid,
+    pub(crate) approval_details: Arc<parking_lot::Mutex<HashMap<String, String>>>,
     /// Bus for injecting interrupts into the ReAct loop.
     pub(crate) interrupt_bus: Option<InterruptBus>,
     /// Set when an abort has been requested (shared with the chat task).
@@ -157,14 +160,10 @@ impl AppState {
                         workspace_flag.or_else(|| flag(&global_layer)) == Some(false);
                     context.config = crate::integration::mcp::merge_servers(
                         &context.config,
-                        &[crate::config::load_workspace_config(ws.root())
-                            .map_err(to_status)?
-                            .mcp],
+                        &[crate::config::load_workspace_config(ws.root()).map_err(to_status)?.mcp],
                     );
                 }
-                host.registry_for_context(root, execution, &context)
-                    .await
-                    .map_err(to_status)
+                host.registry_for_context(root, execution, &context).await.map_err(to_status)
             }
             None => Ok(base),
         }
@@ -262,25 +261,53 @@ impl AppState {
     /// incremental (unchanged servers keep their connection, vanished ones are
     /// shut down), so this stays cheap when nothing relevant changed.
     pub async fn resync_mcp(&self) -> crate::error::DaemonResult<()> {
-        let _guard=self.mcp_sync_gate.lock().await;
-        let config=self.merged_mcp_config().await?;
-        let mut failures=vec![];
-        if let Some(host)=&self.mcp_host {
+        let _guard = self.mcp_sync_gate.lock().await;
+        let config = self.merged_mcp_config().await?;
+        let mut failures = vec![];
+        if let Some(host) = &self.mcp_host {
             host.sync(&config).await;
-            failures.extend(host.statuses().into_iter().filter(|s|s.state==crate::integration::mcp::StatusKind::Failed).map(|s|format!("{}: {}",s.alias,s.error)));
-        } else if config.servers.values().any(|s|s.enabled) {
+            failures.extend(
+                host.statuses()
+                    .into_iter()
+                    .filter(|s| s.state == crate::integration::mcp::StatusKind::Failed)
+                    .map(|s| format!("{}: {}", s.alias, s.error)),
+            );
+        } else if config.servers.values().any(|s| s.enabled) {
             failures.push("MCP host is unavailable; restart the daemon".into());
         }
-        self.registry_for(None,false).await.map_err(|_|DaemonError::Mcp("Addon MCP reconciliation failed".into()))?;
-        let roots:Vec<_>=self.workspaces.list().await.into_iter().map(|ws|ws.root().to_path_buf()).collect();
-        for root in &roots {self.registry_for(Some(root),false).await.map_err(|_|DaemonError::Mcp("Workspace addon MCP reconciliation failed".into()))?;}
-        if let Some(host)=&self.addon_host {
-            failures.extend(host.list(&roots).await.into_iter().filter(|addon|addon.status=="Failed").map(|addon|format!("Addon {}: {}",addon.id,addon.error)));
-            for root in std::iter::once(None).chain(roots.iter().map(|root|Some(root.as_path()))) {
-                failures.extend(host.mcp_statuses(root).await.into_iter().filter(|s|s.status=="Failed").map(|s|format!("{}: {}",s.name,s.error)));
+        self.registry_for(None, false)
+            .await
+            .map_err(|_| DaemonError::Mcp("Addon MCP reconciliation failed".into()))?;
+        let roots: Vec<_> =
+            self.workspaces.list().await.into_iter().map(|ws| ws.root().to_path_buf()).collect();
+        for root in &roots {
+            self.registry_for(Some(root), false).await.map_err(|_| {
+                DaemonError::Mcp("Workspace addon MCP reconciliation failed".into())
+            })?;
+        }
+        if let Some(host) = &self.addon_host {
+            failures.extend(
+                host.list(&roots)
+                    .await
+                    .into_iter()
+                    .filter(|addon| addon.status == "Failed")
+                    .map(|addon| format!("Addon {}: {}", addon.id, addon.error)),
+            );
+            for root in std::iter::once(None).chain(roots.iter().map(|root| Some(root.as_path()))) {
+                failures.extend(
+                    host.mcp_statuses(root)
+                        .await
+                        .into_iter()
+                        .filter(|s| s.status == "Failed")
+                        .map(|s| format!("{}: {}", s.name, s.error)),
+                );
             }
         }
-        if failures.is_empty() {Ok(())} else {Err(DaemonError::Mcp(failures.join("; ")))}
+        if failures.is_empty() {
+            Ok(())
+        } else {
+            Err(DaemonError::Mcp(failures.join("; ")))
+        }
     }
 
     /// Attaches the addon host and loads the global addon directory.
@@ -310,7 +337,15 @@ fn spawn_config_reloader(
 fn proto_event(event: crate::execution::ExecutionEvent) -> ExecutionEvent {
     use crate::execution::ExecutionEvent as E;
     match event {
-        E::Oversight {review_id,detail} => ExecutionEvent {node_id:String::new(),kind:"oversight_review".into(),message:review_id,detail_json:detail},
+        E::Oversight {
+            review_id,
+            detail,
+        } => ExecutionEvent {
+            node_id: String::new(),
+            kind: "oversight_review".into(),
+            message: review_id,
+            detail_json: detail,
+        },
         E::NodeStarted {
             node_id,
         } => ExecutionEvent {
@@ -432,12 +467,12 @@ pub(crate) async fn spawn_execution(
         .get(&ws_key)
         .await
         .ok_or_else(|| Status::not_found("workspace not open"))?;
-    let _admission = workspace.activity_gate.lock().await;
+    let _admission = workspace.admit().await.map_err(to_status)?;
     if state.chats.read().await.contains_key(&ws_key) {
         return Err(Status::failed_precondition("workspace already has a running chat"));
     }
     let broker = Arc::new(ApprovalBroker::new());
-    let approval_details=Arc::new(parking_lot::Mutex::new(HashMap::new()));
+    let approval_details = Arc::new(parking_lot::Mutex::new(HashMap::new()));
     {
         // Check and register under one write lock so two concurrent requests
         // cannot both claim the workspace's single execution slot.
@@ -446,15 +481,16 @@ pub(crate) async fn spawn_execution(
             return Err(Status::failed_precondition("workspace already has a running execution"));
         }
         workspace.reconcile_files().map_err(super::to_status)?;
-        if let Some(binding)=&launch {
-            super::launches::admit_launch(state,&workspace,&registry,binding,sink.run_id()).await?;
+        if let Some(binding) = &launch {
+            super::launches::admit_launch(state, &workspace, &registry, binding, sink.run_id())
+                .await?;
         }
         running.insert(
             ws_key.clone(),
             RunningExecution {
-                approval_details:approval_details.clone(),
+                approval_details: approval_details.clone(),
                 blueprint_id: blueprint.id,
-                continuation_task: launch.as_ref().map(|b|b.task.id),
+                continuation_task: launch.as_ref().map(|b| b.task.id),
                 run_id: sink.run_id(),
                 interrupt_bus: Some(interrupt_bus.clone()),
                 pause_requested: pause_flag.clone(),
@@ -475,8 +511,9 @@ pub(crate) async fn spawn_execution(
     let (err_tx, err_rx) = tokio::sync::oneshot::channel();
 
     let lsp_source = workspace.lsp_manager.clone();
-    let launch_for_run=launch.clone();
-    let completion_db=ws_db.clone();
+    let launch_for_run = launch.clone();
+    let completion_db = ws_db.clone();
+    let runtime_db = ws_db.clone();
     let interp_tx = event_tx.clone();
     let stream_broker = broker.clone();
     let stream_cancel = cancel_flag.clone();
@@ -492,7 +529,10 @@ pub(crate) async fn spawn_execution(
                 .with_approvals(broker)
                 .with_metrics(run_metrics)
                 .with_workspace_db(ws_db);
-        if let Some(binding)=&launch_for_run {interpreter=interpreter.with_continuation(binding.task.clone(),binding.intent.handoff);}
+        if let Some(binding) = &launch_for_run {
+            interpreter =
+                interpreter.with_continuation(binding.task.clone(), binding.intent.handoff);
+        }
         if let Some(lsp) = lsp {
             interpreter = interpreter.with_lsp(lsp);
         }
@@ -505,6 +545,7 @@ pub(crate) async fn spawn_execution(
         }
         let run_jobs = Arc::clone(&jobs);
         interpreter = interpreter.with_jobs(jobs);
+        let receipt_bus = interrupt_bus.clone();
         let result = match resume {
             Some(checkpoint) => {
                 interpreter
@@ -528,6 +569,10 @@ pub(crate) async fn spawn_execution(
                     .await
             }
         };
+        // Seal before releasing the live owner. Remaining claims have no
+        // committed consuming node and must stay explicitly unknown.
+        let receipt_result = receipt_bus.seal().and_then(|_| receipt_bus.finish_owned(false));
+        let result = result.and_then(|events| receipt_result.map(|_| events));
         drop(interpreter);
         // Background commands belong to the run that started them: whatever the
         // outcome, they must not outlive it as orphan processes.
@@ -535,8 +580,10 @@ pub(crate) async fn spawn_execution(
         if killed > 0 {
             tracing::info!("run {run_id} ended; terminated {killed} background job(s)");
         }
-        if let Some(binding)=&launch_for_run {
-            if let Err(error)=super::launches::finalize_launch(binding,&completion_db,run_id,killed>0).await {
+        if let Some(binding) = &launch_for_run {
+            if let Err(error) =
+                super::launches::finalize_launch(binding, &completion_db, run_id, killed > 0).await
+            {
                 tracing::warn!("Launch completion requires recovery: {error}");
             }
         }
@@ -546,7 +593,7 @@ pub(crate) async fn spawn_execution(
 
     let (out_tx, out_rx) = tokio::sync::mpsc::channel(64);
     let state = state.clone();
-    let host_owned=launch.is_some();
+    let host_owned = launch.is_some();
     tokio::spawn(async move {
         let stream_id = uuid::Uuid::new_v4().to_string();
         let mut sequence = 0_u64;
@@ -564,12 +611,22 @@ pub(crate) async fn spawn_execution(
                 },
             };
             let mut event = proto_event(event);
-            if event.kind=="approval_request" {approval_details.lock().insert(event.message.clone(),event.detail_json.clone());}
+            if event.kind == "approval_request" {
+                approval_details.lock().insert(event.message.clone(), event.detail_json.clone());
+                runtime_db.notify_changes();
+            }
             sequence += 1;
             let mut detail: serde_json::Value =
                 serde_json::from_str(&event.detail_json).unwrap_or_else(|_| serde_json::json!({}));
             if !detail.is_object() {
                 detail = serde_json::json!({ "payload": detail });
+            }
+            if event.kind == "approval_request" {
+                detail["approval_digest"] = serde_json::json!(
+                    crate::storage::approval_delivery::ApprovalDelivery::content_digest(
+                        &event.detail_json
+                    )
+                );
             }
             detail["run_id"] = serde_json::json!(run_id);
             detail["stream_id"] = serde_json::json!(stream_id);
@@ -596,6 +653,7 @@ pub(crate) async fn spawn_execution(
         }
         state.metrics.executions_running.fetch_sub(1, std::sync::atomic::Ordering::Relaxed);
         state.running.write().await.remove(&ws_key);
+        runtime_db.notify_changes();
     });
 
     Ok(tokio_stream::wrappers::ReceiverStream::new(out_rx))
@@ -618,9 +676,8 @@ pub(crate) fn io_status(err: std::io::Error) -> Status {
 /// Resolves a workspace-relative path against the workspace root.
 ///
 /// Absolute paths, `..` traversal and any path under the `/.metteur` metadata
-/// directory are rejected. The check is lexical: Windows `canonicalize` output
-/// (with its `\\?\` prefix) is not stable across calls, so containment cannot
-/// rely on it.
+/// directory are rejected. Every existing component must be an ordinary entry;
+/// symlinks and Windows reparse points cannot redirect public file RPCs.
 pub(crate) fn resolve_ws_path(
     root: &std::path::Path,
     relative: &str,
@@ -629,16 +686,48 @@ pub(crate) fn resolve_ws_path(
     if relative.is_empty() {
         return Ok(root.to_path_buf());
     }
-    let rel = std::path::Path::new(relative);
+    let portable = relative.replace('\\', "/");
+    let rel = std::path::Path::new(&portable);
     let invalid = rel.is_absolute()
         || rel
             .components()
             .any(|c| matches!(c, Component::ParentDir | Component::RootDir | Component::Prefix(_)))
-        || rel.starts_with(crate::workspace::METADATA_DIR);
+        || rel
+            .components()
+            .filter_map(|part| {
+                if let Component::Normal(name) = part {
+                    Some(name)
+                } else {
+                    None
+                }
+            })
+            .next()
+            .is_some_and(|name| {
+                name.to_string_lossy().eq_ignore_ascii_case(crate::workspace::METADATA_DIR)
+            });
     if invalid {
         return Err(Status::invalid_argument("workspace paths must be relative, outside metadata"));
     }
-    Ok(root.join(rel))
+    let mut path = root.to_path_buf();
+    for component in rel.components() {
+        if component == Component::CurDir {
+            continue;
+        }
+        path.push(component);
+        match std::fs::symlink_metadata(&path) {
+            Ok(meta) => {
+                let link = crate::workspace::fs::is_link(&meta);
+                if link || (!meta.is_dir() && !meta.is_file()) {
+                    return Err(Status::permission_denied(
+                        "File RPCs do not follow links or special files",
+                    ));
+                }
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(error) => return Err(io_status(error)),
+        }
+    }
+    Ok(path)
 }
 
 /// Builds ReAct options for a chat turn from the client-provided JSON.
@@ -750,14 +839,28 @@ pub(crate) fn addon_info_to_proto(info: crate::addon::AddonInfoData) -> AddonInf
         description: info.description,
         enabled: info.enabled,
         scope: info.scope,
-        scope_root: info.scope_root, fingerprint: info.fingerprint, status: info.status, error: info.error,
+        scope_root: info.scope_root,
+        fingerprint: info.fingerprint,
+        status: info.status,
+        error: info.error,
         required_permissions: info.required_permissions,
         granted_permissions: info.granted_permissions,
         tool_count: info.tool_count,
         fragment_count: info.fragment_count,
-        hooks: info.hooks.into_iter().map(|hook| super::super::proto::AddonHookStatus {
-            name:hook.name,event:hook.event,scope_root:hook.scope_root,event_id:hook.event_id,status:hook.status,completed:hook.completed,failed:hook.failed,error:hook.error,
-        }).collect(),
+        hooks: info
+            .hooks
+            .into_iter()
+            .map(|hook| super::super::proto::AddonHookStatus {
+                name: hook.name,
+                event: hook.event,
+                scope_root: hook.scope_root,
+                event_id: hook.event_id,
+                status: hook.status,
+                completed: hook.completed,
+                failed: hook.failed,
+                error: hook.error,
+            })
+            .collect(),
     }
 }
 
@@ -815,6 +918,8 @@ mod tests {
 
         let meta = resolve_ws_path(&root, ".metteur/db");
         assert!(meta.is_err());
+        assert!(resolve_ws_path(&root, "./.metteur/db").is_err());
+        assert!(resolve_ws_path(&root, ".METTEUR/db").is_err());
 
         let escape = resolve_ws_path(&root, "../outside.txt");
         assert!(escape.is_err());

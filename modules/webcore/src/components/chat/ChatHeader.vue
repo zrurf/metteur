@@ -2,6 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { Check, ChevronDown, Loader2, MessageSquarePlus, Plug, Plus, Trash2 } from '@lucide/vue'
 import type { AddonInfo, ChatSessionInfo } from '@/core'
+import PageHeader from '@/components/PageHeader.vue'
 
 /**
  * The chat header: which conversation, which model, which plugins.
@@ -28,6 +29,14 @@ const open = ref<'session' | 'plugins' | null>(null)
 function toggle(menu: 'session' | 'plugins'): void {
   open.value = open.value === menu ? null : menu
 }
+function selectConversation(id: string): void {
+  props.onSelectSession(id)
+  open.value = null
+}
+function createConversation(): void {
+  props.onNewSession()
+  open.value = null
+}
 
 function onKeydown(event: KeyboardEvent): void {
   if (event.key === 'Escape') open.value = null
@@ -39,9 +48,7 @@ const enabledAddons = computed(() => props.addons.filter((a) => a.enabled))
 </script>
 
 <template>
-  <header class="chat-header">
-    <span class="chat-header-title">Chat</span>
-
+  <PageHeader class="chat-header" title="Chat" toolbar>
     <div class="ml-auto flex items-center gap-1">
       <!-- Session switcher -->
       <div class="relative">
@@ -59,7 +66,9 @@ const enabledAddons = computed(() => props.addons.filter((a) => a.enabled))
         </button>
         <div v-if="open === 'session'" class="chat-menu absolute right-0 top-8 z-40 w-80">
           <p class="chat-menu-head">Conversations</p>
-          <p v-if="!threads.length" class="px-2 py-1.5 text-[12px] text-subtle">No saved conversations yet.</p>
+          <p v-if="!threads.length" class="px-2 py-1.5 text-[12px] text-subtle">
+            No saved conversations yet.
+          </p>
           <div
             v-for="thread in threads"
             :key="thread.sessionId"
@@ -68,7 +77,7 @@ const enabledAddons = computed(() => props.addons.filter((a) => a.enabled))
             <button
               class="flex min-w-0 flex-1 items-center gap-2 px-2 py-1.5 text-left"
               type="button"
-              @click="onSelectSession(thread.sessionId); open = null"
+              @click="selectConversation(thread.sessionId)"
             >
               <Check
                 v-if="thread.sessionId === sessionId"
@@ -92,7 +101,7 @@ const enabledAddons = computed(() => props.addons.filter((a) => a.enabled))
             </button>
           </div>
           <div class="my-1 border-t border-divider" />
-          <button class="chat-menu-item" type="button" @click="onNewSession(); open = null">
+          <button class="chat-menu-item" type="button" @click="createConversation">
             <MessageSquarePlus class="h-3.5 w-3.5" /> New conversation
           </button>
         </div>
@@ -124,11 +133,20 @@ const enabledAddons = computed(() => props.addons.filter((a) => a.enabled))
         </button>
         <div v-if="open === 'plugins'" class="chat-menu absolute right-0 top-8 z-40 w-72">
           <p class="chat-menu-head">Plugins</p>
-          <p v-if="addonsLoading" class="flex items-center gap-1.5 px-2 py-2 text-[12px] text-subtle">
+          <p
+            v-if="addonsLoading"
+            class="flex items-center gap-1.5 px-2 py-2 text-[12px] text-subtle"
+          >
             <Loader2 class="h-3.5 w-3.5 animate-spin" /> Loading…
           </p>
-          <p v-else-if="!addons.length" class="px-2 py-2 text-[12px] text-subtle">No plugins installed.</p>
-          <div v-for="addon in addons" :key="addon.id" class="flex items-center gap-2.5 rounded-md px-2 py-1.5 hover:bg-hover">
+          <p v-else-if="!addons.length" class="px-2 py-2 text-[12px] text-subtle">
+            No plugins installed.
+          </p>
+          <div
+            v-for="addon in addons"
+            :key="addon.id"
+            class="flex items-center gap-2.5 rounded-md px-2 py-1.5 hover:bg-hover"
+          >
             <div class="min-w-0 flex-1">
               <div class="flex items-center gap-1.5">
                 <span class="truncate text-[12.5px] font-medium">{{ addon.name }}</span>
@@ -152,5 +170,5 @@ const enabledAddons = computed(() => props.addons.filter((a) => a.enabled))
     </div>
 
     <div v-if="open" class="fixed inset-0 z-30" @mousedown="open = null" />
-  </header>
+  </PageHeader>
 </template>

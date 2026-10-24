@@ -1,10 +1,18 @@
 import { defineStore } from 'pinia'
-import { computed, ref } from 'vue'
+import { computed, reactive, ref } from 'vue'
+import { useDocumentsStore, type EditorDocument } from './documents'
 import { gateway } from '@/core'
 import { nativeBlueprint, type NativeGraph } from '@/core/execution-view'
 import { pinsFor } from '@/lib/blueprint'
 import { inlineValue, valueText, nodeConfiguration } from '@/core/node-catalog'
-import type { Blueprint, BlueprintEdge, BlueprintNode, BlueprintPin, FunctionItem, NodeKindInfo } from '@/core'
+import type {
+  Blueprint,
+  BlueprintEdge,
+  BlueprintNode,
+  BlueprintPin,
+  FunctionItem,
+  NodeKindInfo,
+} from '@/core'
 
 /**
  * Blueprint graph state shared across the editor.
@@ -22,7 +30,10 @@ interface GraphData {
 }
 
 /** Edge fields participating in the dirty key. */
-type KeyEdge = Pick<BlueprintEdge, 'id' | 'source' | 'target' | 'sourceHandle' | 'targetHandle' | 'label'>
+type KeyEdge = Pick<
+  BlueprintEdge,
+  'id' | 'source' | 'target' | 'sourceHandle' | 'targetHandle' | 'label'
+>
 
 /** Canonical dirty key for a graph, shared with the editor (BlueprintView).
  *  Pin connected-state (`filledIns`/`connectedIn`/`connectedOut`) is derived
@@ -105,7 +116,12 @@ function seedGraph(signatures: NodeKindInfo[]): GraphData {
 
 /** The on-disk name of a blueprint derived from its file path. */
 export function fileNameOf(filePath: string): string {
-  return filePath.split(/[\\/]/).pop()?.replace(/\.blueprint$/i, '') || 'blueprint'
+  return (
+    filePath
+      .split(/[\\/]/)
+      .pop()
+      ?.replace(/\.blueprint$/i, '') || 'blueprint'
+  )
 }
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -165,20 +181,46 @@ const KIND_ALIASES: Record<string, string> = { Arithmetic: 'Add' }
  */
 function canonicalizePinNames(n: BlueprintNode, signatures: NodeKindInfo[]): BlueprintNode {
   const kind = KIND_ALIASES[n.type] ?? n.type
+  // Tool pins are parameter names from the selected tool's schema. Renaming
+  // `command` to the legacy UI label `Command` changes its executable contract.
+  const toolInstance = kind === 'Tool' && typeof n.data?.['tool_name'] === 'string'
   // Package instances retain the authored contract; the daemon rejects stale bindings.
-  const signature = n.data?.['_addon_binding'] || n.data?.['_addon_function_binding'] ? undefined : signatures.find((s) => s.kind === kind)
+  const signature =
+    toolInstance || n.data?.['_addon_binding'] || n.data?.['_addon_function_binding']
+      ? undefined
+      : signatures.find((s) => s.kind === kind)
   const values = { ...n.values }
   for (const p of n.inputs ?? []) {
     const raw = inlineValue(n.data ?? {}, p)
-    if (p.kind === 'data-in' && values[p.id] === undefined && raw !== undefined) values[p.id] = valueText(raw)
+    if (p.kind === 'data-in' && values[p.id] === undefined && raw !== undefined)
+      values[p.id] = valueText(raw)
   }
   const byName = (p: BlueprintPin): BlueprintPin => {
-    const contract = signature?.pins.find((d) => d.kind === p.kind && ((p.key && d.key === p.key) || d.name === p.name))
-    const label = contract?.name || (!signature && p.key ? LEGACY_PIN_NAMES[p.key] : undefined)
+    const contract = signature?.pins.find(
+      (d) => d.kind === p.kind && ((p.key && d.key === p.key) || d.name === p.name),
+    )
+    const label = toolInstance ? p.name : contract?.name || (!signature && p.key ? LEGACY_PIN_NAMES[p.key] : undefined)
     const name = (label ?? p.name ?? '').replace(/\s+/g, '')
-    return contract ? { ...contract, id: p.id, name, default: p.default === undefined ? contract.default : p.default } : name !== p.name ? { ...p, name } : p
+    return contract
+      ? {
+          ...contract,
+          id: p.id,
+          name,
+          default: p.default === undefined ? contract.default : p.default,
+        }
+      : name !== p.name
+        ? { ...p, name }
+        : p
   }
-  return { ...n, data: nodeConfiguration(n.data ?? {}, n.inputs ?? []), values, nodeType: signature?.nodeType ?? n.nodeType, type: n.type === kind ? n.type : kind, inputs: (n.inputs ?? []).map(byName), outputs: (n.outputs ?? []).map(byName) }
+  return {
+    ...n,
+    data: nodeConfiguration(n.data ?? {}, n.inputs ?? []),
+    values,
+    nodeType: signature?.nodeType ?? n.nodeType,
+    type: n.type === kind ? n.type : kind,
+    inputs: (n.inputs ?? []).map(byName),
+    outputs: (n.outputs ?? []).map(byName),
+  }
 }
 
 /**
@@ -203,7 +245,12 @@ function migrateIds(g: GraphData, signatures: NodeKindInfo[]): GraphData {
       return {
         ...canonical,
         id: nodeIds.get(n.id) ?? n.id,
-        values: Object.fromEntries(Object.entries(canonical.values ?? {}).map(([id, value]) => [pinIds.get(id) ?? id, value])),
+        values: Object.fromEntries(
+          Object.entries(canonical.values ?? {}).map(([id, value]) => [
+            pinIds.get(id) ?? id,
+            value,
+          ]),
+        ),
         inputs: canonical.inputs.map((p) => ({ ...p, id: pinIds.get(p.id) ?? p.id })),
         outputs: canonical.outputs.map((p) => ({ ...p, id: pinIds.get(p.id) ?? p.id })),
       }
@@ -213,33 +260,148 @@ function migrateIds(g: GraphData, signatures: NodeKindInfo[]): GraphData {
       id: UUID_RE.test(e.id) ? e.id : crypto.randomUUID(),
       source: nodeIds.get(e.source) ?? e.source,
       target: nodeIds.get(e.target) ?? e.target,
-      sourceHandle: e.sourceHandle ? (pinIds.get(e.sourceHandle) ?? e.sourceHandle) : e.sourceHandle,
-      targetHandle: e.targetHandle ? (pinIds.get(e.targetHandle) ?? e.targetHandle) : e.targetHandle,
+      sourceHandle: e.sourceHandle
+        ? (pinIds.get(e.sourceHandle) ?? e.sourceHandle)
+        : e.sourceHandle,
+      targetHandle: e.targetHandle
+        ? (pinIds.get(e.targetHandle) ?? e.targetHandle)
+        : e.targetHandle,
     })),
   }
 }
 
 export const useBlueprintStore = defineStore('blueprint', () => {
+  const documents = useDocumentsStore()
   const loaded = ref(false)
-  const saved = ref(false)
+  // These refs are the active canvas projection. Draft ownership is exclusively
+  // in Documents, including workspace identity, close/rename and disk conflicts.
   const nodes = ref<BlueprintNode[]>([])
   const edges = ref<BlueprintEdge[]>([])
   const nodeKinds = ref<string[]>([])
   const signatures = ref<NodeKindInfo[]>([])
   const catalogMessage = ref('Loading node signatures…')
-  /** Registered blueprint functions surfaced by the daemon library. */
   const functions = ref<FunctionItem[]>([])
-  /** Unsaved graph per blueprint file path, so different files stay independent. */
-  const graphs = ref<Record<string, GraphData>>({})
-  /** Serialized graph as last written to disk per file path. The editor
-   *  compares its live graph against this to decide the unsaved marker, so a
-   *  cached-but-edited file stays dirty when you switch tabs and come back. */
-  const savedKeys = ref<Record<string, string>>({})
-  const saveErrors = ref<Record<string, string>>({})
-  const saving = ref<Record<string, boolean>>({})
-  /** Stable blueprint UUID per file path, persisted into the file itself. */
-  const ids = ref<Record<string, string>>({})
   const currentFile = ref('')
+  const currentWorkspace = ref('')
+  interface CanvasRecord {
+    source: string
+    baseline: string
+    baselineKey: string
+    graph: GraphData
+  }
+  // Parsed graphs are derived caches keyed by the owning document object. They
+  // cannot survive an explicit discard/close or collide across workspaces.
+  const parsed = reactive(new WeakMap<EditorDocument, CanvasRecord>())
+  const mirrors = reactive(new Set<EditorDocument>())
+  const catalogs = new Map<string, NodeKindInfo[]>()
+  const catalogRequests = new Map<string, number>()
+  let loadGeneration = 0
+  function decode(content: string, catalog: NodeKindInfo[]): GraphData {
+    if (!content.trim()) return seedGraph(catalog)
+    let graph = JSON.parse(content) as Blueprint & { entry_node_id?: string }
+    if (graph.entry_node_id) graph = nativeBlueprint(graph as unknown as NativeGraph)
+    if (!Array.isArray(graph.nodes) || !Array.isArray(graph.edges))
+      throw new Error('Blueprint must contain nodes and edges')
+    return migrateIds(
+      { id: graph.id || crypto.randomUUID(), nodes: graph.nodes, edges: graph.edges },
+      catalog,
+    )
+  }
+  function record(doc: EditorDocument): CanvasRecord {
+    let cached = parsed.get(doc)
+    if (!cached || cached.source !== doc.content || cached.baseline !== doc.baseline) {
+      const catalog = catalogs.get(doc.workspace) ?? []
+      const baseline = decode(doc.baseline, catalog)
+      const graph = doc.content === doc.baseline ? baseline : decode(doc.content, catalog)
+      cached = {
+        source: doc.content,
+        baseline: doc.baseline,
+        baselineKey: keyFor(baseline.nodes, baseline.edges),
+        graph,
+      }
+      parsed.set(doc, cached)
+    }
+    return cached
+  }
+  const currentDocuments = computed(() =>
+    [...documents.records.values()].filter(
+      (doc) => doc.workspace === currentWorkspace.value && doc.path.endsWith('.blueprint'),
+    ),
+  )
+  const graphs = computed(() =>
+    Object.fromEntries(
+      currentDocuments.value
+        .filter((doc) => parsed.has(doc))
+        .map((doc) => [doc.path, parsed.get(doc)!.graph]),
+    ),
+  )
+  const savedKeys = computed(() =>
+    Object.fromEntries(
+      currentDocuments.value.map((doc) => {
+        if (!doc.loaded || !parsed.has(doc)) return [doc.path, '']
+        try {
+          return [doc.path, record(doc).baselineKey]
+        } catch {
+          return [doc.path, '']
+        }
+      }),
+    ),
+  )
+  const saveErrors = computed(() =>
+    Object.fromEntries(currentDocuments.value.map((doc) => [doc.path, doc.error])),
+  )
+  const saving = computed(() =>
+    Object.fromEntries(
+      currentDocuments.value.map((doc) => [doc.path, doc.saving || mirrors.has(doc)]),
+    ),
+  )
+  const saved = computed(() => {
+    const doc = documents.peek(currentWorkspace.value, currentFile.value)
+    return (
+      !!doc?.loaded &&
+      parsed.has(doc) &&
+      !doc.error &&
+      !doc.deleted &&
+      keyFor(nodes.value, edges.value) === record(doc).baselineKey
+    )
+  })
+  function setError(path: string, file: string, error: string) {
+    documents.get(path, file).error = error
+  }
+  function updateDraft(
+    path: string,
+    file: string,
+    draftNodes: BlueprintNode[],
+    draftEdges: BlueprintEdge[],
+    entryNodeId?: string,
+  ) {
+    const doc = documents.get(path, file)
+    if (!doc.loaded) return
+    const cached = record(doc)
+    const graph = { id: cached.graph.id, nodes: draftNodes, edges: draftEdges }
+    const content =
+      keyFor(graph.nodes, graph.edges) === cached.baselineKey
+        ? doc.baseline
+        : JSON.stringify(
+            {
+              ...graph,
+              name: fileNameOf(file),
+              entryNodeId:
+                entryNodeId ??
+                graph.nodes.find((n) => n.type === 'Start')?.id ??
+                graph.nodes[0]?.id,
+            },
+            null,
+            2,
+          )
+    documents.edit(path, file, content)
+    cached.source = content
+    cached.graph = graph
+    if (currentWorkspace.value === path && currentFile.value === file) {
+      nodes.value = graph.nodes
+      edges.value = graph.edges
+    }
+  }
 
   /** A file-reference the explorer asked to drop into the current blueprint.
    *  The mounted editor consumes it via {@link consumeReference}; the salt makes
@@ -260,117 +422,124 @@ export const useBlueprintStore = defineStore('blueprint', () => {
 
   const byId = computed(() => new Map(nodes.value.map((n) => [n.id, n])))
 
+  let catalogGeneration = 0
   async function listKinds(path = '') {
+    const ticket = ++catalogGeneration
+    catalogRequests.set(path, ticket)
     const r = await gateway.listNodeKinds(path)
+    if (catalogRequests.get(path) === ticket)
+      catalogs.set(path, r.ok && r.data.ready ? r.data.nodes : [])
+    if (ticket !== catalogGeneration) return
     nodeKinds.value = r.ok ? r.data.kinds : []
     signatures.value = r.ok && r.data.ready ? r.data.nodes : []
-    catalogMessage.value = r.ok && r.data.ready ? '' : r.ok
-      ? 'This daemon does not provide supported pin signatures. Existing graphs remain editable; node creation requires an updated daemon.'
-      : `Node signatures unavailable: ${r.error}`
+    catalogMessage.value =
+      r.ok && r.data.ready
+        ? ''
+        : r.ok
+          ? 'This daemon does not provide supported pin signatures. Existing graphs remain editable; node creation requires an updated daemon.'
+          : `Node signatures unavailable: ${r.error}`
   }
 
   /** Load the function library (`path` empty = builtin + global). */
+  let functionGeneration = 0
   async function loadFunctions(path = '') {
+    const generation = ++functionGeneration
     const r = await gateway.listFunctions(path)
+    if (generation !== functionGeneration) return
     if (r.ok) functions.value = r.data
   }
 
   /** The blueprint UUID of a file path, if it has been loaded. */
-  function uuidFor(filePath: string): string | undefined {
-    return ids.value[filePath]
+  function uuidFor(filePath: string, workspace = currentWorkspace.value): string | undefined {
+    const doc = documents.peek(workspace, filePath)
+    return doc?.loaded ? record(doc).graph.id : undefined
+  }
+  function graphFor(workspace: string, filePath: string) {
+    const doc = documents.peek(workspace, filePath)
+    if (!doc?.loaded) return null
+    try {
+      return record(doc).graph
+    } catch {
+      return null
+    }
   }
 
   async function load(path: string, filePath: string) {
+    const generation = ++loadGeneration
+    currentWorkspace.value = path
     currentFile.value = filePath
+    loaded.value = false
     await listKinds(path)
-    const cached = graphs.value[filePath]
-    if (cached) {
-      const graph = migrateIds(cached, signatures.value)
-      graphs.value[filePath] = graph
-      nodes.value = graph.nodes
-      edges.value = graph.edges
-      ids.value[filePath] = graph.id
-    } else {
-      const file = await gateway.readFile(path, filePath)
-      let graph = seedGraph(signatures.value)
-      if (!file.ok) { saveErrors.value[filePath] = file.error; return }
-      if (file.ok && file.data.content.trim()) {
-        try {
-          let parsed = JSON.parse(file.data.content) as Blueprint & { entry_node_id?: string }
-          // The authoritative file must load even after copying/restoring it
-          // into a workspace with no matching database mirror.
-          if (parsed.entry_node_id) parsed = nativeBlueprint(parsed as unknown as NativeGraph)
-          if (Array.isArray(parsed.nodes) && Array.isArray(parsed.edges)) {
-            graph = { id: parsed.id || crypto.randomUUID(), nodes: parsed.nodes, edges: parsed.edges }
-          }
-          else throw new Error('Blueprint must contain nodes and edges')
-        } catch (error) {
-          saveErrors.value[filePath] = `Cannot read blueprint: ${String(error)}`
-          return // Never replace a corrupt source with a fresh graph.
-        }
+    const doc = await documents.open(path, filePath)
+    if (!doc.loaded) return null
+    try {
+      const graph = record(doc).graph
+      if (generation === loadGeneration) {
+        nodes.value = graph.nodes
+        edges.value = graph.edges
+        loaded.value = true
       }
-      delete saveErrors.value[filePath]
-      graph = migrateIds(graph, signatures.value)
-      graphs.value[filePath] = graph
-      ids.value[filePath] = graph.id
-      // The freshly loaded graph is, by definition, the on-disk baseline.
-      savedKeys.value[filePath] = keyFor(graph.nodes, graph.edges)
-      nodes.value = graph.nodes
-      edges.value = graph.edges
+      return graph
+    } catch (error) {
+      doc.error = `Cannot read blueprint: ${String(error)}`
+      return null // Never replace corrupt source with a fresh graph.
     }
-    loaded.value = true
-    saved.value = !saveErrors.value[filePath] && keyFor(nodes.value, edges.value) === savedKeys.value[filePath]
   }
 
-  /** Persist the currently open graph (the one keyed by `filePath`): write the
-   *  file and mirror it into the daemon blueprint store for execution. The
-   *  graph comes from the live `nodes`/`edges` refs, which the editor assigns
-   *  before saving, so nothing falls back to a stale cached snapshot.
-   *
-   *  The on-disk file is the source of truth for the dirty baseline: it is
-   *  updated as soon as the file write succeeds, even if the daemon mirror
-   *  fails, so a successful save never leaves a phantom unsaved dot. */
-  async function save(path: string, filePath: string, entryNodeId?: string): Promise<boolean> {
-    if (saving.value[filePath]) return false
-    const id = ids.value[filePath]
-    if (!id) {
-      saveErrors.value[filePath] = 'Blueprint is not loaded. Save and run are unavailable.'
+  async function save(
+    path: string,
+    filePath: string,
+    entryNodeId?: string,
+    draft?: Pick<GraphData, 'nodes' | 'edges'>,
+  ): Promise<boolean> {
+    const doc = documents.get(path, filePath)
+    if (doc.saving || mirrors.has(doc)) return false
+    if (
+      !doc.loaded ||
+      (!draft && (currentWorkspace.value !== path || currentFile.value !== filePath))
+    ) {
+      doc.error = 'Blueprint is not loaded. Save and run are unavailable.'
       return false
     }
-    const graph: GraphData = {
-      id,
-      nodes: nodes.value,
-      edges: edges.value,
-    }
-    graphs.value[filePath] = graph
-    // Both writes use one immutable snapshot; edits made while awaiting I/O
-    // must neither change the mirror nor become the saved dirty baseline.
-    const blueprint: Blueprint = JSON.parse(JSON.stringify({
-      id,
-      name: fileNameOf(filePath),
-      entryNodeId: entryNodeId ?? nodes.value.find((n) => n.type === 'Start')?.id ?? nodes.value[0]?.id,
-      nodes: nodes.value,
-      edges: edges.value,
-    }))
+    updateDraft(
+      path,
+      filePath,
+      draft?.nodes ?? nodes.value,
+      draft?.edges ?? edges.value,
+      entryNodeId,
+    )
+    const cached = record(doc)
+    // Both writes use one immutable snapshot; later edits remain a draft.
+    const blueprint: Blueprint = JSON.parse(
+      JSON.stringify({
+        ...cached.graph,
+        name: fileNameOf(filePath),
+        entryNodeId:
+          entryNodeId ??
+          cached.graph.nodes.find((n) => n.type === 'Start')?.id ??
+          cached.graph.nodes[0]?.id,
+      }),
+    )
     const snapshotKey = keyFor(blueprint.nodes, blueprint.edges)
-    saving.value[filePath] = true
-    saved.value = false
+    // Even a pristine, newly created empty file must receive the seeded graph.
+    documents.edit(path, filePath, JSON.stringify(blueprint, null, 2))
+    cached.source = doc.content
+    mirrors.add(doc)
     let fileWritten = false
     try {
-      const file = await gateway.writeFile(path, filePath, JSON.stringify(blueprint, null, 2))
-      if (!file.ok) throw new Error(file.error)
+      if (!(await documents.save(path, filePath))) throw new Error(doc.error)
       fileWritten = true
-      savedKeys.value[filePath] = snapshotKey
+      cached.baseline = doc.baseline
+      cached.baselineKey = snapshotKey
       const mirror = await gateway.saveBlueprint(path, blueprint, filePath)
       if (!mirror.ok) throw new Error(mirror.error)
-      delete saveErrors.value[filePath]
-      saved.value = currentFile.value === filePath && keyFor(nodes.value, edges.value) === snapshotKey
+      doc.error = ''
       return true
     } catch (error) {
-      saveErrors.value[filePath] = `${fileWritten ? 'File saved, but daemon mirror is not synchronized' : 'File save failed'}: ${error instanceof Error ? error.message : String(error)}. Run is blocked; retry saving.`
+      doc.error = `${fileWritten ? 'File saved, but daemon mirror is not synchronized' : 'File save failed'}: ${error instanceof Error ? error.message : String(error)}. Run is blocked; retry saving.`
       return false
     } finally {
-      saving.value[filePath] = false
+      mirrors.delete(doc)
     }
   }
 
@@ -396,13 +565,16 @@ export const useBlueprintStore = defineStore('blueprint', () => {
     savedKeys,
     saveErrors,
     saving,
-    ids,
     byId,
     currentFile,
+    currentWorkspace,
+    updateDraft,
+    setError,
     pendingRef,
     requestAddReference,
     consumeReference,
     uuidFor,
+    graphFor,
     listKinds,
     loadFunctions,
     load,

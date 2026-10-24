@@ -16,13 +16,39 @@ import { blueprintApproval } from '@/core/blueprint-approval'
  */
 const execution = useExecutionStore()
 const chat = useChatStore()
+const decision = computed(() =>
+  execution.approval
+    ? {
+        busy: execution.approvalSubmitting || execution.approvalDecision?.busy,
+        canRespond: execution.approvalDecision?.canRespond ?? true,
+        error: execution.approvalError || execution.approvalDecision?.error,
+        state: execution.approvalDecision?.state,
+        inspect: () => execution.reconcileApproval(),
+      }
+    : {
+        busy: chat.approvalSubmitting || chat.approvalDecision?.busy,
+        canRespond: chat.approvalDecision?.canRespond ?? true,
+        error: chat.approvalError || chat.approvalDecision?.error,
+        state: chat.approvalDecision?.state,
+        inspect: () => chat.reconcileApproval(),
+      },
+)
+function closeReceipt() {
+  if (decision.value.busy || decision.value.canRespond) return
+  if (execution.approval) execution.approval = null
+  else chat.approval = null
+}
 
 const launch = computed(() => {
-  if(execution.approval || !chat.approval) return null
+  if (execution.approval || !chat.approval) return null
   const payload = parseDetail(chat.approval.detail)
-  return payload.request_type === 'blueprint_launch' ? payload as unknown as InstanceType<typeof BlueprintLaunchReview>['$props']['payload'] : null
+  return payload.request_type === 'blueprint_launch'
+    ? (payload as unknown as InstanceType<typeof BlueprintLaunchReview>['$props']['payload'])
+    : null
 })
-function launchResolved(){ chat.approval = null }
+function launchResolved() {
+  chat.approval = null
+}
 
 const request = computed(() => {
   if (execution.approval) {
@@ -73,14 +99,37 @@ function parseDetail(raw: string): Record<string, unknown> {
         :role="launch ? undefined : 'dialog'"
         :aria-modal="launch ? undefined : true"
       >
-        <BlueprintLaunchReview v-if="launch && chat.approval" :key="chat.approval.requestId" :payload="launch" :request-id="chat.approval.requestId" @resolved="launchResolved" />
+        <BlueprintLaunchReview
+          v-if="launch && chat.approval"
+          :key="chat.approval.requestId"
+          :payload="launch"
+          :request-id="chat.approval.requestId"
+          @resolved="launchResolved"
+        />
         <div v-else class="glass max-h-[90vh] w-full max-w-md overflow-y-auto rounded-xl p-5">
           <div class="flex items-center justify-between">
             <div class="flex items-center gap-2 text-danger">
               <ShieldAlert class="h-5 w-5" />
               <span class="text-[13px] font-semibold">{{ request.title }}</span>
             </div>
-            <button class="btn-icon" type="button" aria-label="Dismiss" @click="request.respond(false)">
+            <button
+              v-if="decision.canRespond"
+              class="btn-icon"
+              type="button"
+              aria-label="Dismiss"
+              :disabled="decision.busy"
+              @click="request.respond(false)"
+            >
+              <X class="h-4 w-4" />
+            </button>
+            <button
+              v-else
+              class="btn-icon"
+              type="button"
+              aria-label="Close receipt details"
+              :disabled="decision.busy"
+              @click="closeReceipt"
+            >
               <X class="h-4 w-4" />
             </button>
           </div>
@@ -89,18 +138,68 @@ function parseDetail(raw: string): Record<string, unknown> {
 
           <pre
             v-if="request.command"
-            class="mt-3 max-h-[50vh] overflow-auto rounded-lg bg-surface-muted p-3 font-mono text-[12px] leading-5 text-foreground"
+            class="mt-3 max-h-[50vh] overflow-auto rounded-lg bg-surface-muted p-3 font-mono text-[13px] leading-5 text-foreground"
             >{{ request.command }}</pre>
+          <p v-if="decision.error" class="mt-3 text-[13px] text-danger" role="alert">
+            {{ decision.error }}
+          </p>
+          <p v-else-if="decision.busy" class="mt-3 text-[13px] text-muted-foreground" role="status">
+            Confirming decision receipt…
+          </p>
+          <button
+            v-if="decision.state === 'unknown' || decision.state === 'rejected'"
+            class="btn mt-3"
+            type="button"
+            :disabled="decision.busy"
+            @click="decision.inspect"
+          >
+            Check Decision Receipt
+          </button>
 
-          <div v-if="execution.approval && execution.active" class="mt-4 flex flex-wrap gap-2 border-t border-border pt-3">
-            <button class="btn" type="button" :disabled="execution.controlBusy" @click="execution.status === 'paused' ? execution.resume() : execution.pause()">{{ execution.status === 'paused' ? 'Resume run directly' : 'Pause run directly' }}</button>
-            <button class="btn btn-danger-outline" type="button" :disabled="execution.controlBusy" @click="execution.cancel()">Stop run directly</button>
+          <div
+            v-if="execution.approval && execution.active"
+            class="mt-4 flex flex-wrap gap-2 border-t border-border pt-3"
+          >
+            <button
+              class="btn"
+              type="button"
+              :disabled="execution.controlBusy"
+              @click="execution.status === 'paused' ? execution.resume() : execution.pause()"
+            >
+              {{ execution.status === 'paused' ? 'Resume run directly' : 'Pause run directly' }}
+            </button>
+            <button
+              class="btn btn-danger-outline"
+              type="button"
+              :disabled="execution.stopping"
+              @click="execution.cancel()"
+            >
+              Stop run directly
+            </button>
+          </div>
+          <div
+            v-else-if="chat.approval"
+            class="mt-4 flex flex-wrap gap-2 border-t border-border pt-3"
+          >
+            <button class="btn btn-danger-outline" type="button" @click="chat.stopApproval()">
+              Stop turn directly
+            </button>
           </div>
           <div class="mt-5 flex justify-end gap-2">
-            <button class="btn btn-danger-outline" type="button" @click="request.respond(false)">
+            <button
+              class="btn btn-danger-outline"
+              type="button"
+              :disabled="decision.busy || !decision.canRespond"
+              @click="request.respond(false)"
+            >
               Deny
             </button>
-            <button class="btn btn-primary" type="button" @click="request.respond(true)">
+            <button
+              class="btn btn-primary"
+              type="button"
+              :disabled="decision.busy || !decision.canRespond"
+              @click="request.respond(true)"
+            >
               Allow
             </button>
           </div>

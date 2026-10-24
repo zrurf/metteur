@@ -3,6 +3,8 @@ import { onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useWorkspaceStore } from '@/stores/workspace'
 import { rootRoute } from '@/lib/workspace-url'
+import { useWorkspaceViewStore } from '@/stores/workspace-view'
+import { restoredRoute } from '@/lib/restored-route'
 
 /**
  * Root path redirect: enter the IDE shell (`/work/{id}/explorer`) when a
@@ -16,9 +18,15 @@ import { rootRoute } from '@/lib/workspace-url'
 const router = useRouter()
 const route = useRoute()
 const workspace = useWorkspaceStore()
+const views = useWorkspaceViewStore()
+let generation = 0
 
-function reroute() {
-  const target = rootRoute()
+async function reroute() {
+  const current = ++generation,
+    path = workspace.active?.path
+  const view = path ? await views.ready(path) : null
+  if (current !== generation || workspace.active?.path !== path || route.name !== 'root') return
+  const target = view ? restoredRoute(view) : rootRoute()
   router.replace(target || '/welcome')
 }
 

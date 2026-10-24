@@ -148,6 +148,7 @@ async fn scoped_catalog_cli_dsl_save_run_and_uninstall_use_the_same_node_contrac
         .execute_blueprint(ExecuteBlueprintRequest {
             workspace_path: path.clone(),
             blueprint_id: loaded.id.clone(),
+            workflow_confirmation: String::new(),
             blueprint_json: String::new(),
         })
         .await

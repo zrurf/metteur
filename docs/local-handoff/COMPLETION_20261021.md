@@ -1,3 +1,5 @@
+> **当前入口：2026-10-21 可靠性修订与从头复核**：[完整审计](QUALITY_REAUDIT_20261021.md)、[45/88 证据矩阵](QUALITY_REAUDIT_20261021.json)。旧收尾结论未覆盖用户随后报告的核心回归，不作为本轮完成证明。Windows 908、Linux 921、浏览器 138 项已通过；新界面仍待用户最终确认。下文保留为旧候选的历史记录。
+
 > 2026-10-21 用户验收启动复核：旧 2ada184 包的便携启动存在缺依赖与过早 ready 的缺陷，原 portable-demo-smoke-uu8r3mis 结论撤回。已由现有锁定依赖生成独立 Node bundle，并用无源码/node_modules 的目录完成实际蓝图读取、文件工具两轮调用和会话历史验证。新证据：portable-bundled-runtime-rpc-proof-bz4l8brs / portable-demo-smoke-ajwsusqm。原包保持不变，新包另存；付费评测及生产二进制未改变。分批发布准备见 PUBLISH_BATCHES_20261021.md。
 
 # Metteur 本地收尾验收 · 2026-10-21

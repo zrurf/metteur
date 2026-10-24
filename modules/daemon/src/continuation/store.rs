@@ -15,6 +15,8 @@ use uuid::Uuid;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TaskRecord {
+    #[serde(default)]
+    pub rebind_receipt: Option<(Uuid, String)>,
     pub schema_version: u32,
     pub revision: u64,
     pub workspace: String,
@@ -40,6 +42,20 @@ pub struct ContinuationStore {
     prefix: String,
 }
 impl ContinuationStore {
+    /// Construct a read view without creating directories, a checkpoint or a
+    /// schema marker. Unknown resource formats remain unavailable.
+    pub(crate) fn inspect(db: Db, root: &Path) -> DaemonResult<Self> {
+        let root = root.canonicalize()?;
+        if ResourceStore::inspect(&db).map_err(|e| DaemonError::Persistence(e.to_string()))?
+            .is_some_and(|schema| schema != metteur_shared::resources::SCHEMA_VERSION) {
+            return Err(DaemonError::Persistence("Unknown resource schema".into()));
+        }
+        let workspace = root.to_string_lossy().into_owned();
+        Ok(Self {db, prefix: format!("nx/v1/continuation/{}/", digest(workspace.as_bytes())), workspace})
+    }
+    pub(crate) fn subscribe_changes(&self) -> tokio::sync::watch::Receiver<u64> {
+        self.db.subscribe_changes()
+    }
     pub fn new(db: Db, root: &Path) -> DaemonResult<Self> {
         let root = root.canonicalize()?;
         std::fs::create_dir_all(root.join(".metteur"))?;
@@ -156,13 +172,30 @@ impl ContinuationStore {
             .resource_gate
             .lock()
             .map_err(|_| DaemonError::Persistence("Continuation store lock failed".into()))?;
-        let mut cursor=None;let mut active=0usize;
-        loop {let page=self.list(cursor)?;if page.is_empty(){break;}for r in page {cursor=Some(r.task.id);if !matches!(r.task.state,TaskState::Stopped|TaskState::Completed){active+=1;}}
-        if active>=64{return Err(DaemonError::Execution("Workspace continuation capacity reached".into()));}}
+        let mut cursor = None;
+        let mut active = 0usize;
+        loop {
+            let page = self.list(cursor)?;
+            if page.is_empty() {
+                break;
+            }
+            for r in page {
+                cursor = Some(r.task.id);
+                if !matches!(r.task.state, TaskState::Stopped | TaskState::Completed) {
+                    active += 1;
+                }
+            }
+            if active >= 64 {
+                return Err(DaemonError::Execution(
+                    "Workspace continuation capacity reached".into(),
+                ));
+            }
+        }
         if self.get(task.id)?.is_some() {
             return Err(DaemonError::Execution("Task already exists".into()));
         }
         self.write(TaskRecord {
+            rebind_receipt: None,
             schema_version: 1,
             revision: 1,
             workspace: self.workspace.clone(),
@@ -236,6 +269,18 @@ impl ContinuationStore {
         now: u64,
     ) -> DaemonResult<TaskRecord> {
         self.save_turn(id, expected, context, Some(wait), true, now)
+    }
+    /// Caller holds the shared resource gate. These values are committed with
+    /// the accepted manual input and its session revision, never independently.
+    pub(crate) fn accepted_input_values(&self, id: Uuid, session: Uuid, previous: u64, accepted: u64) -> DaemonResult<Vec<(Vec<u8>,Vec<u8>)>> {
+        let mut record=self.get(id)?.ok_or_else(||DaemonError::Execution("Input task missing".into()))?;
+        if record.task.session!=session || record.task.expected_revision!=previous || matches!(record.task.state,TaskState::Stopped|TaskState::Completed) || record.task.dispatch.is_some() {
+            return Err(DaemonError::Execution("Input task or session changed before acceptance".into()));
+        }
+        record.task.expected_revision=accepted;
+        record.revision=record.revision.checked_add(1).ok_or_else(||DaemonError::Execution("Task revision exhausted".into()))?;
+        let raw=serde_json::to_vec(&record).map_err(|e|DaemonError::Serialization(e.to_string()))?;
+        Ok(vec![(self.key(id),raw.clone()),(format!("{}history/{}/{:020}",self.prefix,id,record.revision).into_bytes(),raw)])
     }
     /// Context, task transition and consumed-event receipts share one WAL batch.
     pub fn save_turn(
@@ -355,10 +400,9 @@ impl ContinuationStore {
             for r in page {
                 cursor = Some(r.task.id);
                 if !matches!(r.task.state, TaskState::Stopped | TaskState::Completed)
-                    || r.task
-                        .sources
-                        .values()
-                        .any(|s| s.terminal.is_none() && matches!(s.kind.as_str(), "job" | "child" | "timer"))
+                    || r.task.sources.values().any(|s| {
+                        s.terminal.is_none() && matches!(s.kind.as_str(), "job" | "child" | "timer")
+                    })
                     || r.task.budget.reserved_tokens > 0
                 {
                     self.update(r.task.id,r.revision,|r|{
@@ -405,17 +449,47 @@ impl TaskHandle {
         }
         Err(DaemonError::Execution("Concurrent task update; retry explicitly".into()))
     }
-    pub fn register_run_job(&self,id:&str,run:Uuid)->DaemonResult<()> {
-        let record=self.store.get(self.id)?.ok_or_else(||DaemonError::Execution("Task missing".into()))?;
-        let launches=super::launch::LaunchStore::new(self.store.db.clone(),std::path::Path::new(&record.workspace))?;
+    pub fn register_run_job(&self, id: &str, run: Uuid) -> DaemonResult<()> {
+        let record = self
+            .store
+            .get(self.id)?
+            .ok_or_else(|| DaemonError::Execution("Task missing".into()))?;
+        let launches = super::launch::LaunchStore::new(
+            self.store.db.clone(),
+            std::path::Path::new(&record.workspace),
+        )?;
         self.change(|r| {
-            let launch=r.launch_intent.ok_or_else(||DaemonError::PermissionDenied("No parent launch".into()))?;
-            let (_,intent)=launches.get(launch,&r.owner_subject)?;
-            if intent.run!=Some(run) || intent.state!=super::launch::LaunchState::Running || !r.task.policy_active || r.task.generation!=self.generation || !matches!(r.task.state,TaskState::Waiting|TaskState::Paused) || r.task.sources.len()>=64 || r.task.sources.contains_key(id) {
-                return Err(DaemonError::PermissionDenied("Run job is not owned by the active launch".into()));
+            let launch = r
+                .launch_intent
+                .ok_or_else(|| DaemonError::PermissionDenied("No parent launch".into()))?;
+            let (_, intent) = launches.get(launch, &r.owner_subject)?;
+            if intent.run != Some(run)
+                || intent.state != super::launch::LaunchState::Running
+                || !r.task.policy_active
+                || r.task.generation != self.generation
+                || !matches!(r.task.state, TaskState::Waiting | TaskState::Paused)
+                || r.task.sources.len() >= 64
+                || r.task.sources.contains_key(id)
+            {
+                return Err(DaemonError::PermissionDenied(
+                    "Run job is not owned by the active launch".into(),
+                ));
             }
-            r.task.sources.insert(id.into(),super::state::Source{id:id.into(),kind:"job".into(),task:r.task.id,generation:self.generation,may_write:true,terminal:None,result:serde_json::Value::Null});Ok(())
-        })?;Ok(())
+            r.task.sources.insert(
+                id.into(),
+                super::state::Source {
+                    id: id.into(),
+                    kind: "job".into(),
+                    task: r.task.id,
+                    generation: self.generation,
+                    may_write: true,
+                    terminal: None,
+                    result: serde_json::Value::Null,
+                },
+            );
+            Ok(())
+        })?;
+        Ok(())
     }
     pub fn register(&self, id: &str, kind: &str, may_write: bool) -> DaemonResult<()> {
         self.change(|r| {

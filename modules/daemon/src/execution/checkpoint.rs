@@ -64,7 +64,7 @@ pub struct ExecutionCheckpoint {
     #[serde(default)]
     pub addon_packages: std::collections::BTreeMap<String, crate::addon::package::Identity>,
     #[serde(default)]
-    pub function_identities: Option<std::collections::BTreeMap<String,String>>,
+    pub function_identities: Option<std::collections::BTreeMap<String, String>>,
     #[serde(default)]
     pub view: super::view::ExecutionView,
     /// An executor may have started, but its outcome is not committed. Never
@@ -139,13 +139,18 @@ pub struct ExecutionCheckpoint {
 impl ExecutionCheckpoint {
     pub(crate) fn ensure_addons(&self, registry: &crate::registry::Registry) -> DaemonResult<()> {
         if self.addon_identity_version != 1 {
-            return Err(DaemonError::Addon("Checkpoint has no verifiable addon identity record; start a new run explicitly".into()));
+            return Err(DaemonError::Addon(
+                "Checkpoint has no verifiable addon identity record; start a new run explicitly"
+                    .into(),
+            ));
         }
         if self.addon_packages != registry.addon_packages {
             return Err(DaemonError::Addon("Addon identity, version, scope or content differs from checkpoint; start a new run explicitly".into()));
         }
-        let functions=registry.function_identities();
-        if self.function_identities.as_ref().is_some_and(|saved|saved!=&functions) || (self.function_identities.is_none() && !functions.is_empty()) {
+        let functions = registry.function_identities();
+        if self.function_identities.as_ref().is_some_and(|saved| saved != &functions)
+            || (self.function_identities.is_none() && !functions.is_empty())
+        {
             return Err(DaemonError::Addon("Function identity or body differs from checkpoint, or legacy evidence is missing; start a new run explicitly".into()));
         }
         Ok(())
@@ -230,6 +235,7 @@ impl DbCheckpointSink {
             if key.starts_with(crate::replan::application::INTENT_PREFIX)
                 || key.starts_with(b"oversight:")
                 || key.starts_with(b"nx/")
+                || (key.len() != 16 && key.starts_with(b"dw/"))
             {
                 continue;
             }
@@ -263,5 +269,79 @@ impl CheckpointSink for DbCheckpointSink {
             tracing::warn!(%error, "review trigger could not be recorded");
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::storage::{
+        approval_delivery::{ApprovalDelivery, Target},
+        delivery::DeliveryStore,
+        recovery::{DraftInput, RecoveryStore},
+    };
+    use uuid::Uuid;
+    #[test]
+    fn daily_workflow_namespaces_do_not_become_execution_checkpoints() {
+        let root =
+            std::env::temp_dir().join(format!("dw-checkpoint-namespaces-{}", Uuid::new_v4()));
+        let db = Db::open(&root).unwrap();
+        let run = Uuid::new_v4();
+        DbCheckpointSink::new(db.clone(), run)
+            .write(&ExecutionCheckpoint::running(run, Uuid::new_v4(), 0))
+            .unwrap();
+        RecoveryStore::new(db.clone(), "project:fixture", "local")
+            .unwrap()
+            .backup(
+                DraftInput {
+                    creation_epoch: None,
+                    id: Uuid::new_v4(),
+                    window_id: Uuid::new_v4(),
+                    kind: "view_state".into(),
+                    entity: "workspace".into(),
+                    edit_sequence: 1,
+                    raw: String::new(),
+                    baseline_identity: None,
+                    selections: vec![],
+                    pending_submission: None,
+                    selected_model: None,
+                    view: Some(serde_json::json!({"schema":1})),
+                },
+                0,
+                Uuid::new_v4(),
+                1,
+            )
+            .unwrap();
+        DeliveryStore::new(db.clone(), "fixture", "local")
+            .unwrap()
+            .retire(Uuid::new_v4(), 1)
+            .unwrap();
+        ApprovalDelivery::new(db.clone(), "local")
+            .unwrap()
+            .claim(
+                Uuid::new_v4(),
+                &Target {
+                    kind: "blueprint".into(),
+                    session: None,
+                    turn: None,
+                    run: Some(run),
+                },
+                &ApprovalDelivery::content_digest("specific immutable action"),
+                "DenyOnce",
+            )
+            .unwrap();
+        let records = DbCheckpointSink::list(&db).unwrap();
+        assert_eq!(records.len(), 1);
+        assert_eq!(records[0].run_id, run);
+        // Binary UUIDs are not string namespace keys, even with this prefix.
+        let mut bytes = [17u8; 16];
+        bytes[..3].copy_from_slice(b"dw/");
+        let other = Uuid::from_bytes(bytes);
+        DbCheckpointSink::new(db.clone(), other)
+            .write(&ExecutionCheckpoint::running(other, Uuid::new_v4(), 0))
+            .unwrap();
+        assert_eq!(DbCheckpointSink::list(&db).unwrap().len(), 2);
+        db.put(cf::EXECUTION_STATE, Uuid::nil().as_bytes(), b"{corrupt checkpoint").unwrap();
+        assert!(DbCheckpointSink::list(&db).is_err());
     }
 }

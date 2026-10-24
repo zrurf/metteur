@@ -77,7 +77,11 @@ pub async fn chat_stream(
 
     let (tx, rx) = mpsc::channel::<Result<Event, Infallible>>(64);
     tokio::spawn(async move {
-        while let Some(item) = stream.next().await {
+        loop {
+            let item = tokio::select! { _ = tx.closed() => break, item = stream.next() => item };
+            let Some(item) = item else {
+                break;
+            };
             let event = match item {
                 Ok(chat) => Ok(to_event(&chat)),
                 Err(status) => Ok(terminal_event(status.message())),

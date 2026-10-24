@@ -31,7 +31,7 @@ fn fail(s: impl Into<String>) -> DaemonError {
 fn store(ws: &Workspace) -> DaemonResult<LaunchStore> {
     LaunchStore::new(ws.db.clone(), ws.root())
 }
-fn probe(
+pub(super) fn probe(
     state: &AppState,
     ws: &Workspace,
     registry: Arc<Registry>,

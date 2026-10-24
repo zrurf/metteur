@@ -5,10 +5,9 @@
 use anyhow::Context;
 use metteur_proto::proto::daemon_client::DaemonClient;
 use metteur_proto::proto::{
-    Blueprint, CancelRequest, CompileDslRequest, ContinueExecutionRequest,
-    DecompileBlueprintRequest, Edge, ExecuteBlueprintRequest, GetExecutionTreeRequest,
-    GetExecutionUsageRequest, InterruptRequest, ListExecutionsRequest, LoadBlueprintRequest, Node,
-    PauseRequest, Pin, ResumeRequest, SaveBlueprintRequest,
+    Blueprint, CompileDslRequest, ContinueExecutionRequest, DecompileBlueprintRequest, Edge,
+    ExecuteBlueprintRequest, GetExecutionTreeRequest, GetExecutionUsageRequest, InterruptRequest,
+    ListExecutionsRequest, LoadBlueprintRequest, Node, Pin, SaveBlueprintRequest,
 };
 use serde_json::{Value, json};
 use tonic::transport::Channel;
@@ -86,6 +85,7 @@ pub(crate) async fn handle_exec(
             blueprint_id: blueprint_id.clone(),
             // The CLI always runs the stored blueprint; the canvas override is
             // for the GUI client holding an in-memory copy.
+            workflow_confirmation: String::new(),
             blueprint_json: String::new(),
         })
         .await
@@ -161,14 +161,11 @@ pub(crate) async fn handle_cancel(
     state: &SessionState,
 ) -> anyhow::Result<Outcome> {
     let ws = require_ws(state)?;
-    client
-        .cancel_execution(CancelRequest {
-            run_id: String::new(),
-            workspace_path: ws,
-        })
-        .await
-        .map_err(status)?;
-    Ok(Outcome::Printed("cancel requested".to_string()))
+    let target = live_target(client, &ws, false).await?;
+    if target.kind != "blueprint" {
+        anyhow::bail!("No live blueprint target");
+    }
+    Ok(Outcome::Printed(super::live::workflow_control(client, &ws, &target, "stop", None).await?))
 }
 
 /// Handles `pause`.
@@ -177,14 +174,11 @@ pub(crate) async fn handle_pause(
     state: &SessionState,
 ) -> anyhow::Result<Outcome> {
     let ws = require_ws(state)?;
-    client
-        .pause_execution(PauseRequest {
-            run_id: String::new(),
-            workspace_path: ws,
-        })
-        .await
-        .map_err(status)?;
-    Ok(Outcome::Printed("pause requested".to_string()))
+    let target = live_target(client, &ws, false).await?;
+    if target.kind != "blueprint" {
+        anyhow::bail!("No live blueprint target");
+    }
+    Ok(Outcome::Printed(super::live::workflow_control(client, &ws, &target, "pause", None).await?))
 }
 
 /// Handles `resume`.
@@ -193,14 +187,11 @@ pub(crate) async fn handle_resume(
     state: &SessionState,
 ) -> anyhow::Result<Outcome> {
     let ws = require_ws(state)?;
-    client
-        .resume_execution(ResumeRequest {
-            run_id: String::new(),
-            workspace_path: ws,
-        })
-        .await
-        .map_err(status)?;
-    Ok(Outcome::Printed("resume requested".to_string()))
+    let target = live_target(client, &ws, false).await?;
+    if target.kind != "blueprint" {
+        anyhow::bail!("No live blueprint target");
+    }
+    Ok(Outcome::Printed(super::live::workflow_control(client, &ws, &target, "resume", None).await?))
 }
 
 /// Handles `say <priority> <message>`: sends an interrupt.
@@ -211,11 +202,39 @@ pub(crate) async fn handle_say(
     message: String,
 ) -> anyhow::Result<Outcome> {
     let ws = require_ws(state)?;
+    let target = live_target(client, &ws, true).await?;
+    if target.kind == "chat" && ["Normal", "Urgent"].contains(&priority.as_str()) {
+        return Ok(Outcome::Printed(
+            super::live::reliable_input(
+                client,
+                &ws,
+                &target,
+                if priority == "Normal" {
+                    "queue"
+                } else {
+                    "steer"
+                },
+                &message,
+            )
+            .await?,
+        ));
+    }
+    if target.kind == "blueprint" && priority == "Urgent" {
+        return Ok(Outcome::Printed(
+            super::live::workflow_control(client, &ws, &target, "temporary_input", Some(&message))
+                .await?,
+        ));
+    }
     client
         .send_interrupt(InterruptRequest {
             workspace_path: ws,
             priority: priority.clone(),
             message: message.clone(),
+            target_kind: target.kind,
+            session_id: target.session,
+            turn_id: target.turn,
+            run_id: target.run,
+            ..Default::default()
         })
         .await
         .map_err(status)?;

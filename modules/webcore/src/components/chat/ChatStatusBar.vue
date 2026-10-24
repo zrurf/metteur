@@ -48,8 +48,8 @@ const slow = computed(() => active.value && !props.waitingForApproval && isSlow(
 
 const tokens = computed(() => {
   const usage = props.usage
-  if (!usage) return ''
-  const cache = cacheHitRate(usage.cachedInputTokens, usage.inputTokens)
+  if (!usage || usage.inputTokens===null || usage.outputTokens===null) return ''
+  const cache = usage.cachedInputTokens===null ? null : cacheHitRate(usage.cachedInputTokens, usage.inputTokens)
   const parts = [
     `${formatTokens(usage.inputTokens)} in`,
     `${formatTokens(usage.outputTokens)} out`,

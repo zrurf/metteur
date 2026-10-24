@@ -7,6 +7,12 @@ use std::collections::HashMap;
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct ExecutionView {
+    #[serde(default)]
+    pub workflow_evidence: HashMap<u64, crate::workflow::evidence::EvidenceSnapshot>,
+    #[serde(default)]
+    pub workflow_handoff: Option<uuid::Uuid>,
+    #[serde(default)]
+    pub workflow_task: Option<uuid::Uuid>,
     pub root: Option<Blueprint>,
     pub graphs: HashMap<String, Blueprint>,
     pub invocations: Vec<Invocation>,

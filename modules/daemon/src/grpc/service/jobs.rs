@@ -7,8 +7,7 @@ use tonic::{Request, Response, Status};
 use crate::execution::jobs::{JobNoticeKind, JobSnapshot, JobState};
 
 use super::super::proto::{
-    JobEvent, JobInfo, JobList, KillJobRequest, KillJobResponse, ListJobsRequest,
-    WatchJobsRequest,
+    JobEvent, JobInfo, JobList, KillJobRequest, KillJobResponse, ListJobsRequest, WatchJobsRequest,
 };
 use super::*;
 
@@ -80,7 +79,11 @@ impl DaemonService {
         let (tx, out_rx) = tokio::sync::mpsc::channel(64);
         tokio::spawn(async move {
             loop {
-                match rx.recv().await {
+                let notice = tokio::select! {
+                    _ = tx.closed() => break,
+                    notice = rx.recv() => notice,
+                };
+                match notice {
                     Ok(notice) => {
                         let exit_code = exit_code_of(&notice.snapshot);
                         let event = JobEvent {
@@ -99,7 +102,14 @@ impl DaemonService {
                         }
                     }
                     // Backlog overflow: the client resyncs with ListJobs.
-                    Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => continue,
+                    Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => {
+                        let _ = tx
+                            .send(Err(Status::resource_exhausted(
+                                "Job events overflowed; resubscribe and resync",
+                            )))
+                            .await;
+                        break;
+                    }
                     Err(tokio::sync::broadcast::error::RecvError::Closed) => break,
                 }
             }

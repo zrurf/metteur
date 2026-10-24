@@ -344,6 +344,18 @@ impl Interpreter {
                 executor.execute(&node, &inputs, ctx).await?
             };
             self.in_flight = None;
+            if let Some(contract) = metteur_shared::workflow::read_contract(&active_bp)
+                .map_err(|e| DaemonError::Execution(e.to_string()))?
+                && contract.criteria.iter().any(|criterion| matches!(criterion.check,
+                    metteur_shared::workflow::CheckBinding::Command { command_node, .. } if command_node == node_id))
+                && let Some(record) = self.view.invocations.last()
+            {
+                let sequence = record.sequence;
+                let root = ctx.workspace_root.clone();
+                let evidence = tokio::task::spawn_blocking(move || crate::workflow::evidence::capture(&root, &contract))
+                    .await.map_err(|e| DaemonError::Execution(e.to_string()))?;
+                self.view.workflow_evidence.insert(sequence, evidence);
+            }
             if matches!(node.kind.as_str(), "Validator" | "LspCheck") {
                 let passed = node
                     .pins

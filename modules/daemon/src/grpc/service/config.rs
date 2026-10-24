@@ -46,16 +46,21 @@ impl DaemonService {
         // presence overlay cannot represent. Keep raw TOML editable, but do not
         // offer a form migration that changes the effective configuration.
         let compatible = if is_workspace {
-            overrides.merge(&*self.state.global_config.read().await)
-                .map_err(|e| Status::internal(e.to_string()))? == effective
+            overrides
+                .merge(&*self.state.global_config.read().await)
+                .map_err(|e| Status::internal(e.to_string()))?
+                == effective
         } else {
             overrides.effective().map_err(|e| Status::internal(e.to_string()))? == effective
         };
         Ok(Response::new(ProtoConfig {
             config_json: serde_json::to_string(&layer)
                 .map_err(|e| Status::internal(e.to_string()))?,
-            overrides_json: if compatible { serde_json::to_string(&overrides)
-                .map_err(|e| Status::internal(e.to_string()))? } else { String::new() },
+            overrides_json: if compatible {
+                serde_json::to_string(&overrides).map_err(|e| Status::internal(e.to_string()))?
+            } else {
+                String::new()
+            },
             effective_json: serde_json::to_string(&effective)
                 .map_err(|e| Status::internal(e.to_string()))?,
             legacy_format: layer.config_version.is_none(),
@@ -158,6 +163,7 @@ impl DaemonService {
                 );
             }
             *ws.config.write().await = merged;
+            ws.db.notify_changes();
             ws.reload_lsp().await;
             if !global_scope {
                 let _ = AuditWriter::new(ws.db.clone()).record(
